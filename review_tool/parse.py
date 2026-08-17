@@ -54,6 +54,20 @@ def _to_bool(v):
     return None
 
 
+def _to_bedtime_min(raw):
+    """'HH:MM' / 'HH:MM:SS' -> 距 00:00 分钟数; 解析失败返回 None。"""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    m = re.match(r"^(\d{1,2}):(\d{2})", s)
+    if not m:
+        return None
+    h, mi = int(m.group(1)), int(m.group(2))
+    if h > 23 or mi > 59:
+        return None
+    return h * 60 + mi
+
+
 def _coerce(col, raw):
     if raw is None or str(raw).strip() == "":
         return None
@@ -61,6 +75,9 @@ def _coerce(col, raw):
     # 三餐情况: "早✓午✓晚✓" / "早✓午✓晚✗" -> 统计 ✓ 数量
     if col == "meals_count" and "✓" in raw:
         return raw.count("✓")
+    # 入睡时间: "00:39" -> 39 (分钟)
+    if col == "bedtime":
+        return _to_bedtime_min(raw)
     if col in INT_FIELDS:
         m = re.search(r"-?\d+", raw)
         return int(m.group()) if m else None
