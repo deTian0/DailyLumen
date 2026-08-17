@@ -24,11 +24,12 @@ FIELD_MAP = {
     "training_day": "training_day", "训练日": "training_day",
     "sleep_h": "sleep_h", "睡眠时长_h": "sleep_h", "睡眠时长": "sleep_h",
     "sleep_quality": "sleep_quality", "睡眠质量": "sleep_quality",
+    "bedtime": "bedtime", "入睡时间": "bedtime",
     "supps_done": "supps_done", "补剂完成": "supps_done",
     "exercise_min": "exercise_min", "运动时长_min": "exercise_min", "运动时长": "exercise_min",
     "commute_done": "commute_done", "通勤完成": "commute_done",
     "diet_kcal": "diet_kcal", "饮食热量_kcal": "diet_kcal", "饮食热量": "diet_kcal",
-    "meals_count": "meals_count", "三餐次数": "meals_count",
+    "meals_count": "meals_count", "三餐次数": "meals_count", "三餐情况": "meals_count",
     "breakfast_on_time": "breakfast_on_time", "早餐按时": "breakfast_on_time",
     "phone_h": "phone_h", "手机屏幕_h": "phone_h", "手机屏幕": "phone_h",
     "deepwork_h": "deepwork_h", "深度工作_h": "deepwork_h", "深度工作": "deepwork_h",
@@ -57,6 +58,9 @@ def _coerce(col, raw):
     if raw is None or str(raw).strip() == "":
         return None
     raw = str(raw).strip()
+    # 三餐情况: "早✓午✓晚✓" / "早✓午✓晚✗" -> 统计 ✓ 数量
+    if col == "meals_count" and "✓" in raw:
+        return raw.count("✓")
     if col in INT_FIELDS:
         m = re.search(r"-?\d+", raw)
         return int(m.group()) if m else None

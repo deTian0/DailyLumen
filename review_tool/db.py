@@ -32,7 +32,7 @@ def upsert(conn, row: dict):
     row.setdefault("ingested_at", datetime.now().isoformat(timespec="seconds"))
     cols = [
         "date", "weekday", "iso_week", "month", "training_day",
-        "sleep_h", "sleep_quality", "supps_done", "exercise_min", "commute_done",
+        "sleep_h", "sleep_quality", "bedtime", "supps_done", "exercise_min", "commute_done",
         "diet_kcal", "meals_count", "breakfast_on_time", "phone_h",
         "deepwork_h", "energy", "mood",
         "health_score", "work_score", "learn_score", "life_score",

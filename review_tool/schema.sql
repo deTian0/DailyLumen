@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS daily_reviews (
     -- 健康子指标
     sleep_h         REAL,                       -- 睡眠时长(小时)
     sleep_quality   INTEGER,                    -- 睡眠质量 0-100
+    bedtime         TEXT,                       -- 入睡时间 HH:MM
     supps_done      INTEGER,                    -- 1=补剂全完成 0=否
     exercise_min    INTEGER,                    -- 正式运动时长(分钟)
     commute_done    INTEGER,                    -- 1=通勤完成 0=否
