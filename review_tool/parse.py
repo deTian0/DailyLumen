@@ -91,11 +91,15 @@ def _coerce(col, raw):
 
 def parse_text(text: str) -> dict:
     """解析一段复盘文本 -> 结构化行 dict。"""
-    # 1) 提取数据块 (优先 markdown 注释块)
+    # 1) 提取数据块: 优先 ```data 代码块, 其次 markdown 注释块
     body = text
-    m = re.search(r"<!--\s*=====\s*数据块.*?=====\s*/数据块\s*-->", text, re.S)
+    m = re.search(r"```data\s*\n(.*?)```", text, re.S)
     if m:
-        body = m.group(0)
+        body = m.group(1)
+    else:
+        m = re.search(r"<!--\s*=====\s*数据块.*?=====\s*/数据块\s*-->", text, re.S)
+        if m:
+            body = m.group(0)
 
     # 2) 匹配 key: value 行 (兼容 `key: value` 和 `key：value`)
     row = {}
