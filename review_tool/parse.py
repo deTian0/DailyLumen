@@ -1,20 +1,25 @@
 """解析每日复盘文本/Markdown -> 结构化 dict。
 
-支持两种来源:
-  A) 用户直接发的结构化表头文本, 例如:
-       date: 2026-08-05
-       day: 周二
-       training_day: yes
-       sleep_h: 6.42
-       ...
-  B) 每日复盘模板 markdown, 顶部有 HTML 注释数据块:
-       <!-- ===== 数据块 =====
-       日期: YYYY-MM-DD
+支持三种来源:
+  A) 标准 DailyLumen 格式：末尾的 ```data 代码块
+       ```data
+       日期: 2026-08-05
        睡眠时长_h: 6.42
-       ... ===== /数据块 ===== -->
+       ...
+       ```
+  B) 旧模板格式：顶部 HTML 注释数据块
+       <!-- ===== 数据块 ===== 日期: ... ===== /数据块 ===== -->
+  C) 用户直接发的结构化表头文本（散落的 `key: value` 行）
+
+字段名兼容中英文两套命名（如 睡眠时长_h / sleep_h）。
 """
+from __future__ import annotations
+
 import re
-from config import INT_FIELDS, FLOAT_FIELDS, BOOL_FIELDS, TEXT_FIELDS, system_score_from
+
+from .config import (
+    INT_FIELDS, FLOAT_FIELDS, BOOL_FIELDS, TEXT_FIELDS, system_score_from,
+)
 
 # 数据块的 YAML 风格字段名 -> 数据库列名
 FIELD_MAP = {
@@ -44,8 +49,12 @@ FIELD_MAP = {
     "summary": "summary", "一句话总结": "summary",
 }
 
+# key: value 行（兼容中英文冒号）
+_LINE_RE = re.compile(r"^([\w一-鿿_]+)\s*[:：]\s*(.*)$")
 
-def _to_bool(v):
+
+def _to_bool(v) -> int | None:
+    """yes/y/true/1/是/✓/ok -> 1；no/n/false/0/否/✗/空 -> 0；其余 -> None。"""
     if v is None:
         return None
     s = str(v).strip().lower()
@@ -56,8 +65,8 @@ def _to_bool(v):
     return None
 
 
-def _to_bedtime_min(raw):
-    """'HH:MM' / 'HH:MM:SS' -> 距 00:00 分钟数; 解析失败返回 None。"""
+def _to_bedtime_min(raw) -> int | None:
+    """'HH:MM' / 'HH:MM:SS' -> 距 00:00 分钟数；解析失败返回 None。"""
     if raw is None:
         return None
     s = str(raw).strip()
@@ -70,7 +79,8 @@ def _to_bedtime_min(raw):
     return h * 60 + mi
 
 
-def _coerce(col, raw):
+def _coerce(col: str, raw) -> object | None:
+    """按字段类型把字符串原始值转换为目标类型。"""
     if raw is None or str(raw).strip() == "":
         return None
     raw = str(raw).strip()
@@ -91,35 +101,38 @@ def _coerce(col, raw):
     return raw  # text
 
 
-def parse_text(text: str) -> dict:
-    """解析一段复盘文本 -> 结构化行 dict。"""
-    # 1) 提取数据块: 优先 ```data 代码块, 其次 markdown 注释块
-    body = text
+def _extract_block(text: str) -> str:
+    """优先提取 ```data 代码块；其次 HTML 注释数据块；都没有返回 None。"""
     m = re.search(r"```data\s*\n(.*?)```", text, re.S)
     if m:
-        body = m.group(1)
+        return m.group(1)
+    m = re.search(r"<!--\s*=====\s*数据块.*?=====\s*/数据块\s*-->", text, re.S)
+    if m:
+        return m.group(0)
+    return None
+
+
+def parse_text(text: str) -> dict:
+    """解析一段复盘文本 -> 结构化行 dict。"""
+    body = _extract_block(text)
+
+    row: dict = {}
+    # 1) 若找到数据块，只在块内匹配 key: value
+    if body:
+        for line in body.splitlines():
+            line = line.strip()
+            mm = _LINE_RE.match(line)
+            if not mm:
+                continue
+            key, val = mm.group(1).strip(), mm.group(2).strip()
+            db_col = FIELD_MAP.get(key)
+            if db_col and val != "":
+                row[db_col] = _coerce(db_col, val)
     else:
-        m = re.search(r"<!--\s*=====\s*数据块.*?=====\s*/数据块\s*-->", text, re.S)
-        if m:
-            body = m.group(0)
-
-    # 2) 匹配 key: value 行 (兼容 `key: value` 和 `key：value`)
-    row = {}
-    for line in body.splitlines():
-        line = line.strip()
-        mm = re.match(r"^([\w\u4e00-\u9fff_]+)\s*[:：]\s*(.*)$", line)
-        if not mm:
-            continue
-        key, val = mm.group(1).strip(), mm.group(2).strip()
-        db_col = FIELD_MAP.get(key)
-        if db_col and val != "":
-            row[db_col] = _coerce(db_col, val)
-
-    # 3) 若没有数据块, 退而求其次: 扫描全文中 `字段：值` 行 (兼容用户直接发的格式)
-    if "date" not in row:
+        # 2) 无数据块：扫描全文 `字段：值` 行（兼容用户直接发的格式）
         for line in text.splitlines():
             line = line.strip()
-            mm = re.match(r"^([\w\u4e00-\u9fff_]+)\s*[:：]\s*(.*)$", line)
+            mm = _LINE_RE.match(line)
             if not mm:
                 continue
             key, val = mm.group(1).strip(), mm.group(2).strip()
@@ -127,13 +140,14 @@ def parse_text(text: str) -> dict:
             if db_col and val != "":
                 row[db_col] = _coerce(db_col, val)
 
-    # 4) 补系统分
+    # 3) 补系统分
     if row.get("date"):
         row["system_score"] = system_score_from(row)
     return row
 
 
 def parse_file(path: str) -> dict:
+    """读取 md 文件并解析。结果附带 raw_path。"""
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
     row = parse_text(text)

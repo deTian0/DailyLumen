@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dailylumen"
+version = "1.0.0"
+description = "每日复盘系统：结构化复盘沉淀进 SQLite 单一数据源，自动评分并做周/月分析"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []  # 零运行时依赖，仅需 Python 标准库
+
+[project.scripts]
+dailylumen = "review_tool.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["review_tool*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

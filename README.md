@@ -10,47 +10,77 @@
 ```
 每日复盘计划/                         # 项目根 (仓库名 DailyLumen)
 ├── README.md                         # 本文件：项目说明 + 评分规则
+├── pyproject.toml                    # 项目元数据 + pytest 配置（零依赖）
+├── requirements.txt                  # 依赖说明（运行时零依赖）
 ├── 每日复盘模板.md                    # 每天复盘的模板（一键生成时复制它）
-├── 每日复盘/                         # 你每天把复盘 .md 文件丢这里
+├── 每日复盘/                         # 你每天把复盘 .md 文件丢这里（入库数据源）
 │   ├── 2026-08-05.md
-│   └── 2026-08-17.md
-└── review_tool/                      # 解析 / 评分 / 入库 / 分析脚本
-    ├── schema.sql                    # 建表（含 CHECK 约束）
-    ├── config.py                     # 路径与字段映射
-    ├── db.py                         # SQLite 读写
+│   └── ...
+├── tests/                            # 测试套件（标准库 unittest，零依赖）
+│   ├── test_parse.py
+│   ├── test_score.py
+│   ├── test_db.py
+│   └── test_ingest.py
+└── review_tool/                      # 解析 / 评分 / 入库 / 分析（标准 Python 包）
+    ├── __init__.py                   # 包公共 API 导出
+    ├── __main__.py                   # 统一命令行入口 (python -m review_tool)
+    ├── config.py                     # 路径与常量
+    ├── db.py                         # SQLite 读写（建表 / upsert / 查询）
     ├── parse.py                      # 解析 md -> 结构化 dict（兼容三种格式）
     ├── score.py                      # 四维评分自动生成 ★
     ├── ingest.py                     # 入库（按 date 主键 upsert）
     ├── analyze.py                    # 周 / 月分析
     ├── new_day.py                    # 一键生成当天复盘文件
-    └── reviews.db                    # 数据库（自动生成，已 gitignore）
+    ├── import_history.py             # 语雀历史文件转换导入
+    ├── schema.sql                    # 建表（含 CHECK 约束）
+    └── reviews.db                    # 数据库（单一数据源，随仓库提交）
 ```
 
 ---
 
 ## 使用流程
 
+所有命令统一通过包入口 `python -m review_tool` 运行（项目已改造为标准 Python 包，相对 import，可在任意目录执行）。
+
 1. **生成当天文件**
    ```bash
-   python review_tool/new_day.py            # 默认今天
-   python review_tool/new_day.py 2026-08-20 # 指定日期
+   python -m review_tool new-day            # 默认今天
+   python -m review_tool new-day 2026-08-20 # 指定日期
    ```
    自动从模板复制并填好日期 / 星期，你只需改 `附录 · 系统数据` 里的数值和打卡勾选。
 2. **入库**
    ```bash
-   python review_tool/ingest.py            # 入库「每日复盘/」全部文件
-   python review_tool/ingest.py 某个文件.md # 入库指定文件
+   python -m review_tool ingest            # 入库「每日复盘/」全部文件
+   python -m review_tool ingest 某个文件.md # 入库指定文件
    ```
 3. **周分析**
    ```bash
-   python review_tool/analyze.py week        # 本周
-   python review_tool/analyze.py week 32     # 指定 ISO 周
+   python -m review_tool week        # 所有周
+   python -m review_tool week 32     # 指定 ISO 周
    ```
 4. **月分析**
    ```bash
-   python review_tool/analyze.py month        # 本月
-   python review_tool/analyze.py month 202608 # 指定年月
+   python -m review_tool month        # 本月（最近一个月）
+   python -m review_tool month 202608 # 指定年月
    ```
+5. **历史语雀文件导入**
+   ```bash
+   python -m review_tool import-history            # 转换并写入「每日复盘/」
+   python -m review_tool import-history --check    # 仅预览解析结果
+   python -m review_tool import-history --src DIR  # 指定来源目录
+   ```
+
+## 运行测试
+
+测试基于 Python 标准库 `unittest`，**零额外依赖**：
+
+```bash
+python -m unittest discover -s tests -t .
+```
+
+（若偏好 pytest，安装后直接 `pytest` 即可，已在 `pyproject.toml` 配置 `pythonpath` 与 `testpaths`。）
+
+覆盖：解析三种格式 / bedtime 分钟化 / 三餐计数、健康分加权与跨午夜、工作/学习/生活分档、CHECK 约束拦截、upsert 幂等、入库端到端。
 
 ### 数据块（唯一数据入口）
 
