@@ -1,0 +1,14 @@
+# DailyLumen - 每日复盘分析工具
+
+# 项目本地记忆 (敏感/本地状态, 不入库)
+.workbuddy/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 已被 review_tool/ 取代的旧文件 (保留在本地, 不入库)
+打卡追踪表_2026-08.xlsx
+复盘数据_2026-08.xlsx
+build_data.py
+create_tracker.py
