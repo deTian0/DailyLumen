@@ -33,6 +33,8 @@ FIELD_MAP = {
     "breakfast_on_time": "breakfast_on_time", "早餐按时": "breakfast_on_time",
     "phone_h": "phone_h", "手机屏幕_h": "phone_h", "手机屏幕": "phone_h",
     "deepwork_h": "deepwork_h", "深度工作_h": "deepwork_h", "深度工作": "deepwork_h",
+    "learn_h": "learn_h", "学习投入_h": "learn_h", "学习_h": "learn_h", "学习投入": "learn_h",
+    "life_h": "life_h", "生活投入_h": "life_h", "生活_h": "life_h", "生活投入": "life_h",
     "energy": "energy", "精力": "energy",
     "mood": "mood", "心情": "mood",
     "health_score": "health_score", "健康分": "health_score",

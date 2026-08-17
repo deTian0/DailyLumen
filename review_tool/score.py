@@ -2,9 +2,10 @@
 
 原则:
 - 健康分: 完全基于客观健康子指标, 规则可解释 (compute_health_score)
-- 工作分: 基于可选旧字段 深度工作_h (deepwork_h); 未填则留 None 由用户手填
-- 学习分/生活分: 当前模板无结构化输入, 留 None 由用户手填
-  (若后续在可选字段加入 学习投入_h / 生活事件, 可在此扩展自动算)
+- 工作分: 基于 深度工作_h (deepwork_h)
+- 学习分: 基于 学习投入_h (learn_h)
+- 生活分: 基于 生活投入_h (life_h)
+- 任一维度数据缺失 -> 该维留 None (不瞎编), 系统分四维齐全才计算
 """
 from config import DIMENSIONS
 
@@ -17,10 +18,10 @@ def compute_health_score(row):
     """基于健康子指标规则化生成 1-10 的健康分。数据不足返回 None。"""
     parts = []  # (score_0_10, weight)
 
-    # 睡眠时长
+    # 睡眠时长 (满分 8h)
     sh = row.get("sleep_h")
     if sh is not None:
-        if sh >= 7.5:
+        if sh >= 8.0:
             s = 10
         elif sh >= 7.0:
             s = 8
@@ -113,13 +114,44 @@ def compute_work_score(row):
     return 3
 
 
+def compute_learn_score(row):
+    """基于学习投入小时生成学习分; 未填 learn_h 返回 None。"""
+    lh = row.get("learn_h")
+    if lh is None:
+        return None
+    if lh >= 3:
+        return 9
+    if lh >= 2:
+        return 7
+    if lh >= 1:
+        return 5
+    return 3
+
+
+def compute_life_score(row):
+    """基于生活投入小时生成生活分; 未填 life_h 返回 None。"""
+    lh = row.get("life_h")
+    if lh is None:
+        return None
+    if lh >= 3:
+        return 9
+    if lh >= 2:
+        return 7
+    if lh >= 1:
+        return 5
+    return 3
+
+
 def compute_scores(row):
     """补全缺失的四维评分 (只补 None 的, 不覆盖手填值)。返回 row 自身。"""
     if row.get("health_score") is None:
         row["health_score"] = compute_health_score(row)
     if row.get("work_score") is None:
         row["work_score"] = compute_work_score(row)
-    # learn_score / life_score: 暂留 None (无结构化输入, 由用户手填)
+    if row.get("learn_score") is None:
+        row["learn_score"] = compute_learn_score(row)
+    if row.get("life_score") is None:
+        row["life_score"] = compute_life_score(row)
     return row
 
 
