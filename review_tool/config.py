@@ -18,7 +18,7 @@ INT_FIELDS = {
     "sleep_quality", "exercise_min", "diet_kcal", "meals_count",
     "health_score", "work_score", "learn_score", "life_score",
 }
-FLOAT_FIELDS = {"sleep_h", "phone_h", "deepwork_h"}
+FLOAT_FIELDS = {"sleep_h", "phone_h", "deepwork_h", "learn_h", "life_h"}
 BOOL_FIELDS = {
     "training_day", "supps_done", "commute_done", "breakfast_on_time",
 }

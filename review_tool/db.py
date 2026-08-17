@@ -34,7 +34,7 @@ def upsert(conn, row: dict):
         "date", "weekday", "iso_week", "month", "training_day",
         "sleep_h", "sleep_quality", "bedtime", "supps_done", "exercise_min", "commute_done",
         "diet_kcal", "meals_count", "breakfast_on_time", "phone_h",
-        "deepwork_h", "energy", "mood",
+        "deepwork_h", "learn_h", "life_h", "energy", "mood",
         "health_score", "work_score", "learn_score", "life_score",
         "system_score", "summary", "raw_path", "ingested_at",
     ]

@@ -35,6 +35,10 @@ CREATE TABLE IF NOT EXISTS daily_reviews (
     -- 工作 / 学习 / 生活
     deepwork_h      REAL
         CHECK (deepwork_h IS NULL OR deepwork_h >= 0),
+    learn_h         REAL
+        CHECK (learn_h IS NULL OR learn_h >= 0),
+    life_h          REAL
+        CHECK (life_h IS NULL OR life_h >= 0),
     energy          TEXT,                       -- 精力 (可选,文本)
     mood            TEXT,                       -- 心情 (可选,文本)
 
