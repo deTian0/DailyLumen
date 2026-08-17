@@ -56,9 +56,6 @@ def main():
     content = re.sub(r"1\. 周三训练日.*?\n2\. 控制番茄小说.*?\n3\. 深度工作保持 5h.*?\n",
                      "1. \n2. \n3. \n", content, flags=re.S)
 
-    # 6) 标题下的说明提示更新为"今天"
-    content = content.replace("（示例为 8/5，改成当天的）", "（改成今天的数值）")
-
     # 写文件
     out = os.path.join(INPUT_DIR, f"{d.isoformat()}.md")
     if os.path.exists(out):
