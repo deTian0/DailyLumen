@@ -1,0 +1,6 @@
+# DailyLumen 运行时依赖：无（纯 Python 标准库，Python 3.10+）
+
+# 开发/测试依赖（可选）：
+#   测试默认用标准库 unittest，无需安装任何包：
+#     python -m unittest discover -s tests -t .
+#   若你偏好 pytest，可安装：pip install pytest

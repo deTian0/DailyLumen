@@ -1,22 +1,24 @@
 """根据结构化数据动态生成四维评分 (健康/工作/学习/生活)。
 
 原则:
-- 健康分: 完全基于客观健康子指标, 规则可解释 (compute_health_score)
+- 健康分: 完全基于客观健康子指标，规则可解释 (compute_health_score)
 - 工作分: 基于 深度工作_h (deepwork_h)
 - 学习分: 基于 学习投入_h (learn_h)
 - 生活分: 基于 生活投入_h (life_h)
-- 任一维度数据缺失 -> 该维留 None (不瞎编), 系统分四维齐全才计算
+- 任一维度数据缺失 -> 该维留 None (不瞎编)，系统分四维齐全才计算
 """
-from config import DIMENSIONS
+from __future__ import annotations
+
+from .config import DIMENSIONS
 
 
-def _clamp(v, lo=1, hi=10):
+def _clamp(v, lo: int = 1, hi: int = 10) -> int:
     return max(lo, min(hi, int(round(v))))
 
 
-def compute_health_score(row):
+def compute_health_score(row: dict) -> int | None:
     """基于健康子指标规则化生成 1-10 的健康分。数据不足返回 None。"""
-    parts = []  # (score_0_10, weight)
+    parts: list[tuple[int, float]] = []  # (score_0_10, weight)
 
     # 睡眠时长 (满分 8h)
     sh = row.get("sleep_h")
@@ -100,8 +102,8 @@ def compute_health_score(row):
     return _clamp(score)
 
 
-def compute_work_score(row):
-    """基于深度工作小时生成工作分; 未填 deepwork_h 返回 None。"""
+def compute_work_score(row: dict) -> int | None:
+    """基于深度工作小时生成工作分；未填 deepwork_h 返回 None。"""
     dw = row.get("deepwork_h")
     if dw is None:
         return None
@@ -114,8 +116,8 @@ def compute_work_score(row):
     return 3
 
 
-def compute_learn_score(row):
-    """基于学习投入小时生成学习分; 未填 learn_h 返回 None。"""
+def compute_learn_score(row: dict) -> int | None:
+    """基于学习投入小时生成学习分；未填 learn_h 返回 None。"""
     lh = row.get("learn_h")
     if lh is None:
         return None
@@ -128,8 +130,8 @@ def compute_learn_score(row):
     return 3
 
 
-def compute_life_score(row):
-    """基于生活投入小时生成生活分; 未填 life_h 返回 None。"""
+def compute_life_score(row: dict) -> int | None:
+    """基于生活投入小时生成生活分；未填 life_h 返回 None。"""
     lh = row.get("life_h")
     if lh is None:
         return None
@@ -142,8 +144,8 @@ def compute_life_score(row):
     return 3
 
 
-def compute_scores(row):
-    """补全缺失的四维评分 (只补 None 的, 不覆盖手填值)。返回 row 自身。"""
+def compute_scores(row: dict) -> dict:
+    """补全缺失的四维评分 (只补 None 的，不覆盖手填值)。返回 row 自身。"""
     if row.get("health_score") is None:
         row["health_score"] = compute_health_score(row)
     if row.get("work_score") is None:
@@ -153,9 +155,3 @@ def compute_scores(row):
     if row.get("life_score") is None:
         row["life_score"] = compute_life_score(row)
     return row
-
-
-def system_score_from(row):
-    """四维齐全则算系统分; 否则 None。供 ingest 在补分后重算。"""
-    from config import system_score_from as _ssf
-    return _ssf(row)
