@@ -30,11 +30,11 @@ def main():
     # 1) 填日期/星期
     content = content.replace("YYYY-MM-DD", d.isoformat())
     content = content.replace("星期X", WEEKDAY_CN[d.weekday()])
-    # 数据块内 "星期: X" (模板里是示例 "星期: 二") -> 当天
-    content = re.sub(r"(星期: )\S+", f"\\g<1>{WEEKDAY_CN[d.weekday()]}", content)
+    # 数据块内 "星期: X" (模板清空后为 "星期: ") -> 当天 (用 \S* 兼容空值)
+    content = re.sub(r"(星期: )\S*", f"\\g<1>{WEEKDAY_CN[d.weekday()]}", content)
 
-    # 2) 日期行 (数据块内 "日期: 2026-08-05" -> 当天)
-    content = re.sub(r"(日期: )\S+", f"\\g<1>{d.isoformat()}", content)
+    # 2) 日期行 (数据块内 "日期: " 清空) -> 当天
+    content = re.sub(r"(日期: )\S*", f"\\g<1>{d.isoformat()}", content)
 
     # 3) 清空示例数值: 数据块里 `键: 示例值` -> `键: ` (留空)
     #    只清已知字段, 保留键名

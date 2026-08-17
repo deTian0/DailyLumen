@@ -8,7 +8,8 @@ import os
 import sys
 from db import init_db, get_conn, upsert, count
 from parse import parse_file
-from config import INPUT_DIR
+from score import compute_scores
+from config import INPUT_DIR, system_score_from
 
 
 def ingest_path(conn, path):
@@ -16,6 +17,10 @@ def ingest_path(conn, path):
     if not row.get("date"):
         print(f"  [跳过] {os.path.basename(path)}: 未解析到日期")
         return False
+    # 自动补全缺失的四维评分 (健康分基于客观指标, 工作分基于深度工作_h)
+    compute_scores(row)
+    # 重算系统分 (四维补齐后)
+    row["system_score"] = system_score_from(row)
     upsert(conn, row)
     conn.commit()
     return True
