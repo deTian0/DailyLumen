@@ -1,0 +1,10 @@
+# 统一换行规则：仓库与工作区均使用 LF，消除 Windows 下 CRLF 警告
+* text=auto eol=lf
+
+# 明确二进制文件，避免被当作文本处理 / 行尾归一
+*.db binary
+*.sqlite binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
