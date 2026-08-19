@@ -12,7 +12,7 @@ import sys
 from .db import init_db, get_conn, upsert, count
 from .parse import parse_file
 from .score import compute_scores
-from .config import INPUT_DIR, system_score_from
+from .config import INPUT_DIR, INBOX_DIR, system_score_from
 
 
 def ingest_path(conn, path: str) -> bool:
@@ -30,18 +30,27 @@ def ingest_path(conn, path: str) -> bool:
     return True
 
 
+def iter_markdown(input_dir: str) -> list[str]:
+    """递归收集 input_dir 下所有 .md（含子目录，如 复盘/），跳过收件箱。"""
+    result: list[str] = []
+    for root, dirs, files in os.walk(input_dir):
+        rel = os.path.relpath(root, input_dir)
+        if "收件箱" in rel.split(os.sep):
+            continue
+        for f in sorted(files):
+            if f.endswith(".md"):
+                result.append(os.path.join(root, f))
+    return sorted(result)
+
+
 def ingest_all(conn, input_dir: str = INPUT_DIR) -> int:
-    """扫描 input_dir 下所有 .md 入库，返回成功条数。"""
-    paths = [
-        os.path.join(input_dir, f)
-        for f in sorted(os.listdir(input_dir))
-        if f.endswith(".md")
-    ]
+    """递归扫描 input_dir 下所有 .md 入库，返回成功条数。"""
+    paths = iter_markdown(input_dir)
     ok = 0
     for p in paths:
         if os.path.exists(p) and ingest_path(conn, p):
             ok += 1
-            print(f"  [入库] {os.path.basename(p)}")
+            print(f"  [入库] {os.path.relpath(p, input_dir)}")
     return ok
 
 

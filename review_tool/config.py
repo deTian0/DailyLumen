@@ -21,6 +21,12 @@ SCHEMA_PATH = os.path.join(PACKAGE_DIR, "schema.sql")
 # 每日复盘 md 输入目录（你每天把复盘文件丢这里）
 INPUT_DIR = os.path.join(BASE_DIR, "每日复盘")
 
+# 自动生成复盘的输出子目录（区别于手写/历史复盘，避免新旧混放）
+GENERATED_DIR = os.path.join(INPUT_DIR, "复盘")
+
+# 收件箱（用户投放原始简报/截图的目录，入库扫描时跳过）
+INBOX_DIR = os.path.join(INPUT_DIR, "收件箱")
+
 # 复盘模板
 TEMPLATE_PATH = os.path.join(BASE_DIR, "每日复盘模板.md")
 
