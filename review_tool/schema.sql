@@ -1,5 +1,5 @@
 -- 每日复盘数据库 schema
--- 单一数据源：所有每日复盘的结构化字段都落在这张表
+-- 单一数据源：所有每日复盘的「通用」结构化字段都落在这张表
 -- 约束说明：CHECK 用于拦截脏数据，四维 1-10、质量 0-100、布尔 0/1、数值非负
 
 CREATE TABLE IF NOT EXISTS daily_reviews (
@@ -11,14 +11,12 @@ CREATE TABLE IF NOT EXISTS daily_reviews (
     training_day    INTEGER
         CHECK (training_day IN (0, 1)),        -- 1=训练日 0=否
 
-    -- 健康子指标
+    -- 健康子指标（通用，人人都有）
     sleep_h         REAL
         CHECK (sleep_h IS NULL OR sleep_h >= 0),
     sleep_quality   INTEGER
         CHECK (sleep_quality IS NULL OR (sleep_quality BETWEEN 0 AND 100)),
     bedtime         INTEGER,                    -- 入睡时间: 距 00:00 的分钟数 (00:39 -> 39)
-    supps_done      INTEGER
-        CHECK (supps_done IN (0, 1)),          -- 1=补剂全完成 0=否
     exercise_min    INTEGER
         CHECK (exercise_min IS NULL OR exercise_min >= 0),
     commute_done    INTEGER
@@ -67,3 +65,17 @@ CREATE TABLE IF NOT EXISTS daily_reviews (
 -- 索引: 按 ISO 周快速聚合
 CREATE INDEX IF NOT EXISTS idx_iso_week ON daily_reviews(iso_week);
 CREATE INDEX IF NOT EXISTS idx_month ON daily_reviews(month);
+
+-- 个人定制化打卡（服药 / 护肤 / 自定义）：不计入通用评分，单独统计
+-- 与通用表解耦：小伙伴可自定义自己的个人项，无需改表结构
+CREATE TABLE IF NOT EXISTS personal_tracks (
+    date     TEXT NOT NULL,                    -- 关联日期
+    category TEXT NOT NULL,                    -- 服药 / 护肤 / 自定义类别
+    item     TEXT NOT NULL,                    -- 具体项 (CoQ10, Exia早3, 护肤...)
+    done     INTEGER
+        CHECK (done IN (0, 1)),                -- 1=完成 0=未完成
+    note     TEXT,                             -- 备注
+    PRIMARY KEY (date, category, item)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pt_date ON personal_tracks(date);

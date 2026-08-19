@@ -51,6 +51,15 @@ class TestIngestPath(unittest.TestCase):
         self.assertEqual(count(self.conn), 0)
         os.remove(bad)
 
+    def test_ingest_writes_personal_tracks(self):
+        ok = ingest_path(self.conn, self.md)
+        self.assertTrue(ok)
+        rows = self.conn.execute(
+            "SELECT category, item, done FROM personal_tracks WHERE date='2026-08-05'"
+        ).fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(tuple(rows[0]), ("服药", "补剂", 1))
+
 
 class TestIngestAll(unittest.TestCase):
     def setUp(self):

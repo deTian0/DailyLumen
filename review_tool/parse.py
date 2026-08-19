@@ -30,7 +30,6 @@ FIELD_MAP = {
     "sleep_h": "sleep_h", "睡眠时长_h": "sleep_h", "睡眠时长": "sleep_h",
     "sleep_quality": "sleep_quality", "睡眠质量": "sleep_quality",
     "bedtime": "bedtime", "入睡时间": "bedtime",
-    "supps_done": "supps_done", "补剂完成": "supps_done",
     "exercise_min": "exercise_min", "运动时长_min": "exercise_min", "运动时长": "exercise_min",
     "commute_done": "commute_done", "通勤完成": "commute_done",
     "diet_kcal": "diet_kcal", "饮食热量_kcal": "diet_kcal", "饮食热量": "diet_kcal",
@@ -112,6 +111,35 @@ def _extract_block(text: str) -> str:
     return None
 
 
+def _extract_personal_tracks(text: str) -> list[tuple[str, str, int]]:
+    """从「一、日常打卡」章节提取个人定制勾选（服药 / 护肤）。
+
+    返回 [(category, item, done), ...]。通用项（早餐/通勤）不在此列，
+    它们有独立的通用字段。结果供 ingest 写入 personal_tracks 表，
+    不参与通用评分。
+    """
+    m = re.search(r"##\s*一、日常打卡(.*?)(?=\n##\s|\Z)", text, re.S)
+    if not m:
+        return []
+    tracks: list[tuple[str, str, int]] = []
+    for line in m.group(1).splitlines():
+        mm = re.match(r"^\s*-\s*\[([ xX])\]\s*(.*)$", line)
+        if not mm:
+            continue
+        done = 1 if mm.group(1).lower() == "x" else 0
+        item = mm.group(2).strip()
+        if not item:
+            continue
+        if "补剂" in item:
+            # 去掉「补剂：」前缀，保留具体项（如 CoQ10 ×1 ＋ Exia 早3）
+            spec = re.split(r"[：:]", item, maxsplit=1)[-1].strip()
+            tracks.append(("服药", spec or item, done))
+        elif "护肤" in item:
+            tracks.append(("护肤", "护肤", done))
+        # 早餐 / 通勤等通用打卡项不进入个人定制表
+    return tracks
+
+
 def parse_text(text: str) -> dict:
     """解析一段复盘文本 -> 结构化行 dict。"""
     body = _extract_block(text)
@@ -143,6 +171,12 @@ def parse_text(text: str) -> dict:
     # 3) 补系统分
     if row.get("date"):
         row["system_score"] = system_score_from(row)
+
+    # 4) 提取「一、日常打卡」下的个人定制勾选 -> personal_tracks（服药/护肤）
+    tracks = _extract_personal_tracks(text)
+    if tracks:
+        row["_personal_tracks"] = tracks
+
     return row
 
 

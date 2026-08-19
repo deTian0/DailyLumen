@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import sys
 
-from .db import init_db, get_conn, upsert, count
+from .db import init_db, get_conn, upsert, count, upsert_personal_track
 from .parse import parse_file
 from .score import compute_scores
 from .config import INPUT_DIR, INBOX_DIR, system_score_from
@@ -26,6 +26,9 @@ def ingest_path(conn, path: str) -> bool:
     # 重算系统分（四维补齐后）
     row["system_score"] = system_score_from(row)
     upsert(conn, row)
+    # 写入个人定制打卡（服药/护肤等），独立于通用评分表，不计入四维评分
+    for category, item, done in row.get("_personal_tracks", []):
+        upsert_personal_track(conn, row["date"], category, item, done)
     conn.commit()
     return True
 

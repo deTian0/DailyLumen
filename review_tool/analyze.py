@@ -60,7 +60,7 @@ def report_week(conn, iso_week: int | None = None) -> None:
             bar = _bar(v) if v else "  - "
             print(f"  {DIM_LABEL[dim]:>4}分均值 : {v}  {bar}")
         adh = conn.execute(
-            "SELECT AVG(supps_done), AVG(commute_done), AVG(breakfast_on_time) "
+            "SELECT AVG(commute_done), AVG(breakfast_on_time) "
             "FROM daily_reviews WHERE iso_week=?", (wk,)
         ).fetchone()
         tr_days = conn.execute(
@@ -70,9 +70,8 @@ def report_week(conn, iso_week: int | None = None) -> None:
             "SELECT COUNT(*) FROM daily_reviews WHERE iso_week=? AND training_day=1 AND exercise_min>0",
             (wk,),
         ).fetchone()[0]
-        print(f"  补剂依从   : {_pct(adh[0])}")
-        print(f"  早餐按时   : {_pct(adh[2])}")
-        print(f"  通勤完成   : {_pct(adh[1])}")
+        print(f"  早餐按时   : {_pct(adh[1])}")
+        print(f"  通勤完成   : {_pct(adh[0])}")
         print(f"  训练日运动达标: {tr_done}/{tr_days} = {_pct(tr_done / tr_days if tr_days else None)}")
         for col, lbl in [("sleep_h", "睡眠"), ("phone_h", "屏幕"), ("deepwork_h", "深度工作"), ("diet_kcal", "饮食")]:
             print(f"  {lbl:>4}均值   : {_avg(conn, col, f'iso_week={wk}')}")
@@ -104,7 +103,7 @@ def report_month(conn, month: int | None = None) -> None:
         bar = _bar(v) if v else "  - "
         print(f"  {DIM_LABEL[dim]:>4}分均值 : {v}  {bar}")
     adh = conn.execute(
-        "SELECT AVG(supps_done), AVG(commute_done), AVG(breakfast_on_time), "
+        "SELECT AVG(commute_done), AVG(breakfast_on_time), "
         "AVG(training_day) FROM daily_reviews WHERE month=?", (month,)
     ).fetchone()
     tr_days = conn.execute(
@@ -114,9 +113,8 @@ def report_month(conn, month: int | None = None) -> None:
         "SELECT COUNT(*) FROM daily_reviews WHERE month=? AND training_day=1 AND exercise_min>0",
         (month,),
     ).fetchone()[0]
-    print(f"  补剂依从   : {_pct(adh[0])}")
-    print(f"  早餐按时   : {_pct(adh[2])}")
-    print(f"  通勤完成   : {_pct(adh[1])}")
+    print(f"  早餐按时   : {_pct(adh[1])}")
+    print(f"  通勤完成   : {_pct(adh[0])}")
     print(f"  训练日运动达标: {tr_done}/{tr_days} = {_pct(tr_done / tr_days if tr_days else None)}")
     for col, lbl in [("sleep_h", "睡眠均值"), ("sleep_quality", "睡眠质量"), ("phone_h", "屏幕均值"), ("deepwork_h", "深度工作"), ("diet_kcal", "饮食均值")]:
         print(f"  {lbl:>6}   : {_avg(conn, col, f'month={month}')}")

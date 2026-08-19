@@ -4,7 +4,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from review_tool.db import init_db, upsert, fetch_all, count, COLUMNS
+from review_tool.db import init_db, upsert, fetch_all, count, COLUMNS, upsert_personal_track
 
 
 def _tmp_db():
@@ -60,6 +60,36 @@ class TestUpsert(unittest.TestCase):
         upsert(self.conn, row)
         self.conn.commit()
         self.assertEqual(count(self.conn), 1)
+
+
+class TestPersonalTracks(unittest.TestCase):
+    def setUp(self):
+        self.conn, self.path = _tmp_db()
+
+    def tearDown(self):
+        self.conn.close()
+        os.remove(self.path)
+
+    def test_upsert_and_fetch(self):
+        upsert_personal_track(self.conn, "2026-08-05", "服药", "CoQ10", 1)
+        upsert_personal_track(self.conn, "2026-08-05", "护肤", "护肤", 0)
+        self.conn.commit()
+        rows = self.conn.execute(
+            "SELECT category, item, done FROM personal_tracks ORDER BY category, item"
+        ).fetchall()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(tuple(rows[0]), ("护肤", "护肤", 0))
+        self.assertEqual(tuple(rows[1]), ("服药", "CoQ10", 1))
+
+    def test_upsert_idempotent(self):
+        upsert_personal_track(self.conn, "2026-08-05", "服药", "CoQ10", 1)
+        upsert_personal_track(self.conn, "2026-08-05", "服药", "CoQ10", 0)
+        self.conn.commit()
+        rows = self.conn.execute(
+            "SELECT done FROM personal_tracks WHERE date='2026-08-05' AND item='CoQ10'"
+        ).fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["done"], 0)
 
 
 if __name__ == "__main__":

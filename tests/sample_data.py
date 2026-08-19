@@ -16,7 +16,6 @@ SAMPLE_MD = """# 每日复盘 · 2026-08-05（二）
 睡眠时长_h: 6.42
 睡眠质量: 84
 入睡时间: 00:39
-补剂完成: yes
 运动时长_min: 0
 饮食热量_kcal: 1199
 三餐情况: 早✓午✓晚✗
@@ -48,8 +47,8 @@ EXPECTED_SAMPLE = {
     "sleep_h": 6.42,
     "sleep_quality": 84,
     "bedtime": 39,          # 00:39
-    "supps_done": 1,
     "meals_count": 2,       # 早✓午✓晚✗
+    "_personal_tracks": [("服药", "补剂", 1)],  # 日常打卡「- [x] 补剂」
     "phone_h": 10.9,
     "deepwork_h": 0,
     "learn_h": 1.5,

@@ -13,7 +13,7 @@ from .config import DB_PATH, SCHEMA_PATH
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
     "date", "weekday", "iso_week", "month", "training_day",
-    "sleep_h", "sleep_quality", "bedtime", "supps_done", "exercise_min", "commute_done",
+    "sleep_h", "sleep_quality", "bedtime", "exercise_min", "commute_done",
     "diet_kcal", "meals_count", "breakfast_on_time", "phone_h",
     "deepwork_h", "learn_h", "life_h", "energy", "mood",
     "health_score", "work_score", "learn_score", "life_score",
@@ -64,6 +64,21 @@ def upsert(conn: sqlite3.Connection, row: dict) -> None:
         ON CONFLICT(date) DO UPDATE SET {updates}
     """
     conn.execute(sql, [row.get(c) for c in COLUMNS])
+
+
+def upsert_personal_track(conn: sqlite3.Connection, date: str, category: str,
+                          item: str, done: int, note: str | None = None) -> None:
+    """写入/更新一条个人定制打卡（按 date+category+item 主键）。
+
+    用于服药 / 护肤等个人化项，独立于通用评分表 daily_reviews。
+    """
+    sql = """
+        INSERT INTO personal_tracks (date, category, item, done, note)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(date, category, item) DO UPDATE SET
+            done=excluded.done, note=excluded.note
+    """
+    conn.execute(sql, (date, category, item, done, note))
 
 
 def fetch_all(conn: sqlite3.Connection, order: str = "date ASC") -> list:

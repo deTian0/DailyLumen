@@ -6,3 +6,6 @@
 # Python 缓存
 __pycache__/
 *.pyc
+
+# 个人每日复盘数据（私人记录，不入库；仓库仅提供空的 reviews.example.db 作为 schema 模板）
+review_tool/reviews.db

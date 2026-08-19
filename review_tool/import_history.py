@@ -7,6 +7,8 @@
   - training_day / weekday 由日期推算（周一~三、五、六 = 训练日，与模板约定一致）
   - 7/21 为纯正文（无前置块），走专用解析（健康表 + 四维评分表 + 打卡勾选）
 生成：标准 DailyLumen .md（含 ```data 数据块 + 原文），随后由 ingest 入库。
+  （注：服药/护肤等个人定制项不再写入通用数据块，改由 ingest 从日常打卡
+   勾选写入 personal_tracks 表，不计入通用评分）
 
 用法：
     python -m review_tool import-history            # 转换并写入 每日复盘/
@@ -59,7 +61,6 @@ def _scores_from_table(text: str) -> dict:
         ("learn", "learn_score"),
         ("life", "life_score"),
     ]:
-        # 兼容加粗(**5**)与未加粗(5)两种写法
         m = re.search(r"\|\s*%s[（(][^|]+?[）)]\s*[|｜]\s*\**\s*(\d+)" % dim, text)
         if m:
             out[key] = int(m.group(1))
@@ -108,11 +109,6 @@ def parse_prose_721(text: str) -> dict:
     m = re.search(r"深度工作[：:]\s*\**\s*([\d.]+)\s*h", text)
     if m:
         row["deepwork_h"] = float(m.group(1))
-    if "Exia 早3（没吃）" in text or ("Exia 晚3" in text and "均未吃" in text):
-        row["supps_done"] = 0
-    else:
-        done = len(re.findall(r"- \[x\] 补剂", text))
-        row["supps_done"] = 1 if done >= 3 else 0
     row["breakfast_on_time"] = 1 if re.search(r"- \[x\] 早餐", text) else 0
     row.update(_scores_from_table(text))
     return row
@@ -122,7 +118,6 @@ def parse_prose_721(text: str) -> dict:
 FM_MAP = {
     "sleep_h": ("sleep_h", "float"),
     "sleep_quality": ("sleep_quality", "int"),
-    "supps_done": ("supps_done", "bool"),
     "exercise_min": ("exercise_min", "float"),
     "commute_done": ("commute_done", "bool"),
     "diet_kcal": ("diet_kcal", "int"),
@@ -218,7 +213,6 @@ def render(row: dict, original_text: str) -> str:
     bt = row.get("bedtime")
     lines.append(f"入睡时间: {_fmt_min(bt)}" if bt is not None else "入睡时间:")
     lines += [
-        f"补剂完成: {_fmt_bool(row.get('supps_done'))}",
         f"运动时长_min: {_fmt(row.get('exercise_min'))}",
         f"通勤完成: {_fmt_bool(row.get('commute_done'))}",
         f"饮食热量_kcal: {_fmt(row.get('diet_kcal'))}",
@@ -265,7 +259,7 @@ def run(source_dir: str | None = None, check_only: bool = False) -> int:
             f"睡{_fmt(row.get('sleep_h'))} 质{_fmt(row.get('sleep_quality'))} "
             f"运{_fmt(row.get('exercise_min'))} 食{_fmt(row.get('diet_kcal'))} "
             f"屏{_fmt(row.get('phone_h'))} 深{_fmt(row.get('deepwork_h'))} "
-            f"补{_fmt_bool(row.get('supps_done'))} 餐{_fmt(row.get('meals_count'))} "
+            f"餐{_fmt(row.get('meals_count'))} "
             f"四维={_vals(row)} ({tag})"
         )
         if not check_only:
