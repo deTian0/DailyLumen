@@ -11,10 +11,11 @@ class TestHealthScore(unittest.TestCase):
     def test_full_row(self):
         row = {
             "sleep_h": 8, "sleep_quality": 80, "bedtime": 1380,  # 23:00
-            "exercise_min": 30, "training_day": 1, "supps_done": 1,
+            "exercise_min": 30, "training_day": 1,
             "diet_kcal": 1500, "phone_h": 3,
         }
-        # (10*.18 + 8*.12 + 5*.15 + 10*.25 + 10*.05 + 8*.10 + 10*.15) / 1.0 = 8.81 -> 9
+        # 服药依从已移出通用评分；剩余权重和 0.95 归一：
+        # (10*.18 + 8*.12 + 8*.15 + 10*.25 + 8*.10 + 10*.15) / 0.95 = 9.22 -> 9
         self.assertEqual(compute_health_score(row), 9)
 
     def test_sleep_full_at_8h(self):

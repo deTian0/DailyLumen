@@ -24,8 +24,12 @@ class TestParseDataBlock(unittest.TestCase):
 
     def test_bool_yes(self):
         row = parse_text(SAMPLE_MD)
-        self.assertEqual(row["supps_done"], 1)
         self.assertEqual(row["breakfast_on_time"], 1)
+
+    def test_personal_tracks(self):
+        row = parse_text(SAMPLE_MD)
+        # 「一、日常打卡」下 - [x] 补剂 -> 服药定制项；早餐为通用项不入库
+        self.assertEqual(row.get("_personal_tracks"), [("服药", "补剂", 1)])
 
     def test_system_score_computed(self):
         row = parse_text(SAMPLE_MD)
