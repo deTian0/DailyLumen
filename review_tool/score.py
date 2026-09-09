@@ -44,17 +44,18 @@ def compute_health_score(row: dict) -> int | None:
     if q is not None:
         parts.append((_clamp(q / 10), w["sleep_quality"]))
 
-    # 入睡时间
+    # 入睡时间（距 00:00 的分钟数）
+    # 语义：00:00-06:00 熬夜/通宵后；<=22:30 早；22:30-23:30 尚可；>23:30 晚睡
     bt = row.get("bedtime")
     if bt is not None:
         if bt <= T["bedtime"]["late_night_max"]:
-            s = 3           # 00:00-05:00 熬夜
+            s = 3           # 00:00-06:00 熬夜
         elif bt <= T["bedtime"]["early_max"]:
             s = 10          # <=22:30
         elif bt <= T["bedtime"]["ok_max"]:
             s = 8           # 22:30-23:30
         else:
-            s = 5           # 23:30 之后
+            s = 5           # >23:30 晚睡
         parts.append((s, w["bedtime"]))
 
     # 运动 (训练日更严格)

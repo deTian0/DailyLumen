@@ -99,6 +99,9 @@ python -m unittest discover -s tests -t .
 入睡时间: 00:39
 运动时长_min: 0
 饮食热量_kcal: 1199
+碳水_g: 150
+脂肪_g: 40
+蛋白质_g: 55
 三餐情况: 早✓午✓晚✓
 早餐按时: yes
 手机屏幕_h: 10.9
@@ -196,6 +199,7 @@ python -m unittest discover -s tests -t .
 | `commute_done` / `breakfast_on_time` | 通勤 / 早餐是否完成 (0/1) |
 | `exercise_min` | 正式运动分钟 |
 | `diet_kcal` / `meals_count` | 饮食热量 / 三餐次数 |
+| `carbs_g` / `fat_g` / `protein_g` | 碳水 / 脂肪 / 蛋白质摄入 (g，仅统计不计分) |
 | `phone_h` | 手机屏幕时长(h) |
 | `deepwork_h` / `learn_h` / `life_h` | 深度工作 / 学习投入 / 生活投入 (h) |
 | `health_score` / `work_score` / `learn_score` / `life_score` | 四维评分 (1–10) |

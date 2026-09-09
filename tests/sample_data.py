@@ -18,6 +18,9 @@ SAMPLE_MD = """# 每日复盘 · 2026-08-05（二）
 入睡时间: 00:39
 运动时长_min: 0
 饮食热量_kcal: 1199
+碳水_g: 150
+脂肪_g: 40
+蛋白质_g: 55
 三餐情况: 早✓午✓晚✗
 早餐按时: yes
 手机屏幕_h: 10.9
@@ -48,6 +51,9 @@ EXPECTED_SAMPLE = {
     "sleep_quality": 84,
     "bedtime": 39,          # 00:39
     "meals_count": 2,       # 早✓午✓晚✗
+    "carbs_g": 150,         # 碳水 (g)
+    "fat_g": 40,            # 脂肪 (g)
+    "protein_g": 55,        # 蛋白质 (g)
     "_personal_tracks": [("服药", "补剂", 1)],  # 日常打卡「- [x] 补剂」
     "phone_h": 10.9,
     "deepwork_h": 0,

@@ -38,6 +38,31 @@ def _pct(v: float | None) -> str:
     return f"{round(v * 100)}%" if v is not None else "-"
 
 
+def _macro_lines(conn, where: str = "") -> str:
+    """三大营养素统计：日均碳水/脂肪/蛋白质 + 估算宏量热量与供能占比。
+
+    carbs/fat/protein 按 4/9/4 kcal 每克折算。任一宏量都未记录时返回空串。
+    """
+    cond = f" WHERE {where}" if where else ""
+    n, c, f, p = conn.execute(
+        f"SELECT COUNT(carbs_g), AVG(carbs_g), AVG(fat_g), AVG(protein_g) "
+        f"FROM daily_reviews{cond}"
+    ).fetchone()
+    if not n:
+        return ""
+    c, f, p = round(c), round(f), round(p)
+    kc, kf, kp = 4 * c, 9 * f, 4 * p
+    total = kc + kf + kp
+    if total <= 0:
+        return ""
+    pc, pf = round(kc / total * 100), round(kf / total * 100)
+    pp = 100 - pc - pf
+    return (
+        f"  宏量日均   : 碳水 {c}g / 脂肪 {f}g / 蛋白质 {p}g (记录 {n} 天)\n"
+        f"  估算宏量热量: {total} kcal ［碳水 {pc}%・脂肪 {pf}%・蛋白质 {pp}%］"
+    )
+
+
 def report_week(conn, iso_week: int | None = None) -> None:
     cur = conn.execute("SELECT DISTINCT iso_week FROM daily_reviews ORDER BY iso_week")
     weeks = [r[0] for r in cur.fetchall()]
@@ -75,6 +100,9 @@ def report_week(conn, iso_week: int | None = None) -> None:
         print(f"  训练日运动达标: {tr_done}/{tr_days} = {_pct(tr_done / tr_days if tr_days else None)}")
         for col, lbl in [("sleep_h", "睡眠"), ("phone_h", "屏幕"), ("deepwork_h", "深度工作"), ("diet_kcal", "饮食")]:
             print(f"  {lbl:>4}均值   : {_avg(conn, col, f'iso_week={wk}')}")
+        ml = _macro_lines(conn, f"iso_week={wk}")
+        if ml:
+            print(ml)
         worst = min(
             ((DIM_LABEL[d], _avg(conn, d, f"iso_week={wk}")) for d in DIMENSIONS),
             key=lambda x: x[1] if x[1] is not None else 99,
@@ -118,6 +146,9 @@ def report_month(conn, month: int | None = None) -> None:
     print(f"  训练日运动达标: {tr_done}/{tr_days} = {_pct(tr_done / tr_days if tr_days else None)}")
     for col, lbl in [("sleep_h", "睡眠均值"), ("sleep_quality", "睡眠质量"), ("phone_h", "屏幕均值"), ("deepwork_h", "深度工作"), ("diet_kcal", "饮食均值")]:
         print(f"  {lbl:>6}   : {_avg(conn, col, f'month={month}')}")
+    ml = _macro_lines(conn, f"month={month}")
+    if ml:
+        print(ml)
     worst = min(
         ((DIM_LABEL[d], _avg(conn, d, f"month={month}")) for d in DIMENSIONS),
         key=lambda x: x[1] if x[1] is not None else 99,

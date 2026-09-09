@@ -26,6 +26,19 @@ class TestParseDataBlock(unittest.TestCase):
         row = parse_text(SAMPLE_MD)
         self.assertEqual(row["breakfast_on_time"], 1)
 
+    def test_macros_parsed(self):
+        row = parse_text(SAMPLE_MD)
+        # 三大营养素克数（中文字段 -> carbs_g/fat_g/protein_g）
+        self.assertEqual(row["carbs_g"], 150)
+        self.assertEqual(row["fat_g"], 40)
+        self.assertEqual(row["protein_g"], 55)
+
+    def test_macros_english_alias(self):
+        row = parse_text("```data\n日期: 2026-08-05\ncarbs_g: 180\nfat_g: 60\nprotein_g: 90\n```")
+        self.assertEqual(row["carbs_g"], 180)
+        self.assertEqual(row["fat_g"], 60)
+        self.assertEqual(row["protein_g"], 90)
+
     def test_personal_tracks(self):
         row = parse_text(SAMPLE_MD)
         # 「一、日常打卡」下 - [x] 补剂 -> 服药定制项；早餐为通用项不入库

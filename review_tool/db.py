@@ -14,11 +14,28 @@ from .config import DB_PATH, SCHEMA_PATH
 COLUMNS = [
     "date", "weekday", "iso_week", "month", "training_day",
     "sleep_h", "sleep_quality", "bedtime", "exercise_min", "commute_done",
-    "diet_kcal", "meals_count", "breakfast_on_time", "phone_h",
+    "diet_kcal", "carbs_g", "fat_g", "protein_g",
+    "meals_count", "breakfast_on_time", "phone_h",
     "deepwork_h", "learn_h", "life_h", "energy", "mood",
     "health_score", "work_score", "learn_score", "life_score",
     "system_score", "summary", "raw_path", "ingested_at",
 ]
+
+# 增量迁移：老库（schema.sql 更新前建的表）缺少的列，init_db 时自动 ALTER 补上。
+# 元组: (列名, ALTER 语句)。只增不改，保证已有数据无损。
+_ADD_COLUMNS = [
+    ("carbs_g", "ALTER TABLE daily_reviews ADD COLUMN carbs_g INTEGER CHECK (carbs_g IS NULL OR carbs_g >= 0)"),
+    ("fat_g", "ALTER TABLE daily_reviews ADD COLUMN fat_g INTEGER CHECK (fat_g IS NULL OR fat_g >= 0)"),
+    ("protein_g", "ALTER TABLE daily_reviews ADD COLUMN protein_g INTEGER CHECK (protein_g IS NULL OR protein_g >= 0)"),
+]
+
+
+def _migrate_columns(conn: sqlite3.Connection) -> None:
+    """补齐老库缺失的列（幂等：已存在的列跳过）。"""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(daily_reviews)")}
+    for name, ddl in _ADD_COLUMNS:
+        if name not in cols:
+            conn.execute(ddl)
 
 
 def get_conn(db_path: str | None = None) -> sqlite3.Connection:
@@ -41,6 +58,8 @@ def init_db(db_path: str | None = None, schema_path: str | None = None) -> sqlit
     conn = get_conn(db_path)
     with open(schema_path, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
+    # 老库增量迁移（新库无缺失列，自动跳过）
+    _migrate_columns(conn)
     conn.commit()
     return conn
 

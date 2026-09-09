@@ -61,6 +61,76 @@ class TestUpsert(unittest.TestCase):
         self.conn.commit()
         self.assertEqual(count(self.conn), 1)
 
+    def test_macro_columns_roundtrip(self):
+        upsert(self.conn, {"date": "2026-08-05", "carbs_g": 150, "fat_g": 40, "protein_g": 55})
+        self.conn.commit()
+        row = fetch_all(self.conn)[0]
+        self.assertEqual(row["carbs_g"], 150)
+        self.assertEqual(row["fat_g"], 40)
+        self.assertEqual(row["protein_g"], 55)
+
+    def test_macro_check_rejects_negative(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            upsert(self.conn, {"date": "2026-08-06", "carbs_g": -10})
+            self.conn.commit()
+
+
+class TestMigration(unittest.TestCase):
+    """老库（schema 更新前建表）init_db 应无损补齐缺失宏量列。"""
+
+    def test_adds_missing_macro_columns(self):
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "old.db")
+        conn = sqlite3.connect(path)
+        # 仿「加宏量列之前」的真实历史 schema（含 iso_week/month，无 macros 列）
+        conn.executescript("""
+            CREATE TABLE daily_reviews (
+                date     TEXT PRIMARY KEY,
+                weekday  TEXT,
+                iso_week INTEGER,
+                month    INTEGER,
+                training_day INTEGER,
+                sleep_h  REAL,
+                sleep_quality INTEGER,
+                bedtime  INTEGER,
+                exercise_min INTEGER,
+                commute_done INTEGER,
+                diet_kcal INTEGER,
+                meals_count INTEGER,
+                breakfast_on_time INTEGER,
+                phone_h  REAL,
+                deepwork_h REAL,
+                learn_h  REAL,
+                life_h   REAL,
+                energy   TEXT,
+                mood     TEXT,
+                health_score INTEGER,
+                work_score INTEGER,
+                learn_score INTEGER,
+                life_score INTEGER,
+                system_score REAL,
+                summary  TEXT,
+                raw_path TEXT,
+                ingested_at TEXT
+            );
+            INSERT INTO daily_reviews (date, diet_kcal) VALUES ('2026-08-05', 1500);
+        """)
+        conn.commit()
+        conn.close()
+
+        conn = init_db(db_path=path)  # 触发增量迁移
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(daily_reviews)")}
+        for c in ("carbs_g", "fat_g", "protein_g"):
+            self.assertIn(c, cols)
+        # 老数据保留无损
+        v = conn.execute(
+            "SELECT diet_kcal FROM daily_reviews WHERE date='2026-08-05'"
+        ).fetchone()[0]
+        self.assertEqual(v, 1500)
+        conn.close()
+        os.remove(path)
+        os.rmdir(d)
+
 
 class TestPersonalTracks(unittest.TestCase):
     def setUp(self):

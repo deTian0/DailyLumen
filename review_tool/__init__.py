@@ -33,7 +33,7 @@ from .analyze import report_week, report_month
 from .new_day import generate as new_day
 from .import_history import run as import_history_run
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
     # config
