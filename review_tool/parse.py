@@ -33,6 +33,12 @@ FIELD_MAP = {
     "exercise_min": "exercise_min", "运动时长_min": "exercise_min", "运动时长": "exercise_min",
     "commute_done": "commute_done", "通勤完成": "commute_done",
     "diet_kcal": "diet_kcal", "饮食热量_kcal": "diet_kcal", "饮食热量": "diet_kcal",
+    "carbs_g": "carbs_g", "碳水_g": "carbs_g", "碳水化合物_g": "carbs_g",
+    "carbs": "carbs_g", "碳水": "carbs_g", "碳水化合物": "carbs_g",
+    "fat_g": "fat_g", "脂肪_g": "fat_g",
+    "fat": "fat_g", "脂肪": "fat_g",
+    "protein_g": "protein_g", "蛋白质_g": "protein_g",
+    "protein": "protein_g", "蛋白质": "protein_g",
     "meals_count": "meals_count", "三餐次数": "meals_count", "三餐情况": "meals_count",
     "breakfast_on_time": "breakfast_on_time", "早餐按时": "breakfast_on_time",
     "phone_h": "phone_h", "手机屏幕_h": "phone_h", "手机屏幕": "phone_h",
@@ -117,12 +123,22 @@ def _extract_personal_tracks(text: str) -> list[tuple[str, str, int]]:
     返回 [(category, item, done), ...]。通用项（早餐/通勤）不在此列，
     它们有独立的通用字段。结果供 ingest 写入 personal_tracks 表，
     不参与通用评分。
+
+    为区分同一补剂在不同时段（晨/午/晚）的打卡，解析时会把时段前缀
+    加到 item 上，例如「晨间-复合维生素B族 ×1」。没有时段标题的文本
+    保持原行为不变。
     """
     m = re.search(r"##\s*一、日常打卡(.*?)(?=\n##\s|\Z)", text, re.S)
     if not m:
         return []
     tracks: list[tuple[str, str, int]] = []
+    section = ""
     for line in m.group(1).splitlines():
+        # 先识别时段标题，如 **晨间（起床后）**
+        sm = re.match(r"^\s*\*\*\s*(晨间|午间|晚间).*?\*\*\s*$", line)
+        if sm:
+            section = sm.group(1)
+            continue
         mm = re.match(r"^\s*-\s*\[([ xX])\]\s*(.*)$", line)
         if not mm:
             continue
@@ -133,7 +149,8 @@ def _extract_personal_tracks(text: str) -> list[tuple[str, str, int]]:
         if "补剂" in item:
             # 去掉「补剂：」前缀，保留具体项（如 CoQ10 ×1 ＋ Exia 早3）
             spec = re.split(r"[：:]", item, maxsplit=1)[-1].strip()
-            tracks.append(("服药", spec or item, done))
+            track_item = f"{section}-{spec}" if section else (spec or item)
+            tracks.append(("服药", track_item, done))
         elif "护肤" in item:
             tracks.append(("护肤", "护肤", done))
         # 早餐 / 通勤等通用打卡项不进入个人定制表

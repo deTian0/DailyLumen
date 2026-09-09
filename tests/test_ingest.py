@@ -41,6 +41,10 @@ class TestIngestPath(unittest.TestCase):
         self.assertEqual(row["system_score"], 5.25)
         # 派生字段
         self.assertEqual(row["month"], 202608)
+        # 三大营养素入库
+        self.assertEqual(row["carbs_g"], 150)
+        self.assertEqual(row["fat_g"], 40)
+        self.assertEqual(row["protein_g"], 55)
 
     def test_ingest_missing_date_skipped(self):
         bad = os.path.join(self.indir, "nodate.md")

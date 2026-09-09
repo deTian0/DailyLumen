@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS daily_reviews (
         CHECK (commute_done IN (0, 1)),        -- 1=通勤完成 0=否
     diet_kcal       INTEGER
         CHECK (diet_kcal IS NULL OR diet_kcal >= 0),
+    carbs_g         INTEGER
+        CHECK (carbs_g IS NULL OR carbs_g >= 0),      -- 碳水摄入 (g)
+    fat_g           INTEGER
+        CHECK (fat_g IS NULL OR fat_g >= 0),          -- 脂肪摄入 (g)
+    protein_g       INTEGER
+        CHECK (protein_g IS NULL OR protein_g >= 0),  -- 蛋白质摄入 (g)
     meals_count     INTEGER
         CHECK (meals_count IS NULL OR (meals_count BETWEEN 0 AND 6)),
     breakfast_on_time INTEGER

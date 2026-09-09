@@ -44,6 +44,7 @@ DIMENSIONS = ["health_score", "work_score", "learn_score", "life_score"]
 # 字段类型映射：用于解析时转换
 INT_FIELDS = {
     "sleep_quality", "exercise_min", "diet_kcal", "meals_count",
+    "carbs_g", "fat_g", "protein_g",
     "health_score", "work_score", "learn_score", "life_score",
 }
 FLOAT_FIELDS = {"sleep_h", "phone_h", "deepwork_h", "learn_h", "life_h"}
@@ -77,8 +78,8 @@ PROFILE = {
 SCORE_THRESHOLDS = {
     # 睡眠时长(h)：>=8 满分，>=7 良好，>=6.5 尚可，>=6 偏低，否则差
     "sleep": {"full": 8.0, "good": 7.0, "ok": 6.5, "low": 6.0},
-    # 入睡时间(距00:00分钟)：<=300(05:00)熬夜；<=1350(22:30)早；<=1410(23:30)尚可；否则晚
-    "bedtime": {"late_night_max": 300, "early_max": 1350, "ok_max": 1410},
+    # 入睡时间(距00:00分钟)：<=360(06:00)熬夜/通宵后；<=1350(22:30)早；<=1410(23:30)尚可；否则晚
+    "bedtime": {"late_night_max": 360, "early_max": 1350, "ok_max": 1410},
     # 运动(min)：训练日>=30满分/>=10尚可/否则差；非训练日>=20良好/否则一般
     "exercise": {"train_full": 30, "train_ok": 10, "normal_full": 20},
     # 饮食热量(kcal)：1200-2200 良好；1000-1200 或 2200-2600 一般；否则差
