@@ -68,6 +68,9 @@ PROFILE = {
     },
     "skincare": ["护肤"],
     "breakfast_window": "08:00-09:00",
+    # 三大营养素每日目标（g）：供「AI 评价与建议」判定摄入是否达标，留空则不检查。
+    # 默认值 = 当前用户薄荷健康 App 的目标基线。
+    "macro_targets": {"carbs_g": 220, "protein_g": 82, "fat_g": 46},
 }
 
 
