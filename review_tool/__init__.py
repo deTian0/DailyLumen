@@ -12,6 +12,7 @@
     python -m review_tool week [ISO周]
     python -m review_tool month [YYYYMM]
     python -m review_tool new-day [YYYY-MM-DD]
+    python -m review_tool ai-context [YYYY-MM-DD]
     python -m review_tool import-history [--check] [--src DIR]
 """
 from __future__ import annotations
@@ -31,9 +32,10 @@ from .score import (
 from .ingest import ingest_path, ingest_all
 from .analyze import report_week, report_month
 from .new_day import generate as new_day
+from .ai_review import build_context as ai_context, render_markdown as render_ai_context
 from .import_history import run as import_history_run
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
     # config
@@ -46,8 +48,8 @@ __all__ = [
     # score
     "compute_scores", "compute_health_score", "compute_work_score",
     "compute_learn_score", "compute_life_score",
-    # ingest / analyze / new_day / import_history
+    # ingest / analyze / new_day / ai_context / import_history
     "ingest_path", "ingest_all", "report_week", "report_month",
-    "new_day", "import_history_run",
+    "new_day", "ai_context", "render_ai_context", "import_history_run",
     "__version__",
 ]
