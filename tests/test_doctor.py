@@ -118,6 +118,38 @@ class TestTrainingDayDrift(_Fixture):
         self.assertEqual(r["training_day_drift"], [])
 
 
+class TestExerciseSources(_Fixture):
+    """运动时长来源分布：填报 / 描述折算 / 未记录 必须分得开。"""
+
+    def test_counts_by_source(self):
+        upsert(self.conn, {"date": "2026-09-07", "exercise_min": 30,
+                           "exercise_src": "record"})
+        upsert(self.conn, {"date": "2026-09-08", "exercise_min": 10,
+                           "exercise_src": "derived"})
+        upsert(self.conn, {"date": "2026-09-09", "exercise_min": None})
+        self.conn.commit()
+        r = self._run(today="2026-09-22")
+        self.assertEqual(r["exercise_sources"],
+                         {"recorded": 1, "derived": 1, "missing": 1})
+
+    def test_derivation_does_not_break_health(self):
+        """折算只是来源差异，不应把体检判成不健康。"""
+        self._md("复盘/2026-09/2026-09-08.md")
+        upsert(self.conn, {"date": "2026-09-08", "exercise_min": 10,
+                           "exercise_src": "derived"})
+        self.conn.commit()
+        r = self._run(today="2026-09-22")
+        self.assertTrue(doctor.is_healthy(r))
+
+    def test_render_lists_sources(self):
+        upsert(self.conn, {"date": "2026-09-08", "exercise_min": 10,
+                           "exercise_src": "derived"})
+        self.conn.commit()
+        text = doctor.render(self._run(today="2026-09-22"))
+        self.assertIn("[运动时长来源]", text)
+        self.assertIn("描述折算 1 天", text)
+
+
 class TestRender(_Fixture):
     def test_render_runs_and_reports_health(self):
         upsert(self.conn, {"date": "2026-09-21", "training_day": 1,
@@ -129,7 +161,7 @@ class TestRender(_Fixture):
         text = doctor.render(self._run(today="2026-09-22"))
         for token in ("DailyLumen 体检报告", "[数据库]", "[新鲜度]",
                       "[文件 ↔ 数据库对账]", "[数据完整度]", "[打卡归一化]",
-                      "[训练日口径]", "结论:"):
+                      "[运动时长来源]", "[训练日口径]", "结论:"):
             self.assertIn(token, text)
 
 

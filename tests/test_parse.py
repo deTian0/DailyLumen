@@ -3,6 +3,8 @@ import unittest
 
 from review_tool.parse import parse_text
 from tests.sample_data import (
+    BODYWEIGHT_MD,
+    EMPTY_EXERCISE_LINE,
     EXPECTED_SAMPLE,
     LEGACY_TRACKS_MD,
     PROSE_MD,
@@ -89,6 +91,33 @@ class TestParseProseFallback(unittest.TestCase):
     def test_no_date_returns_empty_date(self):
         row = parse_text("一些无关文本\n没有日期字段\n")
         self.assertNotIn("date", row)
+
+
+class TestBodyweightDerivation(unittest.TestCase):
+    """运动时长为空时，由「三件事」描述折算补全，并标记来源。"""
+
+    def test_fills_when_field_empty(self):
+        row = parse_text(BODYWEIGHT_MD)
+        self.assertEqual(row["exercise_min"], 10)
+        self.assertEqual(row["exercise_src"], "derived")
+        self.assertIn("俯卧撑", row["_exercise_detail"])
+
+    def test_field_wins_and_no_double_count(self):
+        """字段已有数值时以字段为准 —— 不叠加，避免同一份运动算两次。"""
+        md = BODYWEIGHT_MD.replace(EMPTY_EXERCISE_LINE, "运动时长_min: 25")
+        row = parse_text(md)
+        self.assertEqual(row["exercise_min"], 25)
+        self.assertEqual(row["exercise_src"], "record")
+
+    def test_marks_record_when_field_present(self):
+        row = parse_text(SAMPLE_MD)
+        self.assertEqual(row["exercise_min"], 0)
+        self.assertEqual(row["exercise_src"], "record")
+
+    def test_no_mark_when_no_exercise_info(self):
+        row = parse_text(PROSE_MD)
+        self.assertNotIn("exercise_min", row)
+        self.assertNotIn("exercise_src", row)
 
 
 class TestBedtimeEdge(unittest.TestCase):

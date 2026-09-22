@@ -83,6 +83,29 @@ class TestUpsert(unittest.TestCase):
             upsert(self.conn, {"date": "2026-08-06", "carbs_g": -10})
             self.conn.commit()
 
+    def test_exercise_src_roundtrip(self):
+        upsert(self.conn, {"date": "2026-09-21", "exercise_min": 10,
+                           "exercise_src": "derived"})
+        self.conn.commit()
+        row = fetch_all(self.conn)[0]
+        self.assertEqual(row["exercise_min"], 10)
+        self.assertEqual(row["exercise_src"], "derived")
+
+    def test_exercise_src_check_rejects_unknown(self):
+        with self.assertRaises(sqlite3.IntegrityError):
+            upsert(self.conn, {"date": "2026-09-21", "exercise_src": "拍脑袋"})
+            self.conn.commit()
+
+    def test_exercise_src_always_refreshed(self):
+        """来源标记跟着新值走：改成手填后不能还留着 derived。"""
+        upsert(self.conn, {"date": "2026-09-21", "exercise_min": 10,
+                           "exercise_src": "derived"})
+        upsert(self.conn, {"date": "2026-09-21", "exercise_min": 10,
+                           "exercise_src": "record"})
+        self.conn.commit()
+        row = fetch_all(self.conn)[0]
+        self.assertEqual(row["exercise_src"], "record")
+
 
 class TestMigration(unittest.TestCase):
     """老库（schema 更新前建表）init_db 应无损补齐缺失宏量列。"""
@@ -140,11 +163,40 @@ class TestMigration(unittest.TestCase):
         os.remove(path)
         os.rmdir(d)
 
+    def test_backfills_exercise_src_for_recorded_values(self):
+        """新增 exercise_src 后：老库里已有数值的标记 record，空值保持 NULL。"""
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "old_exercise.db")
+        conn = sqlite3.connect(path)
+        # 仿「加 exercise_src 之前」的表：只有 date + exercise_min
+        conn.executescript("""
+            CREATE TABLE daily_reviews (
+                date         TEXT PRIMARY KEY,
+                exercise_min INTEGER
+            );
+            INSERT INTO daily_reviews VALUES ('2026-08-05', 30);
+            INSERT INTO daily_reviews VALUES ('2026-08-06', NULL);
+            INSERT INTO daily_reviews VALUES ('2026-08-07', 0);
+        """)
+        conn.commit()
+        conn.close()
+
+        conn = init_db(db_path=path)  # 触发增量迁移
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(daily_reviews)")}
+        self.assertIn("exercise_src", cols)
+        got = dict(conn.execute(
+            "SELECT date, exercise_src FROM daily_reviews ORDER BY date"
+        ).fetchall())
+        self.assertEqual(got["2026-08-05"], "record")
+        self.assertIsNone(got["2026-08-06"])          # 空值不标记
+        self.assertEqual(got["2026-08-07"], "record")  # 0 也是填报值
+        conn.close()
+        shutil.rmtree(d, ignore_errors=True)
+
 
 class TestPersonalTracks(unittest.TestCase):
     def setUp(self):
         self.conn, self.path = _tmp_db()
-
     def tearDown(self):
         self.conn.close()
         os.remove(self.path)
