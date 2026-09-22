@@ -372,6 +372,30 @@ def upsert_personal_track(conn: sqlite3.Connection, date: str, track_key: str,
 # 查询
 # ---------------------------------------------------------------------------
 
+def prune_personal_tracks(conn: sqlite3.Connection, date: str,
+                          keep_keys: set[str]) -> list[str]:
+    """删除某日期下、track_key 不在 ``keep_keys`` 里的打卡行。
+
+    **用途**：md 是打卡的唯一来源，但 ``upsert_personal_track`` 只增不删 ——
+    当源文本的规范 ID 发生变化（例如 Move Free 从「无时段」变成挂在午/晚小节，
+    ``movefree`` → ``movefree@noon`` + ``movefree@evening``），旧键会永久留在
+    库里，让同一剂量被重复计入依从率。本函数做「以源文本为准」的对账删除。
+
+    返回被删除的 track_key 列表。调用方需先确认该日期的打卡章节确实解析到了
+    （见 ``parse.has_tracks_section``），否则会把「解析不到」误判成「已删除」。
+    """
+    keys = {r[0] for r in conn.execute(
+        "SELECT track_key FROM personal_tracks WHERE date=?", (date,)
+    )}
+    stale = sorted(keys - keep_keys)
+    if stale:
+        conn.executemany(
+            "DELETE FROM personal_tracks WHERE date=? AND track_key=?",
+            [(date, k) for k in stale],
+        )
+    return stale
+
+
 def fetch_all(conn: sqlite3.Connection, order: str = "date ASC") -> list:
     """返回全部行（按 order 排序）。order 限定为「列名 [ASC|DESC]」。"""
     col, _, direction = order.partition(" ")

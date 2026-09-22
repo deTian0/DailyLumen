@@ -13,7 +13,8 @@
 7. 训练日口径：training_day 与「按星期推算」不一致的天数
 8. 运动时长来源：填报 / 描述折算 / 训练日未记录按 0 计 / 未记录 四者的天数分布
 9. 分数一致性：库中四维/系统分与「按字段重算」的结果是否相符
-10. 熔断检测：单维度连续低分 + 相对基线漂移
+10. 打卡对账：库里每条打卡能否在源 md 找到对应勾选（陈旧/重复条目）
+11. 熔断检测：单维度连续低分 + 相对基线漂移
 """
 from __future__ import annotations
 
@@ -75,6 +76,36 @@ _DIM_COMPUTERS = [
     ("learn_score", "学习", compute_learn_score),
     ("life_score", "生活", compute_life_score),
 ]
+
+
+def stale_track_rows(conn) -> list[dict]:
+    """库中打卡行在源 md 里找不到对应文本（陈旧 / 重复条目）。
+
+    md 是打卡的唯一来源，但 upsert 只增不删 —— 源文本的规范 ID 一变，旧键就永久
+    留在库里（例如 Move Free 由裸 ``movefree`` 变成 ``movefree@noon`` +
+    ``movefree@evening``），同一剂量被重复计入依从率。这里只**报告**，
+    清理走 `python -m review_tool ingest --prune-tracks`。
+    """
+    from .parse import parse_file
+    out: list[dict] = []
+    for row in conn.execute(
+        "SELECT date, raw_path FROM daily_reviews ORDER BY date"
+    ):
+        date, path = row["date"], row["raw_path"]
+        if not path or not os.path.exists(path):
+            continue
+        parsed = parse_file(path)
+        if not parsed.get("_tracks_section"):
+            continue          # 章节缺失 → 解析结果不能当权威集合，跳过
+        keep = {t[1] for t in parsed.get("_personal_tracks", [])}
+        for r in conn.execute(
+            "SELECT track_key, item FROM personal_tracks WHERE date=? ORDER BY track_key",
+            (date,),
+        ):
+            if r["track_key"] not in keep:
+                out.append({"date": date, "track_key": r["track_key"],
+                            "item": r["item"]})
+    return out
 
 
 def _num_differs(a, b, tol: float) -> bool:
@@ -207,6 +238,9 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
 
         # 分数一致性：库值 vs 字段重算（只读检测，不参与 is_healthy —— 手填覆盖属合法）
         result["score_drift"] = score_drift(conn)
+
+        # 打卡对账：库中打卡行在源 md 找不到对应文本（陈旧/重复条目）
+        result["stale_tracks"] = stale_track_rows(conn)
     finally:
         conn.close()
     return result
@@ -215,7 +249,6 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
 def render(result: dict) -> str:
     """把体检结果渲染成可读文本。"""
     L: list[str] = []
-    ok = True
 
     L.append("=" * 52)
     L.append("DailyLumen 体检报告")
@@ -224,7 +257,6 @@ def render(result: dict) -> str:
     L.append("")
     L.append("[数据库]")
     v_ok = result["schema_version"] == result["schema_expected"]
-    ok &= v_ok
     if v_ok:
         L.append(f"  schema 版本 : {result['schema_version']} ✓")
     else:
@@ -233,30 +265,25 @@ def render(result: dict) -> str:
     L.append(f"  完整性检查  : {result['integrity']}")
     L.append(f"  复盘记录    : {result['rows']} 条")
     L.append(f"  打卡记录    : {result['tracks']} 条")
-    if result["integrity"] != "ok":
-        ok = False
 
     L.append("")
     L.append("[新鲜度]")
     stale = result["stale_days"]
     if stale is None:
         L.append("  ⚠️ 库中没有任何记录")
-        ok = False
     else:
         flag = "✓" if stale <= 1 else f"⚠️ 已有 {stale} 天未补录"
         L.append(f"  最新复盘    : {result['latest_date']}（距今 {stale} 天）{flag}")
-        if stale > 1:
-            ok = False
+        # 新鲜度是**建议性**的：CI 里历史库必然「过期」，但数据本身没问题，
+        # 故不让它影响结论/退出码（与 is_healthy 保持一致）。
 
     L.append("")
     L.append("[文件 ↔ 数据库对账]")
     if result["not_ingested"]:
-        ok = False
         L.append(f"  ⚠️ 有 md 但未入库 ({len(result['not_ingested'])} 天): "
                  + ", ".join(result["not_ingested"][:8]))
         L.append("     → 运行 python -m review_tool ingest")
     if result["orphan_in_db"]:
-        ok = False
         L.append(f"  ⚠️ 库中有记录但找不到源文件 ({len(result['orphan_in_db'])} 天): "
                  + ", ".join(result["orphan_in_db"][:8]))
     if not result["not_ingested"] and not result["orphan_in_db"]:
@@ -328,6 +355,21 @@ def render(result: dict) -> str:
     else:
         L.append("  ✓ 库中四维 / 系统分与字段重算完全一致")
 
+    L.append("")
+    L.append("[打卡对账]")
+    stale = result.get("stale_tracks") or []
+    if stale:
+        by_key: dict[str, int] = {}
+        for it in stale:
+            by_key[it["track_key"]] = by_key.get(it["track_key"], 0) + 1
+        detail = "、".join(f"{k}×{n}" for k, n in
+                           sorted(by_key.items(), key=lambda x: -x[1])[:6])
+        L.append(f"  ⚠️ {len(stale)} 条打卡在源 md 中找不到对应文本（陈旧/重复）: {detail}")
+        L.append("     · 会让同一剂量被重复计入依从率")
+        L.append("     → 以源 md 为准清理: python -m review_tool ingest --prune-tracks")
+    else:
+        L.append("  ✓ 每条打卡都能在源 md 找到对应勾选")
+
     if result["inbox_files"]:
         L.append("")
         L.append(f"[收件箱] {result['inbox_files']} 个待处理素材")
@@ -362,19 +404,28 @@ def render(result: dict) -> str:
 
     L.append("")
     L.append("-" * 52)
-    L.append("结论: " + ("✓ 数据健康" if ok else "⚠️ 存在待处理项，见上方标记"))
+    # 结论与退出码共用 is_healthy —— 只有一套口径，不会出现「结论说有问题、退出码说没问题」
+    L.append("结论: " + ("✓ 数据健康" if is_healthy(result)
+                        else "⚠️ 存在待处理项，见上方标记"))
     return "\n".join(L)
 
 
 def is_healthy(result: dict) -> bool:
-    """是否为「健康」状态（用于退出码 / CI）。
+    """是否为「健康」状态（用于退出码 / CI）—— 也是渲染结论的**唯一口径**。
 
-    注意 training_day 与星期约定不符**不算故障**——那可能只是临时调整训练日，
-    属于合理的个人差异，只在报告里提示。
+    以下都不算故障，只在报告里提示：
+
+    - ``training_day`` 与星期约定不符：可能只是临时调整训练日，属合理的个人差异；
+    - 新鲜度（距上次复盘超过 1 天）：属「该补录了」的建议，CI 里历史库必然过期；
+    - 分数一致性 / 打卡对账 / 熔断：手填覆盖合法、陈旧打卡由 `--prune-tracks` 处理、
+      熔断属「人生指标」告警，都不代表数据本身坏了。
+
+    真正算故障的是：库损坏、schema 版本不符、md 与库的日期集合对不上、库里一条记录都没有。
     """
     return (
         result["integrity"] == "ok"
         and result["schema_version"] == result["schema_expected"]
+        and result["rows"] > 0
         and not result["not_ingested"]
         and not result["orphan_in_db"]
     )

@@ -70,6 +70,70 @@ class TestIngestPath(unittest.TestCase):
             ("skincare", "护肤", "skincare", 1),
         ])
 
+
+class TestTrackPrune(unittest.TestCase):
+    """`--prune-tracks`：以源 md 为权威集合，清掉规范 ID 变化后残留的旧键。"""
+
+    def setUp(self):
+        self.conn, self.path = _tmp_db()
+        self.indir = tempfile.mkdtemp()
+        self.md = os.path.join(self.indir, "2026-08-05.md")
+        with open(self.md, "w", encoding="utf-8") as f:
+            f.write(SAMPLE_MD)
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.indir, ignore_errors=True)
+        shutil.rmtree(os.path.dirname(self.path), ignore_errors=True)
+
+    def _keys(self):
+        return [r[0] for r in self.conn.execute(
+            "SELECT track_key FROM personal_tracks WHERE date='2026-08-05' "
+            "ORDER BY track_key")]
+
+    def _stale_row(self, key="movefree"):
+        self.conn.execute(
+            "INSERT INTO personal_tracks (date, track_key, category, item_key, item, done) "
+            "VALUES ('2026-08-05', ?, '服药', ?, 'Move Free 红色 ×1', 1)",
+            (key, key),
+        )
+        self.conn.commit()
+
+    def test_prune_removes_stale_but_keeps_parsed(self):
+        ingest_path(self.conn, self.md)
+        self._stale_row("movefree")
+        self.assertIn("movefree", self._keys())
+
+        row = ingest_path(self.conn, self.md, prune_tracks=True)
+        self.assertNotIn("movefree", self._keys())
+        self.assertEqual(self._keys(),
+                         ["coq10@morning", "exia_am@morning", "skincare"])
+        self.assertEqual(row["_pruned_tracks"], ["movefree"])
+
+    def test_default_does_not_prune(self):
+        ingest_path(self.conn, self.md)
+        self._stale_row("movefree")
+        ingest_path(self.conn, self.md)          # 默认不清理
+        self.assertIn("movefree", self._keys())
+
+    def test_no_section_means_no_prune(self):
+        """打卡章节解析不到时不敢清理（否则解析失败会被当成「已删除」）。"""
+        ingest_path(self.conn, self.md)
+        self._stale_row("movefree")
+        # 把打卡章节整体删掉，只留日期
+        with open(self.md, "w", encoding="utf-8") as f:
+            f.write("## 二、今日三件事\n\n- 修 bug\n\n```data\n日期: 2026-08-05\n```\n")
+        ingest_path(self.conn, self.md, prune_tracks=True)
+        self.assertIn("movefree", self._keys())
+
+    def test_idempotent(self):
+        ingest_path(self.conn, self.md)
+        self._stale_row("movefree")
+        ingest_path(self.conn, self.md, prune_tracks=True)
+        before = self._keys()
+        ingest_path(self.conn, self.md, prune_tracks=True)
+        self.assertEqual(self._keys(), before)
+
     def test_ingest_fills_missing_training_day(self):
         """training_day 空着时按 config 的训练日约定兜底，不留 NULL。"""
         md = os.path.join(self.indir, "2026-08-12.md")  # 周三 = 训练日

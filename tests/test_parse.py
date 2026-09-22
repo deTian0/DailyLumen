@@ -74,6 +74,26 @@ class TestParseDataBlock(unittest.TestCase):
         items = [item for _, _, _, item, _ in row["_personal_tracks"]]
         self.assertFalse(any("早餐" in i or "通勤" in i for i in items))
 
+    def test_tracks_section_flag_present(self):
+        """有打卡章节 -> 解析结果可当权威集合（供 --prune-tracks 判断）。"""
+        self.assertTrue(parse_text(SAMPLE_MD)["_tracks_section"])
+
+    def test_tracks_section_flag_absent(self):
+        self.assertFalse(parse_text("## 二、今日三件事\n\n- 没事\n")["_tracks_section"])
+
+    def test_has_tracks_section_helper(self):
+        from review_tool.parse import has_tracks_section
+        self.assertTrue(has_tracks_section(SAMPLE_MD))
+        self.assertTrue(has_tracks_section(LEGACY_TRACKS_MD))
+        self.assertFalse(has_tracks_section(PROSE_MD))
+
+    def test_empty_section_still_flags_present(self):
+        """章节在、但一个勾选都没有 —— 仍算「章节存在」（权威集合为空）。"""
+        md = "## 一、日常打卡\n\n**晨间（起床后）**\n\n- [ ] 补剂：\n"
+        row = parse_text(md)
+        self.assertTrue(row["_tracks_section"])
+        self.assertNotIn("_personal_tracks", row)
+
     def test_system_score_computed(self):
         row = parse_text(SAMPLE_MD)
         # (4+6+6+5)/4 = 5.25
