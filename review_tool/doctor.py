@@ -127,8 +127,12 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
 
         # 收件箱
         inbox = os.path.join(input_dir, "收件箱")
+        # 只统计「待处理素材」：忽略隐藏文件、说明文档（README）与 _ 前缀辅助文件
         result["inbox_files"] = (
-            len([f for f in os.listdir(inbox) if not f.startswith(".")])
+            len([
+                f for f in os.listdir(inbox)
+                if not f.startswith((".", "_")) and f != "README.md"
+            ])
             if os.path.isdir(inbox) else 0
         )
     finally:

@@ -73,6 +73,20 @@ class TestReconciliation(_Fixture):
         self.assertNotIn("2026-09-05", r["not_ingested"])
         self.assertNotIn("2026-07-16", r["not_ingested"])
 
+    def test_inbox_readme_not_counted_as_material(self):
+        """收件箱里的说明文档（README / 下划线前缀 / 隐藏文件）不算待处理素材。"""
+        inbox = os.path.join(self.md_dir, "收件箱")
+        with open(os.path.join(inbox, "README.md"), "w", encoding="utf-8") as f:
+            f.write("# 收件箱说明")
+        with open(os.path.join(inbox, "_note.md"), "w", encoding="utf-8") as f:
+            f.write("辅助说明")
+        with open(os.path.join(inbox, ".gitkeep"), "w", encoding="utf-8") as f:
+            f.write("")
+        self.assertEqual(self._run(today="2026-09-22")["inbox_files"], 0)
+        with open(os.path.join(inbox, "截图转写.md"), "w", encoding="utf-8") as f:
+            f.write("今日素材")
+        self.assertEqual(self._run(today="2026-09-22")["inbox_files"], 1)
+
     def test_archive_only_reported(self):
         self._md("历史源复盘/2026-07-16.md")
         upsert(self.conn, {"date": "2026-07-16"})
