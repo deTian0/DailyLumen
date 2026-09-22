@@ -19,15 +19,63 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: 运行测试套件（零依赖）
         run: python -m unittest discover -s tests -t . -v
+
       - name: 语法编译检查
         run: python -m compileall -q review_tool tests
-      - name: CLI 冒烟测试
+
+      - name: CLI 冒烟测试（子命令 -h 不得触发真实执行）
         run: |
           python -m review_tool version
-          python -m review_tool doctor || true
           python -m review_tool --help
+          python -m review_tool ingest -h
+          python -m review_tool doctor -h
+          python -m review_tool month 199901 --json
+
+      - name: 端到端管道自检（从仓库内复盘 md 从零重建数据库）
+        # reviews.db 不入库（含个人数据），这里用仓库里的复盘 md 从零重建，再把整条
+        # 链路跑一遍。doctor / recompute-scores / sync-docs 在这条链路里都是**阻塞**的
+        # —— 对账必须干净、分数必须与字段重算一致、md 无需回写，否则 CI 失败。
+        run: |
+          python -m review_tool ingest
+          python -m review_tool doctor
+          python -m review_tool recompute-scores
+          python -m review_tool sync-docs --check
+          python -m review_tool ingest --prune-tracks
+          python -m review_tool doctor
+          # 熔断属「人生指标」告警而非数据故障，退出码 1 是预期，不阻塞 CI
+          python -m review_tool fuse || true
+
+  coverage:
+    name: 覆盖率（仅 3.13）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: 安装 coverage
+        run: pip install coverage
+      - name: 统计覆盖率（终端输出 + 写入摘要）
+        run: |
+          coverage run -m unittest discover -s tests -t . -q
+          coverage report -m --omit="tests/*" | tee coverage.txt
+          {
+            echo "### 覆盖率"
+            echo '```'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: 归档覆盖率文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            .coverage
+            coverage.txt
+          if-no-files-found: ignore
 
   lint:
     name: 代码风格
