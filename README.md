@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.4.2**（口径统一 + 打卡对账 + CI 阻塞自检）
+> 当前版本 **1.4.3**（skills 归类合并 + 方法资产入库 + 人格归位）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -23,11 +23,13 @@
 │   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
 │   └── 收件箱/                       # 晨间收集投放截图/简报的目录（不参与 ingest）
 ├── docs/                             # 设计说明与口径（评分 / 统计 / 字段 / 变更日志）
-├── tests/                            # 测试套件（标准库 unittest，零依赖，283 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，288 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
-├── .workbuddy/                       # 工作区配置（不参与运行，见「工作区配置」一节）
-│   ├── skills/soul/                  # 助手人格与协作准则（skill 形式）
-│   └── memory/                       # 会话日志 + 项目长期约定（MEMORY.md）
+├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
+│   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
+│   │   └── doc-corpus-normalize/     # 文档批量标准化 SOP（可证明无损）
+│   ├── memory/                       # 会话日志 + 项目长期约定 MEMORY.md
+│   └── backup/                       # 迁移备份与一次性脚本（不入 git）
 └── review_tool/                      # 解析 / 评分 / 入库 / 分析 / 体检（标准 Python 包）
     ├── __init__.py                   # 包公共 API 导出
     ├── __main__.py                   # 统一命令行入口 (python -m review_tool)
@@ -289,14 +291,21 @@ python -m review_tool ai-context 2026-09-15
 
 ## 工作区配置（`.workbuddy/`）
 
-`.workbuddy/` 存放工作区级配置与记忆，**不参与程序运行**、已被 git 忽略：
+`.workbuddy/` 存放工作区级配置与记忆，**不参与程序运行**：
 
-- **`skills/soul/SKILL.md`**：助手人格与协作准则（skill 形式）——核心价值、  
-  边界、语气，以及与用户的协作方式（全权委托、结论先行、证据先于口号、  
-  commit + push 纪律）。每次会话自动加载，改这一个文件即可调整助手行为。
-- **`memory/`**：会话执行日志（按日期）+ 项目长期约定（`MEMORY.md`，  
-  如运动口径拍板、迁移规约、工程约定）。开工前先读、做完后写回，保证跨会话连续性。
-- **`backup/`**：数据库迁移前备份与验证脚本副本（git 忽略）。
+- **`skills/`**（**已入 git**）：项目级 skill，属**方法资产** —— 跟代码一起版本化、打 tag。
+  当前含 `doc-corpus-normalize`（批量文档标准化 SOP，保证解析 / 入库可证明无损）。
+  `.gitignore` 用 `.workbuddy/*` + `!.workbuddy/skills/` 开白名单；**注意必须写成
+  `.workbuddy/*`**，写成 `.workbuddy/` 会连目录一起排除，白名单会静默失效。
+- **`memory/`**（不入 git）：会话执行日志（按日期）+ 项目长期约定（`MEMORY.md`，
+  如评分口径、迁移规约、工程约定）。开工前先读、做完后写回，保证跨会话连续性。
+- **`backup/`**（不入 git）：数据库迁移前备份、一次性脚本与 `archived/` 归档。
+
+**人格与跨项目 SOP 不在本仓库**：
+助手人格与协作准则已归到用户级记忆 `~/.workbuddy/MEMORY.md` 的「协作准则」段
+（每会话无条件注入，机制上保证 always-on）；跨项目通用 SOP（`sqlite-safe-migration`
+含「假装自己是 CI」自检、`nmpa-cosmetic-record`）在用户级 `~/.workbuddy/skills/`，
+由重装备份脚本的 **B14** 项兜底。
 
 ---
 
