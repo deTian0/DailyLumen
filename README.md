@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.4.4**（新增迁移指南）
+> 当前版本 **1.4.5**（项目约定抽象为项目级 skill，随代码迁移）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -27,9 +27,10 @@
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
+│   │   ├── dailylumen-conventions/   # 项目总纲：口径 / 权威归属 / 规约 / 工程约定 ★
 │   │   └── doc-corpus-normalize/     # 文档批量标准化 SOP（可证明无损）
-│   ├── memory/                       # 会话日志 + 项目长期约定 MEMORY.md
-│   └── backup/                       # 迁移备份与一次性脚本（不入 git）
+│   ├── memory/                       # 本机日志 + 环境坑（不入 git，换机不迁移）
+│   └── backup/                       # 迁移备份与一次性脚本（不入 git，换机不迁移）
 └── review_tool/                      # 解析 / 评分 / 入库 / 分析 / 体检（标准 Python 包）
     ├── __init__.py                   # 包公共 API 导出
     ├── __main__.py                   # 统一命令行入口 (python -m review_tool)
@@ -102,7 +103,7 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 200 项，零依赖
+python -m unittest discover -s tests -t .      # 288 项，零依赖
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  
@@ -190,7 +191,8 @@ upsert 防覆盖 / 训练日二态口径 / 评分边界 / 模板生成 / 体检 
 | 训练日达标、运动折算等统计口径 | [设计说明 · 统计口径](docs/设计说明.md#-统计口径v130v132-三轮收口) |
 | 数据库字段含义 | [设计说明 · 数据库字段速查](docs/设计说明.md#数据库字段速查) |
 | 版本变更历史 | [设计说明 · 变更日志](docs/设计说明.md#变更日志) |
-| **换一台电脑跑 / 重装后恢复** | [**迁移指南**](docs/迁移指南.md)（含「什么在 git、什么要手工搬」与落地命令） |
+| **项目口径总纲**（范围 / 权威归属 / 评分与熔断 / 规约 / 工程约定） | 项目级 skill `.workbuddy/skills/dailylumen-conventions/`（随 git 走） |
+| **换一台电脑跑 / 重装后恢复** | [**迁移指南**](docs/迁移指南.md)（含「什么在 git / 什么搬 / 什么重建」与落地命令） |
 
 ## 🩺 数据体检（`doctor`）
 
@@ -295,12 +297,17 @@ python -m review_tool ai-context 2026-09-15
 `.workbuddy/` 存放工作区级配置与记忆，**不参与程序运行**：
 
 - **`skills/`**（**已入 git**）：项目级 skill，属**方法资产** —— 跟代码一起版本化、打 tag。
-  当前含 `doc-corpus-normalize`（批量文档标准化 SOP，保证解析 / 入库可证明无损）。
+  当前含两个：
+  - `dailylumen-conventions` —— **项目口径总纲**（范围边界 / 权威归属 / 评分与熔断 /
+    文档与库规约 / 工程约定 / 交付流程）。**跨会话要一直遵守的约定写在这里，而不写在
+    `memory/`** —— 因为它随 `clone` 走，换机不丢。
+  - `doc-corpus-normalize` —— 批量文档标准化 SOP（保证解析 / 入库可证明无损）。
   `.gitignore` 用 `.workbuddy/*` + `!.workbuddy/skills/` 开白名单；**注意必须写成
   `.workbuddy/*`**，写成 `.workbuddy/` 会连目录一起排除，白名单会静默失效。
-- **`memory/`**（不入 git）：会话执行日志（按日期）+ 项目长期约定（`MEMORY.md`，
-  如评分口径、迁移规约、工程约定）。开工前先读、做完后写回，保证跨会话连续性。
-- **`backup/`**（不入 git）：数据库迁移前备份、一次性脚本与 `archived/` 归档。
+- **`memory/`**（不入 git，**换机不迁移**）：本机会话执行日志（按日期）+ `MEMORY.md`。
+  只放**本机专属**内容（写盘 / git 引用 / 缓存类环境坑）与 skill 加载指针 ——
+  项目口径一律不写在这里，避免换机后丢失。开工前先读、做完后写回。
+- **`backup/`**（不入 git，**换机不迁移**）：数据库迁移前备份、一次性脚本与 `archived/` 归档。
 
 **人格与跨项目 SOP 不在本仓库**：
 助手人格与协作准则已归到用户级记忆 `~/.workbuddy/MEMORY.md` 的「协作准则」段
