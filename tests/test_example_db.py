@@ -10,7 +10,7 @@ import sqlite3
 import unittest
 
 from review_tool.config import PACKAGE_DIR
-from review_tool.db import COLUMNS, SCHEMA_VERSION
+from review_tool.storage.db import COLUMNS, SCHEMA_VERSION
 
 EXAMPLE_DB = os.path.join(PACKAGE_DIR, "reviews.example.db")
 

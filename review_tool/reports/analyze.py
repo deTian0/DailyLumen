@@ -25,8 +25,8 @@ from __future__ import annotations
 
 import sys
 
-from .config import DIMENSIONS
-from .db import COLUMNS, init_db
+from ..config import DIMENSIONS
+from ..storage.db import COLUMNS, init_db
 
 DIM_LABEL = {
     "health_score": "健康", "work_score": "工作",

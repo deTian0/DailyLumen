@@ -1,7 +1,7 @@
 """bodyweight 模块测试：中文数字、组×次识别、段落门控、上下限。"""
 import unittest
 
-from review_tool.bodyweight import cn_to_int, estimate, extract, section_body
+from review_tool.core.bodyweight import cn_to_int, estimate, extract, section_body
 from tests.sample_data import BODYWEIGHT_MD
 
 

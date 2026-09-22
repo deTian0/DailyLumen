@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import unittest
 
-from review_tool.import_history import (
+from review_tool.pipeline.import_history import (
     build_row,
     date_meta,
     out_path,
@@ -145,7 +145,7 @@ class TestRenderAndPath(unittest.TestCase):
         self.assertIn("原始正文", md)
 
     def test_rendered_is_parsable(self):
-        from review_tool.parse import parse_text
+        from review_tool.pipeline.parse import parse_text
         row = {"date": "2026-07-23", "weekday": "星期四", "training_day": 0,
                "sleep_h": 6.83, "bedtime": 13}
         parsed = parse_text(render(row, "正文"))

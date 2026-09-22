@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import unittest
 
-from review_tool.analyze import (
+from review_tool.reports.analyze import (
     _avg,
     completeness,
     derived_count,
@@ -14,7 +14,7 @@ from review_tool.analyze import (
     report_week,
     training_stats,
 )
-from review_tool.db import init_db, upsert
+from review_tool.storage.db import init_db, upsert
 
 
 class _DB(unittest.TestCase):

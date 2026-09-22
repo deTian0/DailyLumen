@@ -6,8 +6,8 @@ import shutil
 import tempfile
 import unittest
 
-from review_tool.db import count, fetch_all, init_db
-from review_tool.ingest import ingest_all, ingest_path, iter_markdown
+from review_tool.pipeline.ingest import ingest_all, ingest_path, iter_markdown
+from review_tool.storage.db import count, fetch_all, init_db
 from tests.sample_data import BODYWEIGHT_MD, EMPTY_EXERCISE_LINE, PROSE_MD, SAMPLE_MD
 
 

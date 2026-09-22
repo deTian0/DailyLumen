@@ -20,7 +20,7 @@ import re
 import sys
 from datetime import date, datetime
 
-from .config import GENERATED_DIR, TEMPLATE_PATH, WEEKDAY_CN
+from ..config import GENERATED_DIR, TEMPLATE_PATH, WEEKDAY_CN
 
 # ```data 代码块
 _DATA_BLOCK_RE = re.compile(r"```data\s*\n(.*?)```", re.S)

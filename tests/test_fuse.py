@@ -4,8 +4,8 @@ import shutil
 import tempfile
 import unittest
 
-from review_tool.db import init_db, upsert
-from review_tool.fuse import find_fuses, render
+from review_tool.reports.fuse import find_fuses, render
+from review_tool.storage.db import init_db, upsert
 
 RULES = {"threshold": 6, "days": 3, "long_run_days": 4,
          "recent_days": 2, "baseline_days": 3, "drift": 1.0}

@@ -14,8 +14,8 @@ import re
 import sqlite3
 from datetime import datetime
 
-from .config import DB_PATH, SCHEMA_PATH
-from .tracks import normalize_legacy_item
+from ..config import DB_PATH, SCHEMA_PATH
+from ..core.tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
 SCHEMA_VERSION = 4

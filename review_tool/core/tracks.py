@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import re
 
-from .config import PERSONAL_ITEMS, SLOT_BY_CN, SUPPLEMENT_MARKER
+from ..config import PERSONAL_ITEMS, SLOT_BY_CN, SUPPLEMENT_MARKER
 from .util import slugify, split_items
 
 # alias -> 规范项，按 alias 长度降序（长 alias 优先，避免「Exia 早」抢走「Exia 早3」）

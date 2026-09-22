@@ -17,29 +17,16 @@
     python -m review_tool doctor
     python -m review_tool export     [--format csv|json] [--out DIR] [--stdout]
 
-模块分工:
-    config  路径 + 可配置层（PROFILE / PERSONAL_ITEMS / SCORE_THRESHOLDS / BODYWEIGHT_MOVES）
-    util    时间与数值转换、slug 生成
-    tracks  打卡项归一化（自由文本 -> 规范 ID）
-    bodyweight  徒手训练折算（描述动作 -> 运动时长）
-    db      SQLite 读写 + 带版本的增量迁移
-    parse   md -> 结构化 dict（兼容三种格式）
-    score   四维评分规则
-    ingest  扫描 / 解析 / 评分 / 入库
-    analyze 周月聚合报告
-    new_day 按模板生成当天文件
-    ai_review  「七、AI 评价与建议」的确定性上下文
-    import_history  语雀历史文件转换
-    doctor  数据体检（对账 / 完整度 / 新鲜度）
-    export  CSV / JSON 导出
+分层（依赖只能自上而下，由 tests/test_architecture.py 强制）:
+    core      领域层（零 I/O）：tracks 归一化 / bodyweight 折算 / score 评分 / util 转换
+    storage   持久化层：SQLite 唯一出入口 —— db（连接 / 迁移 / 读写 / 打卡对账）
+    pipeline  数据流转层（md <-> 库）：parse / ingest / sync_docs / import_history / new_day / export
+    reports   产出层（读库面向人）：analyze / doctor / fuse / ai_review / recompute
+    config    包根可配置层（唯一要改的文件）；__main__ 纯路由
+
 """
 from __future__ import annotations
 
-from .ai_review import build_context as ai_context
-from .ai_review import render_markdown as render_ai_context
-from .analyze import report_month, report_week
-from .bodyweight import estimate as bodyweight_minutes
-from .bodyweight import extract as bodyweight_extract
 from .config import (
     ARCHIVE_SRC_DIR,
     BASE_DIR,
@@ -58,7 +45,37 @@ from .config import (
     SCORE_THRESHOLDS,
     TEMPLATE_PATH,
 )
-from .db import (
+from .core.bodyweight import estimate as bodyweight_minutes
+from .core.bodyweight import extract as bodyweight_extract
+from .core.score import (
+    compute_health_score,
+    compute_learn_score,
+    compute_life_score,
+    compute_scores,
+    compute_work_score,
+    system_score_from,
+)
+from .core.tracks import normalize_legacy_item, resolve_item, resolve_track
+from .core.util import (
+    clock_to_minutes,
+    is_late_bedtime,
+    minutes_to_clock,
+    slugify,
+    to_bool,
+    to_float,
+    to_int,
+)
+from .pipeline.export import export
+from .pipeline.import_history import run as import_history_run
+from .pipeline.ingest import ingest_all, ingest_path, iter_markdown
+from .pipeline.new_day import generate as generate_new_day
+from .pipeline.parse import parse_file, parse_text
+from .reports.ai_review import build_context as ai_context
+from .reports.ai_review import render_markdown as render_ai_context
+from .reports.analyze import report_month, report_week
+from .reports.doctor import diagnose, is_healthy
+from .reports.doctor import render as render_doctor
+from .storage.db import (
     COLUMNS,
     SCHEMA_VERSION,
     count,
@@ -70,33 +87,8 @@ from .db import (
     upsert,
     upsert_personal_track,
 )
-from .doctor import diagnose, is_healthy
-from .doctor import render as render_doctor
-from .export import export
-from .import_history import run as import_history_run
-from .ingest import ingest_all, ingest_path, iter_markdown
-from .new_day import generate as generate_new_day
-from .parse import parse_file, parse_text
-from .score import (
-    compute_health_score,
-    compute_learn_score,
-    compute_life_score,
-    compute_scores,
-    compute_work_score,
-    system_score_from,
-)
-from .tracks import normalize_legacy_item, resolve_item, resolve_track
-from .util import (
-    clock_to_minutes,
-    is_late_bedtime,
-    minutes_to_clock,
-    slugify,
-    to_bool,
-    to_float,
-    to_int,
-)
 
-__version__ = "1.4.6"
+__version__ = "1.5.0"
 
 __all__ = [
     # config

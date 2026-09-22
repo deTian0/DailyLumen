@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 
-from review_tool.sync_docs import (
+from review_tool.pipeline.sync_docs import (
     fmt_score,
     render_data_lines,
     render_six_section,

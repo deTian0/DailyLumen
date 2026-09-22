@@ -19,10 +19,10 @@ from __future__ import annotations
 import sys
 from datetime import date as _date
 
-from .config import PROFILE, SCORE_THRESHOLDS
-from .db import init_db
-from .score import compute_scores, system_score_from
-from .util import is_late_bedtime, minutes_to_clock
+from ..config import PROFILE, SCORE_THRESHOLDS
+from ..core.score import compute_scores, system_score_from
+from ..core.util import is_late_bedtime, minutes_to_clock
+from ..storage.db import init_db
 
 # 展示标签
 _LABELS = {

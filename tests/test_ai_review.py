@@ -3,15 +3,15 @@ import os
 import tempfile
 import unittest
 
-from review_tool.ai_review import (
+from review_tool.config import SCORE_THRESHOLDS
+from review_tool.reports.ai_review import (
     _bedtime_is_late,
     attention_flags,
     build_context,
     clock,
     render_markdown,
 )
-from review_tool.config import SCORE_THRESHOLDS
-from review_tool.db import init_db, upsert
+from review_tool.storage.db import init_db, upsert
 
 
 def _tmp_db():

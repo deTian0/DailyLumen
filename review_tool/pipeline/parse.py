@@ -23,17 +23,17 @@ from __future__ import annotations
 
 import re
 
-from .bodyweight import estimate
-from .config import (
+from ..config import (
     BOOL_FIELDS,
     FLOAT_FIELDS,
     INT_FIELDS,
     SLOT_BY_CN,
     SUPPLEMENT_MARKER,
 )
-from .score import system_score_from
-from .tracks import normalize_supplement_line, resolve_item, resolve_track
-from .util import KV_RE, clock_to_minutes, to_bool, to_float, to_int
+from ..core.bodyweight import estimate
+from ..core.score import system_score_from
+from ..core.tracks import normalize_supplement_line, resolve_item, resolve_track
+from ..core.util import KV_RE, clock_to_minutes, to_bool, to_float, to_int
 
 # 数据块的 YAML 风格字段名 -> 数据库列名
 FIELD_MAP = {

@@ -1,7 +1,7 @@
 """score 模块测试：健康分加权、工作/学习/生活分档、跨午夜、缺失归一、只补空。"""
 import unittest
 
-from review_tool.score import (
+from review_tool.core.score import (
     compute_health_score,
     compute_learn_score,
     compute_life_score,
@@ -92,7 +92,7 @@ class TestLearnLifeScore(unittest.TestCase):
 
     def test_sub_ok_knobs_are_configurable(self):
         """sub_floor/sub_ceil 是可配置层的调节阀，改了就应生效。"""
-        import review_tool.score as sc
+        import review_tool.core.score as sc
         original = sc.SCORE_THRESHOLDS["learn"]
         try:
             sc.SCORE_THRESHOLDS["learn"] = {**original, "sub_floor": 2}

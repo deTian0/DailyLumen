@@ -22,8 +22,8 @@ import os
 import re
 import sys
 
-from .config import GENERATED_DIR, HISTORY_SRC_DIR, PROFILE, WEEKDAY_CN
-from .util import clock_to_minutes, minutes_to_clock, to_bool, to_float, to_int
+from ..config import GENERATED_DIR, HISTORY_SRC_DIR, PROFILE, WEEKDAY_CN
+from ..core.util import clock_to_minutes, minutes_to_clock, to_bool, to_float, to_int
 
 # ---------- 小工具 ----------
 

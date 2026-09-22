@@ -1,7 +1,7 @@
 """parse 模块测试：三种格式解析、bedtime 分钟化、三餐计数、系统分。"""
 import unittest
 
-from review_tool.parse import parse_text
+from review_tool.pipeline.parse import parse_text
 from tests.sample_data import (
     BODYWEIGHT_MD,
     EMPTY_EXERCISE_LINE,
@@ -82,7 +82,7 @@ class TestParseDataBlock(unittest.TestCase):
         self.assertFalse(parse_text("## 二、今日三件事\n\n- 没事\n")["_tracks_section"])
 
     def test_has_tracks_section_helper(self):
-        from review_tool.parse import has_tracks_section
+        from review_tool.pipeline.parse import has_tracks_section
         self.assertTrue(has_tracks_section(SAMPLE_MD))
         self.assertTrue(has_tracks_section(LEGACY_TRACKS_MD))
         self.assertFalse(has_tracks_section(PROSE_MD))

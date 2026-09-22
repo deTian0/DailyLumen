@@ -35,16 +35,16 @@ import sys
 from collections.abc import Callable
 
 from . import __version__
-from .ai_review import main as ai_context_main
-from .analyze import main as analyze_main
-from .doctor import main as doctor_main
-from .export import main as export_main
-from .fuse import main as fuse_main
-from .import_history import main as import_history_main
-from .ingest import main as ingest_main
-from .new_day import main as new_day_main
-from .recompute import main as recompute_main
-from .sync_docs import main as sync_docs_main
+from .pipeline.export import main as export_main
+from .pipeline.import_history import main as import_history_main
+from .pipeline.ingest import main as ingest_main
+from .pipeline.new_day import main as new_day_main
+from .pipeline.sync_docs import main as sync_docs_main
+from .reports.ai_review import main as ai_context_main
+from .reports.analyze import main as analyze_main
+from .reports.doctor import main as doctor_main
+from .reports.fuse import main as fuse_main
+from .reports.recompute import main as recompute_main
 
 
 def _week(rest: list[str]) -> int:

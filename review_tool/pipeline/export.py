@@ -15,8 +15,8 @@ import json
 import os
 import sys
 
-from .config import BASE_DIR
-from .db import COLUMNS, init_db
+from ..config import BASE_DIR
+from ..storage.db import COLUMNS, init_db
 
 DEFAULT_OUT_DIR = os.path.join(BASE_DIR, "exports")
 

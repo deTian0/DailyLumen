@@ -43,7 +43,7 @@ from __future__ import annotations
 
 import re
 
-from .config import BODYWEIGHT_MOVES, BODYWEIGHT_RULES
+from ..config import BODYWEIGHT_MOVES, BODYWEIGHT_RULES
 
 # 全角数字 -> 半角
 _FULLWIDTH = str.maketrans("０１２３４５６７８９", "0123456789")

@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import sys
 
-from .config import DIMENSIONS, FUSE_RULES
-from .db import init_db
+from ..config import DIMENSIONS, FUSE_RULES
+from ..storage.db import init_db
 
 # 维度 -> 中文名（报告用）
 DIM_CN = {
