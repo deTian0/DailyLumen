@@ -2,8 +2,12 @@
 import unittest
 
 from review_tool.parse import parse_text
-
-from tests.sample_data import SAMPLE_MD, PROSE_MD, EXPECTED_SAMPLE
+from tests.sample_data import (
+    EXPECTED_SAMPLE,
+    LEGACY_TRACKS_MD,
+    PROSE_MD,
+    SAMPLE_MD,
+)
 
 
 class TestParseDataBlock(unittest.TestCase):
@@ -41,8 +45,32 @@ class TestParseDataBlock(unittest.TestCase):
 
     def test_personal_tracks(self):
         row = parse_text(SAMPLE_MD)
-        # 「一、日常打卡」下 - [x] 补剂 -> 服药定制项；早餐为通用项不入库
-        self.assertEqual(row.get("_personal_tracks"), [("服药", "补剂", 1)])
+        # 「一、日常打卡」下：
+        #   - [x] 补剂：CoQ10 ×1 ＋ Exia 早3 -> 裂成两个规范项
+        #   - [x] 护肤 -> 命中规范项 skincare
+        #   - [ ] 早餐 -> 通用项（有独立字段），不进 personal_tracks
+        self.assertEqual(row.get("_personal_tracks"), EXPECTED_SAMPLE["_personal_tracks"])
+
+    def test_personal_tracks_legacy_writing(self):
+        """手写变体（无时段标题 / 无空格 / 别名）必须归一到同一批规范 key。"""
+        row = parse_text(LEGACY_TRACKS_MD)
+        got = {(key, done) for _, key, _, _, done in row["_personal_tracks"]}
+        self.assertIn(("vitb@noon", 1), got)        # 复合维生素B族 -> vitb（项定义兜底时段）
+        self.assertIn(("movefree", 1), got)         # MoveFree 无时段 -> 裸 key
+        self.assertIn(("exia_pm@evening", 0), got)  # Exia晚3 -> exia_pm（未勾选）
+
+    def test_personal_tracks_one_line_multiple_items(self):
+        """一行两项应产出两条记录，而不是一条。"""
+        row = parse_text(SAMPLE_MD)
+        keys = [key for _, key, _, _, _ in row["_personal_tracks"]]
+        self.assertEqual(len(keys), len(set(keys)))  # 同日不重复
+        self.assertGreaterEqual(len(keys), 3)
+
+    def test_generic_checkboxes_not_tracked(self):
+        """早餐/通勤等通用打卡项不得进入 personal_tracks。"""
+        row = parse_text(SAMPLE_MD)
+        items = [item for _, _, _, item, _ in row["_personal_tracks"]]
+        self.assertFalse(any("早餐" in i or "通勤" in i for i in items))
 
     def test_system_score_computed(self):
         row = parse_text(SAMPLE_MD)

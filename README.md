@@ -1,7 +1,9 @@
 # DailyLumen · 每日复盘系统
 
-把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析。
-复盘模板、数据解析、四维评分自动化、入库与分析全部基于 Python 标准库（零依赖）。
+把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。
+复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
+
+> 当前版本 **1.3.0**（工程化改造版）· 变更见文末「变更日志」
 
 ---
 
@@ -10,34 +12,32 @@
 ```
 每日复盘计划/                         # 项目根 (仓库名 DailyLumen)
 ├── README.md                         # 本文件：项目说明 + 评分规则
-├── pyproject.toml                    # 项目元数据 + pytest 配置（零依赖）
+├── pyproject.toml                    # 项目元数据 + pytest / ruff 配置（运行时零依赖）
 ├── requirements.txt                  # 依赖说明（运行时零依赖）
 ├── 每日复盘模板.md                    # 每天复盘的模板（一键生成时复制它）
-├── 每日复盘/                         # 你每天把复盘 .md 文件丢这里（入库数据源）
-│   ├── 复盘/2026-08/                # 自动生成/回填的复盘（按月份归档）
-│   │   ├── 2026-08-17.md
-│   │   └── ...
-│   ├── 历史源复盘/                   # 旧源文件归档（不参与新流程）
-│   └── 收件箱/                       # 晨间收集投放截图/简报的目录
-├── tests/                            # 测试套件（标准库 unittest，零依赖）
-│   ├── test_parse.py
-│   ├── test_score.py
-│   ├── test_db.py
-│   ├── test_ai_review.py
-│   └── test_ingest.py
-└── review_tool/                      # 解析 / 评分 / 入库 / 分析（标准 Python 包）
+├── 每日复盘/                         # 数据源根目录
+│   ├── 复盘/2026-08/                # 标准复盘（按月份归档，ingest 扫描这里）
+│   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
+│   └── 收件箱/                       # 晨间收集投放截图/简报的目录（不参与 ingest）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，149 项）
+├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
+└── review_tool/                      # 解析 / 评分 / 入库 / 分析 / 体检（标准 Python 包）
     ├── __init__.py                   # 包公共 API 导出
     ├── __main__.py                   # 统一命令行入口 (python -m review_tool)
-    ├── config.py                     # 路径常量 + 个人化配置(PROFILE/SCORE_THRESHOLDS)
-    ├── db.py                         # SQLite 读写（建表 / upsert / 查询）
+    ├── config.py                     # 路径 + 可配置层(PROFILE/PERSONAL_ITEMS/SCORE_THRESHOLDS)
+    ├── util.py                       # 时间与数值转换、slug 生成
+    ├── tracks.py                     # 打卡项归一化（自由文本 -> 规范 ID）★
+    ├── db.py                         # SQLite 读写 + 带版本的增量迁移
     ├── parse.py                      # 解析 md -> 结构化 dict（兼容三种格式）
     ├── score.py                      # 四维评分自动生成 ★
-    ├── ingest.py                     # 入库（按 date 主键 upsert）
+    ├── ingest.py                     # 入库（按 date 主键 upsert，默认不擦数据）
     ├── analyze.py                    # 周 / 月分析
     ├── new_day.py                    # 一键生成当天复盘文件
     ├── ai_review.py                  # 「七、AI 评价与建议」上下文构建器 ★
     ├── import_history.py             # 语雀历史文件转换导入
-    ├── schema.sql                    # 建表（含 CHECK 约束 + personal_tracks）
+    ├── doctor.py                     # 数据体检（对账 / 完整度 / 新鲜度）★
+    ├── export.py                     # CSV / JSON 导出
+    ├── schema.sql                    # 建表（含 CHECK 约束）
     ├── reviews.db                    # 你的数据库（单一数据源，含个人数据）
     └── reviews.example.db            # 空数据库模板（新用户复制为 reviews.db 即可）
 ```
@@ -46,56 +46,54 @@
 
 ## 使用流程
 
-所有命令统一通过包入口 `python -m review_tool` 运行（项目已改造为标准 Python 包，相对 import，可在任意目录执行）。
+所有命令统一通过包入口 `python -m review_tool` 运行，可在任意目录执行。
+加 `-h` 查看任意子命令的参数。
 
-1. **生成当天文件**
-   ```bash
-   python -m review_tool new-day            # 默认今天
-   python -m review_tool new-day 2026-08-20 # 指定日期
-   ```
-   自动从模板复制并填好日期 / 星期，你只需改 `附录 · 系统数据` 里的数值和打卡勾选。
-2. **入库**
-   ```bash
-   python -m review_tool ingest            # 入库「每日复盘/」全部文件
-   python -m review_tool ingest 某个文件.md # 入库指定文件
-   ```
-3. **周分析**
-   ```bash
-   python -m review_tool week        # 所有周
-   python -m review_tool week 32     # 指定 ISO 周
-   ```
-4. **月分析**
-   ```bash
-   python -m review_tool month        # 本月（最近一个月）
-   python -m review_tool month 202608 # 指定年月
-   ```
-5. **AI 评价与建议上下文**（供撰写「七、AI 评价与建议」章节）
-   ```bash
-   python -m review_tool ai-context            # 最近一天
-   python -m review_tool ai-context 2026-09-15 # 指定日期
-   ```
-   输出「当日事实 + 近 7 日均值 + 规则命中的关注点」，是纯确定性读库结果（**不调用模型**）；
-   撰写方据此生成评价与建议，避免凭印象编造数字。详见下文「AI 评价与建议」。
-6. **历史语雀文件导入**
-   ```bash
-   python -m review_tool import-history            # 转换并写入「每日复盘/」
-   python -m review_tool import-history --check    # 仅预览解析结果
-   python -m review_tool import-history --src DIR  # 指定来源目录（也可用环境变量 DAILYLUMEN_HISTORY_SRC）
-   ```
+| 命令 | 用途 |
+| --- | --- |
+| `new-day [YYYY-MM-DD] [--force]` | 按模板生成当天文件 → `复盘/YYYY-MM/` |
+| `ingest [路径.md] [--overwrite]` | 解析并入库（默认只补空值，不擦已有数据） |
+| `week [ISO周]` / `month [YYYYMM]` | 周 / 月分析 |
+| `ai-context [YYYY-MM-DD]` | 输出「七、AI 评价与建议」的确定性上下文 |
+| `import-history [--check] [--src DIR]` | 语雀历史文件转换为标准格式 |
+| `doctor` | 数据体检：对账 / 完整度 / 新鲜度 / 归一化 |
+| `export [--format csv\|json] [--out DIR] [--stdout]` | 导出结构化数据 |
+| `version` | 打印版本号 |
 
-## 运行测试
-
-测试基于 Python 标准库 `unittest`，**零额外依赖**：
+典型日常：
 
 ```bash
-python -m unittest discover -s tests -t .
+python -m review_tool new-day            # 1. 生成当天文件
+                                         # 2. 打开填数值与勾选
+python -m review_tool ingest             # 3. 入库（自动补四维评分）
+python -m review_tool ai-context         # 4. 拿事实依据写「七、AI 评价与建议」
+python -m review_tool ingest             # 5. 再入库一次兜底
+python -m review_tool doctor             # 6. 体检：数据齐不齐、有没有该补的
 ```
 
-（若偏好 pytest，安装后直接 `pytest` 即可，已在 `pyproject.toml` 配置 `pythonpath` 与 `testpaths`。）
+### ⚠️ 入库的两种模式
 
-覆盖：解析三种格式 / bedtime 分钟化 / 三餐计数、健康分加权与跨午夜、工作/学习/生活分档、CHECK 约束拦截、upsert 幂等、入库端到端。
+`ingest` 默认是**保护模式**：源文件里为空的字段**不会**擦掉库里已有的值
+（防止「重跑一次 ingest 把已经攒下的数据清空」）。
 
-### 数据块（通用数据入口）
+确需用源文件真正清空某字段时，显式加 `--overwrite`：
+
+```bash
+python -m review_tool ingest --overwrite
+```
+
+### 运行测试
+
+```bash
+python -m unittest discover -s tests -t .      # 149 项，零依赖
+```
+
+覆盖：解析三种格式 / 打卡归一化 / 迁移幂等 / upsert 防覆盖 / 训练日三态 /
+评分边界 / 模板生成 / 体检 / 导出 / 配置自洽 / 版本一致性。
+
+---
+
+## 数据块（通用数据入口）
 
 复盘文件末尾的 ```` ```data ```` 代码块是**通用**数据入口，字段示例：
 
@@ -111,7 +109,7 @@ python -m unittest discover -s tests -t .
 碳水_g: 150
 脂肪_g: 40
 蛋白质_g: 55
-三餐情况: 早✓午✓晚✓
+三餐情况: 早✓午✓晚✗
 早餐按时: yes
 手机屏幕_h: 10.9
 深度工作_h: 0
@@ -124,22 +122,52 @@ python -m unittest discover -s tests -t .
 一句话总结: ...
 ```
 
-解析兼容三种格式：` ```data ` 代码块 / HTML 注释块 / 用户直接发的纯文本表头；按 `date` 主键 upsert，同一天重复入库会覆盖、不会重复。
+解析兼容三种格式：` ```data ` 代码块 / HTML 注释块 / 用户直接发的纯文本表头；
+按 `date` 主键 upsert，同一天重复入库会覆盖（保护模式下只补空）。
 
-> **个人定制项（服药 / 护肤）不在此数据块中**：它们由「一、日常打卡」勾选提取，单独落入 `personal_tracks` 表，不计入通用评分。
+> **个人定制项（补剂 / 护肤）不在此数据块中**：它们由「一、日常打卡」勾选提取，
+> 归一化后落入 `personal_tracks` 表，不计入通用评分。详见下文「个人打卡归一化」。
+
+---
+
+## 🔖 个人打卡归一化（v1.3.0 新增）
+
+**问题**：打卡项手写文本天然不稳定。改造前实测 244 条打卡记录里出现 **16 种文本形态**，
+实际只对应 6 个规范项——同一个 CoQ10 可能写成「CoQ10 ×1」「晨间-CoQ10 ×1 ＋ Exia 早3」
+「CoQ10 ×1 ＋ Exia 早3」…… 导致**依从率根本无法聚合**。
+
+**方案**：打卡项定义收敛为 `config.PERSONAL_ITEMS` 单一来源，解析时归一化到规范 ID：
+
+| 输入文本 | 归一化结果 |
+| --- | --- |
+| 「晨间」小节 + `CoQ10 ×1 ＋ Exia 早3` | `coq10@morning`, `exia_am@morning` |
+| 「晚间」小节 + `Exia 晚3 ＋ Move Free` | `exia_pm@evening`, `movefree@evening` |
+| 无小节 + `Move Free 红色 ×1` | `movefree`（时段未知） |
+| 任意位置 + `护肤` | `skincare` |
+
+- `item_key` 规范项 ID（不含时段）—— **按它聚合依从率**
+- `track_key` 规范项 ID + 时段后缀（`@morning` / `@noon` / `@evening`），时段未知则无后缀
+- 未收录的新写法不会被丢弃：生成稳定的 `other:<slug>`，同样可聚合；
+  `doctor` 会把它列出来提示你补 alias
+
+时段规则由 `PERSONAL_ITEMS` 的 `per_slot` 控制：
+`per_slot=True`（如 Move Free 午/晚都可能吃）跟随小节标题；`False`（如护肤）固定不分时段。
+
+改造后实测：**16 种写法 → 6 个规范项，0 条未收敛**，依从率首次可算。
 
 ---
 
 ## 📊 评分规则（核心）
 
-四维评分：**健康 / 工作 / 学习 / 生活**，各自 1–10 分；**系统分 = 四维均值**（四维齐全才计算，保留 2 位小数）。
+四维评分：**健康 / 工作 / 学习 / 生活**，各自 1–10 分；**系统分 = 四维均值**
+（四维齐全才计算，保留 2 位小数）。
 
 入库时（`ingest.py`）若某维分缺失则自动生成——**只补 `None` 的，绝不覆盖手填值**。
-旧数据（如 2026-08-05 的手填分 4/6/6/5）会原样保留。
 
 ### 1. 健康分（规则化加权，基于客观健康子指标）
 
-健康分由各子指标加权求和得到，权重和为 1.0。**任意子指标缺失则跳过该项，剩余权重重新归一化**；最终结果 clamp 到整数 1–10。
+健康分由各子指标加权求和得到。**任意子指标缺失则跳过该项，剩余权重重新归一化**；
+最终结果 clamp 到整数 1–10。
 
 | 子指标 | 权重 | 评分标准 |
 | --- | --- | --- |
@@ -150,7 +178,8 @@ python -m unittest discover -s tests -t .
 | 饮食热量 | 0.10 | 1200–2200 kcal → 8｜1000–1200 或 2200–2600（边界）→ 5｜其余 → 3 |
 | 手机屏幕 | 0.15 | ≤4h → **10**｜≤6h → 8｜≤8h → 6｜≤10h → 4｜>10h → 2 |
 
-> 权重和为 0.95（服药依从已移出通用评分），缺失子项时剩余权重自动归一化。服药 / 护肤等个人定制项不计入通用健康分，单独统计于 `personal_tracks` 表（定义见 `config.PROFILE`）。
+> 权重和为 0.95（服药依从已移出通用评分），缺失子项时剩余权重自动归一化。
+> 服药 / 护肤等个人定制项不计入通用健康分，单独统计于 `personal_tracks` 表。
 
 > 入睡时间 `bedtime` 存「距 00:00 的分钟数」(23:47 → 1427，00:39 → 39)。
 > 跨午夜的凌晨时段（≤300 分钟）判断优先于当晚时段，避免命中 ≤22:30 拿满分。
@@ -164,20 +193,11 @@ python -m unittest discover -s tests -t .
 | ≥ 2h | 5 |
 | < 2h | 3 |
 
-### 3. 学习分（基于学习投入时长 `learn_h`）
+### 3. 学习分 / 4. 生活分
 
-| 学习投入_h | 学习分 |
-| --- | --- |
-| ≥ 3h | 9 |
-| ≥ 2h | 7 |
-| ≥ 1h | 5 |
-| < 1h | 3 |
+规则与工作分同构，阈值分别取 `learn_h` / `life_h`：
 
-### 4. 生活分（基于生活投入时长 `life_h`）
-
-规则与学习分完全相同：
-
-| 生活投入_h | 生活分 |
+| 投入_h | 分数 |
 | --- | --- |
 | ≥ 3h | 9 |
 | ≥ 2h | 7 |
@@ -194,9 +214,78 @@ python -m unittest discover -s tests -t .
 
 ---
 
+## 📏 统计口径（v1.3.0 修正）
+
+### 训练日运动：三态而非二态
+
+早期版本用 `exercise_min > 0` 直接判训练日达标，会把「**字段空着**」误判成
+「**没运动**」，导致达标率系统性偏低（实测 28 个训练日里 19 个字段为空）。
+
+现在把「未记录」与「未达标」分开报告：
+
+```
+训练日运动 : 达标 2/3 天 = 67%  ⚠️ 另有 1 天未记录运动字段（不计入达成分母）
+```
+
+- **达标** = `exercise_min > 0`
+- **未达标** = `exercise_min = 0`
+- **未记录** = `exercise_min IS NULL`（单列出来，不混入分母）
+
+### training_day 兜底
+
+`training_day` 空着时，入库会按 `config.PROFILE["training_weekdays"]`
+（默认周一/二/三/五/六）的日期约定兜底填充，避免这天从
+`WHERE training_day=1` 的统计里静默消失。
+
+`doctor` 会提示「记录值与日期约定不符」的天数——那可能是临时调整训练日，
+属合理差异，**不算故障**。
+
+### 数据完整度
+
+周 / 月报告会输出核心字段完整度与缺失明细，避免只看百分比却不知道缺在哪：
+
+```
+数据完整度 : 83%（核心字段缺失: exercise_min×34、learn_h×15、life_h×15）
+```
+
+---
+
+## 🩺 数据体检（`doctor`）
+
+一次性回答「数据还准不准、全不全、新不新」：
+
+```bash
+python -m review_tool doctor
+```
+
+| 检查项 | 说明 |
+| --- | --- |
+| 数据库 | schema 版本 / 记录数 / 完整性检查 |
+| 新鲜度 | 最新复盘距今多少天，超过 1 天即提示补录 |
+| 文件 ↔ 数据库对账 | 双向差集：哪些 md 没入库、哪些库中记录找不到源文件 |
+| 旧格式归档 | 哪些天的数据源只存在于「历史源复盘」，建议先转换 |
+| 数据完整度 | 核心字段缺失统计 |
+| 打卡归一化 | 是否还有未收敛到规范项的 `other:*` 记录 |
+| 训练日口径 | 记录值与日期约定不一致的天数（提示性） |
+
+退出码：健康 = 0，有待处理项 = 1（便于接入自动化）。
+
+## 📤 导出（`export`）
+
+```bash
+python -m review_tool export                    # 3 个 CSV 到 exports/（utf-8-sig，Excel 直开）
+python -m review_tool export --format json      # 单个 JSON
+python -m review_tool export --stdout           # 打印到终端
+```
+
+导出三份数据：`daily_reviews`（每日通用字段）、`personal_tracks`（打卡明细）、
+`adherence`（**按规范项聚合的依从率**）。
+
+---
+
 ## 🤖 AI 评价与建议（第七章）
 
-每日复盘模板固定包含 `## 七、AI 评价与建议`（位于「六、四维评分」与「附录 · 系统数据」之间），由晨间收集自动化在回填数据后生成，分两部分：
+每日复盘模板固定包含 `## 七、AI 评价与建议`，由晨间收集自动化在回填数据后生成：
 
 - **评价**：2–3 条，含「做得好」与「需留意」，必须引用当日与近 7 日的实际数字。
 - **建议**：2–4 条可执行动作，带具体时间锚点或目标值。
@@ -211,8 +300,8 @@ python -m review_tool ai-context 2026-09-15
 
 1. **当日事实**：睡眠/饮食（含三大营养素）/屏幕/深度工作/学习/生活/四维分。
 2. **近 7 日均值**：系统与四维、睡眠/屏幕/深度工作/饮食、宏量日均。
-3. **规则命中的关注点**：按 `config.SCORE_THRESHOLDS` 阈值与 `config.PROFILE["macro_targets"]` 目标逐条判定，
-   例如「入睡 00:35 未在 23:30 前」「蛋白质 59g 低于目标 82g」「连续 7 天屏幕超过 10h」。
+3. **规则命中的关注点**：按 `config.SCORE_THRESHOLDS` 阈值与
+   `config.PROFILE["macro_targets"]` 目标逐条判定。
 
 关注点规则（均为客观陈述，不下结论）：
 
@@ -220,12 +309,16 @@ python -m review_tool ai-context 2026-09-15
 | --- | --- |
 | 睡眠 | 时长 < 7h｜质量 < 80｜入睡落在熬夜档（00:00–06:00）或晚睡档（>23:30） |
 | 运动 | 训练日未记录运动 |
-| 饮食 | kcal 出 1200–2200 区间；碳水/脂肪/蛋白低于 `PROFILE["macro_targets"]` 目标 |
+| 饮食 | kcal 出 1200–2200 区间；碳水/脂肪/蛋白低于 `macro_targets` 目标 |
 | 屏幕 | > 10h |
 | 四维 | 工作/学习/生活分 ≤3（最低档） |
 | 趋势 | 连续 ≥3 天出现同一问题（入睡晚 / 学习分 ≤3 / 屏幕 >10h） |
 
-> 该章节为**叙事文本**，不入 `daily_reviews` 表、不参与评分；评分仍由六章的客观规则决定。
+> **文案里的时间点也是从配置算出来的**：例如「未在 23:30 前」取自
+> `SCORE_THRESHOLDS["bedtime"]["ok_max"]`，改阈值文案会跟着变，不会出现
+> 「阈值改了、文案还在说老数字」。
+>
+> 该章节为**叙事文本**，不入 `daily_reviews` 表、不参与评分；评分仍由客观规则决定。
 
 ---
 
@@ -254,28 +347,95 @@ python -m review_tool ai-context 2026-09-15
 
 | 列 | 含义 |
 | --- | --- |
-| `date` + `category` + `item` (PK) | 日期 / 类别(服药·护肤·自定义) / 具体项 |
+| `date` + `track_key` (PK) | 日期 / 规范 ID（含时段后缀，如 `coq10@morning`） |
+| `item_key` | 规范项 ID（不含时段）—— **按它聚合依从率** |
+| `category` / `item` | 类别（服药·护肤·自定义）/ 展示名 |
 | `done` | 是否完成 (0/1) |
 | `note` | 备注 |
 
-完整建表语句与 CHECK 约束见 `review_tool/schema.sql`。
+完整建表语句与 CHECK 约束见 `review_tool/schema.sql`；索引由 `db.py` 在迁移后创建。
+
+### 数据库迁移
+
+`PRAGMA user_version` 记录 schema 版本，`init_db` 时自动逐级升级且幂等。
+当前版本 **2**：
+
+| 版本 | 变更 |
+| --- | --- |
+| 1 | `daily_reviews` 补齐宏量营养素列（`carbs_g` / `fat_g` / `protein_g`） |
+| 2 | `personal_tracks` 主键从自由文本 `item` 改为规范 `track_key`，并回填历史数据 |
+
+升级是**无损**的：迁移前会先校验（v1.3.0 实测 49 天数据逐行零差异），
+建议重大升级前先备份 `reviews.db`。
 
 ---
 
 ## 个人化配置（可配置层）
 
-本项目对「个人差异」做了显式抽象，小伙伴拿到后**只需改 `review_tool/config.py` 两处**，无需碰模板与代码：
+本项目对「个人差异」做了显式抽象，小伙伴拿到后**只需改 `review_tool/config.py` 三处**，
+无需碰模板与代码：
 
-- **`PROFILE`**：补剂方案（早/午/晚）、护肤项、早餐作息窗口、三大营养素每日目标（`macro_targets`）。打卡项由入库脚本从「日常打卡」勾选提取，落入 `personal_tracks` 表单独统计；`macro_targets` 供「AI 评价与建议」判定摄入是否达标，留空则不检查。
-- **`SCORE_THRESHOLDS`**：四维评分的阈值与权重（睡眠/入睡/运动/饮食/屏幕/深度工作/学习/生活）。默认值 = 当前用户的评分偏好，可自由调整；同时驱动「AI 评价与建议」的关注点规则。
+- **`PROFILE`**：作息窗口、三大营养素每日目标（`macro_targets`）、
+  训练日约定（`training_weekdays`，0=周一）。
+- **`PERSONAL_ITEMS`**：个人打卡项定义（补剂 / 护肤 / 自定义），
+  每项含 `key` / `slot` / `per_slot` / `label` / `aliases`。
+  **这是解析与归一化的单一来源**，改这里即可适配自己的打卡方案。
+- **`SCORE_THRESHOLDS`**：四维评分阈值与权重。默认值 = 当前用户的评分偏好；
+  同时驱动「AI 评价与建议」的关注点规则与文案。
+
+`tests/test_config.py` 会校验配置自洽性（权重与实现对应、alias 不互相抢匹配、
+阈值单调性、版本一致性），改错配置测试会直接报出来。
 
 ---
 
 ## 设计要点
 
-- **SQLite 是唯一数据源**：通用结构化字段落在 `daily_reviews` 表；补剂 / 护肤等**个人定制项**单独落在 `personal_tracks` 表，不计入通用评分。
-- **个人化可配置**：补剂方案 / 护肤 / 作息窗口定义于 `config.PROFILE`，评分阈值与权重定义于 `config.SCORE_THRESHOLDS`；改这两处即可适配不同用户。
-- **解析向后兼容**：旧格式（注释块 / 纯文本表头）都能被新解析器识别并入库。
+- **SQLite 是唯一数据源**：通用结构化字段落在 `daily_reviews`；个人定制项单独落在
+  `personal_tracks`，不计入通用评分。
+- **upsert 默认不擦数据**：新值为 `None` 时保留库中旧值，避免重跑 ingest 造成静默丢数据。
+- **打卡归一化**：自由文本 → 规范 ID，让依从率可聚合（见上文专章）。
+- **口径区分「未记录」与「未达标」**：缺失数据不冒充零值参与统计。
+- **解析向后兼容**：` ```data ` 块 / HTML 注释块 / 纯文本表头三种格式，
+  以及历史上的「内核打卡」「零、日常打卡」「### 晨间」等写法都能识别。
 - **防脏数据**：四维 1–10、质量 0–100、布尔 0/1、数值非负，均有 CHECK 约束拦截。
-- **评分可解释**：健康分为客观子指标加权，工作 / 学习 / 生活分基于时长分档，规则全部透明（见上）。
-- **零依赖**：纯 Python 标准库，`requirements.txt` 为空也能跑。
+- **评分可解释**：健康分为客观子指标加权，工作 / 学习 / 生活分基于时长分档，规则全部透明。
+- **零依赖**：纯 Python 标准库；CI 在 3.10–3.13 上跑测试与 lint。
+- **可回退**：每个版本打 git tag，结构升级前先备份 `reviews.db`。
+
+---
+
+## 变更日志
+
+### v1.3.0 — 工程化改造
+
+**正确性修复**
+
+1. **打卡主键语义断裂**：`personal_tracks` 改用规范 `track_key` 主键 + `item_key` 聚合键，
+   新增 `tracks.py` 归一化层；历史数据自动迁移（实测 16 种写法 → 6 个规范项，0 条未收敛）。
+2. **「未记录」被当成「未达标」**：训练日达标改为三态统计（达标 / 未达标 / 未记录）。
+3. **`training_day` 缺失静默消失**：入库按 `PROFILE["training_weekdays"]` 兜底填充。
+4. **upsert 全列覆盖会擦数据**：默认改为 COALESCE 保护模式，`--overwrite` 显式覆盖。
+5. **`_extract_block` 认不出实际使用的注释块格式**（结束标记 `===== /数据块 =====`）。
+6. **`new-day` 标题漏「星期」前缀**，生成出「（四）」而非「（星期四）」。
+7. **7 月历史数据有损**：早期 `to_float("6h49min")` 只截到整数，导致 `sleep_h` 全被舍成
+   `6.0`/`7.0`；将已规范化的归档文件归位后重新入库，恢复精确值与 `sleep_quality`/`bedtime`。
+
+**结构收口**
+
+8. 输出目录统一到 `GENERATED_DIR`（`复盘/YYYY-MM/`），消除从未被使用的死常量。
+9. `ingest` 跳过「收件箱」与「历史源复盘」，数据源归属明确。
+10. `new_day` 删除已失效的硬编码正则（实测为死代码），改用通用 data 块清空 + `<!--clear-->` 标记。
+11. 抽取 `util.py`；`analyze` 周月合一；`score` 三同构评分合一；`system_score_from` 归位 `score.py`；
+    合并两份口径不一的 `requirements.txt`。
+12. `fetch_all` / `_avg` 的 SQL 拼接加白名单校验。
+
+**新增能力**
+
+13. `doctor` 数据体检子命令；14. `export` CSV/JSON 导出；15. `__main__` 改用 argparse；
+16. 报告新增数据完整度；17. 迁移引入 `PRAGMA user_version` 版本管理。
+
+**工程基线**
+
+18. 测试从 57 项扩到 **149 项**，补齐 analyze / new_day / import_history / config / doctor / export / 迁移；
+19. 新增 GitHub Actions CI（Python 3.10–3.13 测试 + ruff）；
+20. 版本号对齐（`pyproject` 曾长期停在 1.0.0 而包内是 1.2.0），并打 tag。

@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    name: 测试 (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 运行时零依赖，故只需验证各 Python 版本下标准库行为一致
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: 运行测试套件（零依赖）
+        run: python -m unittest discover -s tests -t . -v
+      - name: 语法编译检查
+        run: python -m compileall -q review_tool tests
+      - name: CLI 冒烟测试
+        run: |
+          python -m review_tool version
+          python -m review_tool doctor || true
+          python -m review_tool --help
+
+  lint:
+    name: 代码风格
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: 安装 ruff
+        run: pip install "ruff>=0.6"
+      - name: ruff check
+        run: ruff check .
+      - name: ruff format --diff
+        run: ruff format --check --diff review_tool tests || true

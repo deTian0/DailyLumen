@@ -2,8 +2,11 @@
 import unittest
 
 from review_tool.score import (
-    compute_health_score, compute_work_score,
-    compute_learn_score, compute_life_score, compute_scores,
+    compute_health_score,
+    compute_learn_score,
+    compute_life_score,
+    compute_scores,
+    compute_work_score,
 )
 
 
