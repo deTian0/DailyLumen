@@ -134,19 +134,21 @@ agent_created: true
 
 ## 8. 换机 / 迁移（v1.4.5 定版口径）
 
-**git 里有什么**：全部代码 + 测试 + CI + 全部复盘原文 + 空库模板 + **本 skill** + `doc-corpus-normalize`。
+**git 里有什么**：全部代码 + 测试 + CI + 全部复盘原文 + 空库模板 + 三个项目级 skill（`dailylumen-conventions` / `daily-review-intake` / `doc-corpus-normalize`）。
 
 | 路径 | 迁移动作 |
 | --- | --- |
 | `reviews.db` | **手工搬运**（不进 git）。不带也行 —— 可从 md 重建；带了就照旧跑一次 `ingest` 核对"0 处不一致" |
 | `.workbuddy/memory/` | **不迁移** —— 项目口径已抽象为本 skill（入 git）；本机坑与日志随机器丢弃 |
 | `.workbuddy/backup/` | **不迁移**（DB 快照 + 一次性脚本 + `archived/`，留档价值为主） |
-| `.workbuddy/automations/` | 不迁移（执行摘要）。**调度定义**需手工重建，见下 |
+| `.workbuddy/automations/` | 不迁移（自动化执行摘要）。**本项目当前无任何定时任务**，无需重建调度 |
 | `exports/` | **重建**（`python -m review_tool export`） |
 | `__pycache__/`、`.ruff_cache/` | **重建**（自动重生 / 重跑 ruff） |
 
-**唯一必须手工重建的是晨间收集自动化**：其定义不在仓库里（WorkBuddy 本地注册），
-且 prompt 里**硬编码了绝对路径**，换机必须改（代码本身无绝对路径，全靠 `config.py` 的 `__file__` 推导）。
+**本项目不再需要任何定时任务**（v1.4.6 起）：原「晨间收集自动化」（每天 08:30）已删除 ——
+素材改为**用户手动投递**（对话里直接发截图 / 文档 / 文字简报），由按需加载的 skill
+**`daily-review-intake`** 处理。所以换机后**既不用搬记忆、也不用重建调度**，
+唯一的手工动作就是把 `reviews.db` 拷过来。
 
 > 完整步骤 / 验证清单见 [`docs/迁移指南.md`](../../../docs/迁移指南.md)。
 
@@ -159,6 +161,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
+| **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
 | 安全的库迁移 / 重建可复现性自检 | skill `sqlite-safe-migration`（用户级） |
 | 模块级速查 | `review_tool/README.md` |
@@ -178,3 +181,4 @@ agent_created: true
    旧键永久滞留并**重复计依从率**。动的打卡项就要想着跑对账。
 5. **本机专属的坑不写进本文件**：写盘不落盘、`git update-ref` 报成功不生效等属于
    "这台机器"的属性，记在 `.workbuddy/memory/MEMORY.md`（不入 git）。换机后若不复现就删掉。
+   对应的**可执行动作**见用户级 skill `safe-write`（写后回读校验 + git 引用核对修复）。
