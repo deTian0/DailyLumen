@@ -7,6 +7,9 @@
 
 扫描范围：``每日复盘/`` 递归，但**跳过** 收件箱（原始素材）与
 历史源复盘（语雀旧格式归档，需先经 import-history 转成标准格式）。
+
+运动时长：字段为空时，会由「二、今日三件事」的描述折算补全（见 bodyweight 模块），
+并在输出里标注「由描述折算」，来源记入 ``exercise_src`` 列。
 """
 from __future__ import annotations
 
@@ -44,12 +47,16 @@ def fill_training_day(row: dict) -> bool:
     return True
 
 
-def ingest_path(conn, path: str, *, overwrite: bool = False) -> bool:
-    """解析单个 md 文件并 upsert 入库。成功返回 True。"""
+def ingest_path(conn, path: str, *, overwrite: bool = False) -> dict | None:
+    """解析单个 md 文件并 upsert 入库。
+
+    成功返回解析出的行 dict（含 ``exercise_src`` 等派生字段），失败返回 None。
+    返回值可直接当布尔用（truthy 即成功）。
+    """
     row = parse_file(path)
     if not row.get("date"):
         print(f"  [跳过] {os.path.basename(path)}: 未解析到日期")
-        return False
+        return None
     # 训练日兜底（缺失才填，不覆盖手填）
     fill_training_day(row)
     # 自动补全缺失的四维评分（只补 None，不覆盖手填）
@@ -63,7 +70,15 @@ def ingest_path(conn, path: str, *, overwrite: bool = False) -> bool:
             conn, row["date"], track_key, category, item_key, item_label, done
         )
     conn.commit()
-    return True
+    return row
+
+
+def _report_row(label: str, row: dict) -> None:
+    """打印一条入库结果；运动时长若来自描述折算则显式标注。"""
+    if row.get("exercise_src") == "derived":
+        print(f"  [入库] {label}  ↳ 运动 {row['exercise_min']}min 由描述折算")
+    else:
+        print(f"  [入库] {label}")
 
 
 def iter_markdown(input_dir: str) -> list[str]:
@@ -87,10 +102,19 @@ def ingest_all(conn, input_dir: str = INPUT_DIR, *, overwrite: bool = False) -> 
     """递归扫描 input_dir 下所有 .md 入库，返回成功条数。"""
     paths = iter_markdown(input_dir)
     ok = 0
+    derived = 0
     for p in paths:
-        if os.path.exists(p) and ingest_path(conn, p, overwrite=overwrite):
-            ok += 1
-            print(f"  [入库] {os.path.relpath(p, input_dir)}")
+        if not os.path.exists(p):
+            continue
+        row = ingest_path(conn, p, overwrite=overwrite)
+        if row is None:
+            continue
+        ok += 1
+        if row.get("exercise_src") == "derived":
+            derived += 1
+        _report_row(os.path.relpath(p, input_dir), row)
+    if derived:
+        print(f"  其中 {derived} 天的运动时长由「三件事」描述折算（见 config.BODYWEIGHT_MOVES）")
     return ok
 
 
@@ -105,12 +129,13 @@ def main(argv: list[str] | None = None) -> int:
     if args:
         ok = 0
         for p in [args[0]]:
-            if os.path.exists(p):
-                if ingest_path(conn, p, overwrite=overwrite):
-                    ok += 1
-                    print(f"  [入库] {os.path.basename(p)}")
-            else:
+            if not os.path.exists(p):
                 print(f"  [缺失] {p}")
+                continue
+            row = ingest_path(conn, p, overwrite=overwrite)
+            if row is not None:
+                ok += 1
+                _report_row(os.path.basename(p), row)
     else:
         ok = ingest_all(conn, INPUT_DIR, overwrite=overwrite)
 

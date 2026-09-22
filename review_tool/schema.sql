@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS daily_reviews (
     bedtime         INTEGER,                    -- 入睡时间: 距 00:00 的分钟数 (00:39 -> 39)
     exercise_min    INTEGER
         CHECK (exercise_min IS NULL OR exercise_min >= 0),
+    exercise_src    TEXT                        -- 运动时长来源: 'record'=字段填报
+        CHECK (exercise_src IS NULL OR exercise_src IN ('record', 'derived')),
+                                                -- 'derived'=由「三件事」描述折算
+                                                -- (NULL=无运动信息)
     commute_done    INTEGER
         CHECK (commute_done IN (0, 1)),        -- 1=通勤完成 0=否
     diet_kcal       INTEGER
