@@ -24,12 +24,15 @@ from .analyze import main as analyze_main
 from .doctor import diagnose, is_healthy
 from .doctor import render as render_doctor
 from .export import main as export_main
+from .fuse import main as fuse_main
 from .import_history import main as import_history_main
 from .ingest import main as ingest_main
 from .new_day import main as new_day_main
+from .sync_docs import main as sync_docs_main
 
 USAGE_HINT = (
-    "子命令: new-day | ingest | week | month | ai-context | import-history | doctor | export | version"
+    "子命令: new-day | ingest | week | month | ai-context | import-history"
+    " | doctor | fuse | sync-docs | export | version"
 )
 
 
@@ -66,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--src", help="来源目录（也可用环境变量 DAILYLUMEN_HISTORY_SRC）")
 
     sub.add_parser("doctor", help="数据体检：对账 / 完整度 / 新鲜度 / 归一化")
+
+    sub.add_parser("fuse", help="熔断检测：单维度持续走低 + 相对基线偏离")
+
+    p = sub.add_parser("sync-docs", help="把库里的四维分回写到复盘 md（数据块 + 六章）")
+    p.add_argument("--check", action="store_true", help="只报告差异，不写文件")
 
     p = sub.add_parser("export", help="导出 CSV / JSON")
     p.add_argument("--format", choices=("csv", "json"), default="csv")
@@ -118,6 +126,12 @@ def main(argv: list[str] | None = None) -> int:
         result = diagnose()
         print(render_doctor(result))
         return 0 if is_healthy(result) else 1
+
+    if cmd == "sync-docs":
+        return sync_docs_main(["--check"] if args.check else [])
+
+    if cmd == "fuse":
+        return fuse_main([])
 
     if cmd == "export":
         rest = ["--format", args.format]

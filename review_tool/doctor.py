@@ -21,8 +21,9 @@ from datetime import date as _date
 from datetime import datetime
 
 from .analyze import completeness
-from .config import ARCHIVE_SRC_DIR, INPUT_DIR, PROFILE
+from .config import ARCHIVE_SRC_DIR, FUSE_RULES, INPUT_DIR, PROFILE
 from .db import SCHEMA_VERSION, init_db
+from .fuse import find_fuses
 
 _DATE_IN_NAME = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
@@ -135,6 +136,9 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
             ])
             if os.path.isdir(inbox) else 0
         )
+
+        # 熔断检测（与数据健康无关，属「人生指标」告警，故不参与 is_healthy）
+        result["fuse"] = find_fuses(conn)
     finally:
         conn.close()
     return result
@@ -243,6 +247,34 @@ def render(result: dict) -> str:
     if result["inbox_files"]:
         L.append("")
         L.append(f"[收件箱] {result['inbox_files']} 个待处理素材")
+
+    fuse = result.get("fuse")
+    if fuse and fuse.get("as_of"):
+        L.append("")
+        L.append("[熔断检测]")
+        if fuse["absolute"]:
+            for it in fuse["absolute"]:
+                flag = "🔴" if not it["long_run"] else "⚠️"
+                L.append(f"  {flag} {it['label']}：连续 {it['run']} 天 < {fuse['threshold']}"
+                         f"（自 {it['since']} 起）")
+            long_runs = [it["label"] for it in fuse["absolute"] if it["long_run"]]
+            if long_runs:
+                L.append(f"     · {'、'.join(long_runs)} 已连续超过 "
+                         f"{FUSE_RULES['long_run_days']} 天，绝对阈值失去分辨力"
+                         " → 看下面的相对基线")
+        else:
+            L.append("  ✓ 无维度触发熔断")
+        moved = [d for d in fuse.get("drift", []) if d["moved"]]
+        if moved:
+            L.append(f"  [相对基线] 近 {FUSE_RULES['recent_days']} 日 vs 之前 "
+                     f"{FUSE_RULES['baseline_days']} 日，变化明显的维度:")
+            for d in moved:
+                arrow = "▲" if d["delta"] > 0 else "▼"
+                L.append(f"     {d['label']} {d['baseline']} → {d['recent']}  "
+                         f"{arrow} {d['delta']:+.2f}")
+        elif fuse.get("drift"):
+            L.append("  [相对基线] 各维度均无明显漂移")
+        L.append("     → 详情: python -m review_tool fuse")
 
     L.append("")
     L.append("-" * 52)
