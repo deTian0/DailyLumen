@@ -18,6 +18,31 @@ def _clamp(v, lo: int = 1, hi: int = 10) -> int:
     return max(lo, min(hi, int(round(v))))
 
 
+def system_score_from(row: dict) -> float | None:
+    """根据四维评分算系统分；任一缺失返回 None。"""
+    vals = [row.get(d) for d in DIMENSIONS]
+    if all(v is not None for v in vals):
+        return round(sum(vals) / len(vals), 2)
+    return None
+
+
+def _band(value, thresholds: dict, scale: tuple[int, int, int, int] = (9, 7, 5, 3)) -> int | None:
+    """时长型指标的分档评分（工作 / 学习 / 生活三者共用）。
+
+    ``value >= full`` 得最高档，依次 good / ok，低于 ok 得最低档；None 返回 None。
+    """
+    if value is None:
+        return None
+    top, good, ok, low = scale
+    if value >= thresholds["full"]:
+        return top
+    if value >= thresholds["good"]:
+        return good
+    if value >= thresholds["ok"]:
+        return ok
+    return low
+
+
 def compute_health_score(row: dict) -> int | None:
     """基于健康子指标规则化生成 1-10 的健康分。数据不足返回 None。"""
     T = SCORE_THRESHOLDS
@@ -102,47 +127,17 @@ def compute_health_score(row: dict) -> int | None:
 
 def compute_work_score(row: dict) -> int | None:
     """基于深度工作小时生成工作分；未填 deepwork_h 返回 None。"""
-    dw = row.get("deepwork_h")
-    if dw is None:
-        return None
-    T = SCORE_THRESHOLDS["work"]
-    if dw >= T["full"]:
-        return 9
-    if dw >= T["good"]:
-        return 7
-    if dw >= T["ok"]:
-        return 5
-    return 3
+    return _band(row.get("deepwork_h"), SCORE_THRESHOLDS["work"])
 
 
 def compute_learn_score(row: dict) -> int | None:
     """基于学习投入小时生成学习分；未填 learn_h 返回 None。"""
-    lh = row.get("learn_h")
-    if lh is None:
-        return None
-    T = SCORE_THRESHOLDS["learn"]
-    if lh >= T["full"]:
-        return 9
-    if lh >= T["good"]:
-        return 7
-    if lh >= T["ok"]:
-        return 5
-    return 3
+    return _band(row.get("learn_h"), SCORE_THRESHOLDS["learn"])
 
 
 def compute_life_score(row: dict) -> int | None:
     """基于生活投入小时生成生活分；未填 life_h 返回 None。"""
-    lh = row.get("life_h")
-    if lh is None:
-        return None
-    T = SCORE_THRESHOLDS["life"]
-    if lh >= T["full"]:
-        return 9
-    if lh >= T["good"]:
-        return 7
-    if lh >= T["ok"]:
-        return 5
-    return 3
+    return _band(row.get("life_h"), SCORE_THRESHOLDS["life"])
 
 
 def compute_scores(row: dict) -> dict:

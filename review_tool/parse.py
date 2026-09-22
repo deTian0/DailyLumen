@@ -12,14 +12,23 @@
   C) 用户直接发的结构化表头文本（散落的 `key: value` 行）
 
 字段名兼容中英文两套命名（如 睡眠时长_h / sleep_h）。
+个人打卡（补剂/护肤）由「一、日常打卡」勾选提取，经 tracks 模块归一化后
+落到 personal_tracks 表，不参与通用评分。
 """
 from __future__ import annotations
 
 import re
 
 from .config import (
-    INT_FIELDS, FLOAT_FIELDS, BOOL_FIELDS, TEXT_FIELDS, system_score_from,
+    BOOL_FIELDS,
+    FLOAT_FIELDS,
+    INT_FIELDS,
+    SLOT_BY_CN,
+    SUPPLEMENT_MARKER,
 )
+from .score import system_score_from
+from .tracks import normalize_supplement_line, resolve_item, resolve_track
+from .util import KV_RE, clock_to_minutes, to_bool, to_float, to_int
 
 # 数据块的 YAML 风格字段名 -> 数据库列名
 FIELD_MAP = {
@@ -54,34 +63,12 @@ FIELD_MAP = {
     "summary": "summary", "一句话总结": "summary",
 }
 
-# key: value 行（兼容中英文冒号）
-_LINE_RE = re.compile(r"^([\w一-鿿_]+)\s*[:：]\s*(.*)$")
-
-
-def _to_bool(v) -> int | None:
-    """yes/y/true/1/是/✓/ok -> 1；no/n/false/0/否/✗/空 -> 0；其余 -> None。"""
-    if v is None:
-        return None
-    s = str(v).strip().lower()
-    if s in ("yes", "y", "true", "1", "是", "✓", "ok"):
-        return 1
-    if s in ("no", "n", "false", "0", "否", "✗", ""):
-        return 0
-    return None
-
-
-def _to_bedtime_min(raw) -> int | None:
-    """'HH:MM' / 'HH:MM:SS' -> 距 00:00 分钟数；解析失败返回 None。"""
-    if raw is None:
-        return None
-    s = str(raw).strip()
-    m = re.match(r"^(\d{1,2}):(\d{2})", s)
-    if not m:
-        return None
-    h, mi = int(m.group(1)), int(m.group(2))
-    if h > 23 or mi > 59:
-        return None
-    return h * 60 + mi
+# 「日常打卡」小节（历史上也叫过「内核打卡」，也曾编号为「零」）
+_SECTION_TRACKS_RE = re.compile(r"##\s*[零一二三四五六]、[^\n]*打卡(.*?)(?=\n##\s|\Z)", re.S)
+# 该小节内的时段标题：兼容 **晨间（起床后）** 与 ### 晨间（起床后） 两种写法
+_SLOT_HEADER_RE = re.compile(r"^\s*(?:\*\*|#{2,5})\s*(晨间|午间|晚间).*$")
+# 打卡行：- [x] / - [ ]
+_CHECKBOX_RE = re.compile(r"^\s*-\s*\[([ xX])\]\s*(.*)$")
 
 
 def _coerce(col: str, raw) -> object | None:
@@ -92,68 +79,88 @@ def _coerce(col: str, raw) -> object | None:
     # 三餐情况: "早✓午✓晚✓" / "早✓午✓晚✗" -> 统计 ✓ 数量
     if col == "meals_count" and "✓" in raw:
         return raw.count("✓")
-    # 入睡时间: "00:39" -> 39 (分钟)
     if col == "bedtime":
-        return _to_bedtime_min(raw)
+        return clock_to_minutes(raw)
     if col in INT_FIELDS:
-        m = re.search(r"-?\d+", raw)
-        return int(m.group()) if m else None
+        return to_int(raw)
     if col in FLOAT_FIELDS:
-        m = re.search(r"-?\d+(?:\.\d+)?", raw)
-        return float(m.group()) if m else None
+        return to_float(raw)
     if col in BOOL_FIELDS:
-        return _to_bool(raw)
+        return to_bool(raw)
     return raw  # text
 
 
-def _extract_block(text: str) -> str:
-    """优先提取 ```data 代码块；其次 HTML 注释数据块；都没有返回 None。"""
+def _extract_block(text: str) -> str | None:
+    """优先提取 ```data 代码块；其次 HTML 注释数据块；都没有返回 None。
+
+    注释块的结束标记在历史上出现过两种写法：
+        <!-- ===== /数据块 ===== -->      （实际使用）
+        <!-- ===== /数据块 -->            （早期文档描述）
+    这里统一兼容。
+    """
     m = re.search(r"```data\s*\n(.*?)```", text, re.S)
     if m:
         return m.group(1)
-    m = re.search(r"<!--\s*=====\s*数据块.*?=====\s*/数据块\s*-->", text, re.S)
+    m = re.search(r"<!--\s*=*\s*数据块.*?=*\s*/数据块\s*=*\s*-->", text, re.S)
     if m:
         return m.group(0)
     return None
 
 
-def _extract_personal_tracks(text: str) -> list[tuple[str, str, int]]:
-    """从「一、日常打卡」章节提取个人定制勾选（服药 / 护肤）。
+def _scan_kv(body: str, row: dict) -> None:
+    """扫描 body 中的 `key: value` 行并写入 row。"""
+    for line in body.splitlines():
+        mm = KV_RE.match(line.strip())
+        if not mm:
+            continue
+        key, val = mm.group(1).strip(), mm.group(2).strip()
+        db_col = FIELD_MAP.get(key)
+        if db_col and val != "":
+            row[db_col] = _coerce(db_col, val)
 
-    返回 [(category, item, done), ...]。通用项（早餐/通勤）不在此列，
-    它们有独立的通用字段。结果供 ingest 写入 personal_tracks 表，
-    不参与通用评分。
 
-    为区分同一补剂在不同时段（晨/午/晚）的打卡，解析时会把时段前缀
-    加到 item 上，例如「晨间-复合维生素B族 ×1」。没有时段标题的文本
-    保持原行为不变。
+def _extract_personal_tracks(text: str) -> list[tuple[str, str, str, str, int]]:
+    """从「一、日常打卡」章节提取个人定制勾选（补剂 / 护肤）。
+
+    返回 ``[(category, track_key, item_key, item_label, done), ...]``。
+
+    通用项（早餐 / 通勤）不在此列——它们有独立的通用字段；
+    只有 ``config.PERSONAL_ITEMS`` 中定义过的项才会进入 personal_tracks。
+    时段由小节标题（``**晨间（起床后）**`` 或 ``### 晨间（起床后）``）决定，
+    标题缺失时由项定义的默认时段兜底。
     """
-    m = re.search(r"##\s*一、日常打卡(.*?)(?=\n##\s|\Z)", text, re.S)
+    m = _SECTION_TRACKS_RE.search(text)
     if not m:
         return []
-    tracks: list[tuple[str, str, int]] = []
-    section = ""
+
+    tracks: list[tuple[str, str, str, str, int]] = []
+    slot: str | None = None
     for line in m.group(1).splitlines():
-        # 先识别时段标题，如 **晨间（起床后）**
-        sm = re.match(r"^\s*\*\*\s*(晨间|午间|晚间).*?\*\*\s*$", line)
+        sm = _SLOT_HEADER_RE.match(line)
         if sm:
-            section = sm.group(1)
+            slot = SLOT_BY_CN.get(sm.group(1))
             continue
-        mm = re.match(r"^\s*-\s*\[([ xX])\]\s*(.*)$", line)
+
+        mm = _CHECKBOX_RE.match(line)
         if not mm:
             continue
         done = 1 if mm.group(1).lower() == "x" else 0
-        item = mm.group(2).strip()
-        if not item:
+        label_text = mm.group(2).strip()
+        if not label_text:
             continue
-        if "补剂" in item:
-            # 去掉「补剂：」前缀，保留具体项（如 CoQ10 ×1 ＋ Exia 早3）
-            spec = re.split(r"[：:]", item, maxsplit=1)[-1].strip()
-            track_item = f"{section}-{spec}" if section else (spec or item)
-            tracks.append(("服药", track_item, done))
-        elif "护肤" in item:
-            tracks.append(("护肤", "护肤", done))
-        # 早餐 / 通勤等通用打卡项不进入个人定制表
+
+        if SUPPLEMENT_MARKER in label_text:
+            for cat, track_key, item_key, item_label in normalize_supplement_line(label_text, slot):
+                tracks.append((cat, track_key, item_key, item_label, done))
+            continue
+
+        # 非补剂行：只记录已在 PERSONAL_ITEMS 定义过的项（护肤等）
+        defined = resolve_item(label_text)
+        if defined is not None:
+            cat, track_key, item_key, item_label = resolve_track(
+                label_text, slot=slot, category=defined["category"]
+            )
+            tracks.append((cat, track_key, item_key, item_label, done))
     return tracks
 
 
@@ -162,34 +169,18 @@ def parse_text(text: str) -> dict:
     body = _extract_block(text)
 
     row: dict = {}
-    # 1) 若找到数据块，只在块内匹配 key: value
     if body:
-        for line in body.splitlines():
-            line = line.strip()
-            mm = _LINE_RE.match(line)
-            if not mm:
-                continue
-            key, val = mm.group(1).strip(), mm.group(2).strip()
-            db_col = FIELD_MAP.get(key)
-            if db_col and val != "":
-                row[db_col] = _coerce(db_col, val)
+        # 1) 有数据块：只在块内匹配 key: value
+        _scan_kv(body, row)
     else:
         # 2) 无数据块：扫描全文 `字段：值` 行（兼容用户直接发的格式）
-        for line in text.splitlines():
-            line = line.strip()
-            mm = _LINE_RE.match(line)
-            if not mm:
-                continue
-            key, val = mm.group(1).strip(), mm.group(2).strip()
-            db_col = FIELD_MAP.get(key)
-            if db_col and val != "":
-                row[db_col] = _coerce(db_col, val)
+        _scan_kv(text, row)
 
     # 3) 补系统分
     if row.get("date"):
         row["system_score"] = system_score_from(row)
 
-    # 4) 提取「一、日常打卡」下的个人定制勾选 -> personal_tracks（服药/护肤）
+    # 4) 提取「一、日常打卡」下的个人定制勾选 -> personal_tracks（补剂/护肤）
     tracks = _extract_personal_tracks(text)
     if tracks:
         row["_personal_tracks"] = tracks
@@ -199,7 +190,7 @@ def parse_text(text: str) -> dict:
 
 def parse_file(path: str) -> dict:
     """读取 md 文件并解析。结果附带 raw_path。"""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         text = f.read()
     row = parse_text(text)
     row["raw_path"] = path

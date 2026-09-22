@@ -68,20 +68,31 @@ CREATE TABLE IF NOT EXISTS daily_reviews (
     ingested_at     TEXT                        -- 入库时间戳
 );
 
--- 索引: 按 ISO 周快速聚合
-CREATE INDEX IF NOT EXISTS idx_iso_week ON daily_reviews(iso_week);
-CREATE INDEX IF NOT EXISTS idx_month ON daily_reviews(month);
+-- 索引由 db.py 在迁移完成后统一创建（见 _create_indexes）：
+-- 老库的 personal_tracks 在迁移前没有 item_key 列，索引若写在建表脚本里
+-- 会在升级过程中因「引用了尚不存在的列」而报错。
 
 -- 个人定制化打卡（服药 / 护肤 / 自定义）：不计入通用评分，单独统计
 -- 与通用表解耦：小伙伴可自定义自己的个人项，无需改表结构
+--
+-- 【为什么用 track_key 当主键，而不是原始文本 item】
+-- 打卡项的手写文本天然不稳定（同一个 CoQ10 可能写成「CoQ10 ×1」
+-- 「晨间-CoQ10 ×1 ＋ Exia 早3」等），若直接用文本做键，同一项会裂成
+-- 多种形态，依从率无法聚合。因此主键使用 tracks 模块归一化后的规范 ID：
+--   item_key  规范项 ID，不含时段（coq10 / exia_am / vitb / movefree / skincare）
+--   track_key item_key，时段明确时追加 @<slot>（coq10@morning / movefree@evening）；
+--             时段未知则为裸 item_key（movefree）
+-- 归一化规则定义在 config.PERSONAL_ITEMS + tracks.py。
 CREATE TABLE IF NOT EXISTS personal_tracks (
-    date     TEXT NOT NULL,                    -- 关联日期
-    category TEXT NOT NULL,                    -- 服药 / 护肤 / 自定义类别
-    item     TEXT NOT NULL,                    -- 具体项 (CoQ10, Exia早3, 护肤...)
-    done     INTEGER
-        CHECK (done IN (0, 1)),                -- 1=完成 0=未完成
-    note     TEXT,                             -- 备注
-    PRIMARY KEY (date, category, item)
+    date      TEXT NOT NULL,                   -- 关联日期
+    track_key TEXT NOT NULL,                   -- 规范 ID（含时段后缀，见上）
+    category  TEXT NOT NULL,                   -- 服药 / 护肤 / 自定义类别
+    item_key  TEXT NOT NULL,                   -- 规范项 ID（不含时段，用于聚合）
+    item      TEXT NOT NULL,                   -- 展示名（如 CoQ10 ×1）
+    done      INTEGER
+        CHECK (done IS NULL OR done IN (0, 1)),-- 1=完成 0=未完成
+    note      TEXT,                            -- 备注
+    PRIMARY KEY (date, track_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_pt_date ON personal_tracks(date);
+-- 索引见文件开头说明，由 db.py 统一创建。

@@ -10,7 +10,8 @@
 设计原则
 - 本模块只做读库与规则判定，**不调用任何模型**；措辞由调用方（自动化/模型）完成。
 - 阈值全部来自 `config.SCORE_THRESHOLDS`，宏量目标来自 `config.PROFILE["macro_targets"]`，
-  调整配置即可改变关注点口径，无需改代码。
+  **包括文案里的时间点**（如「23:30」也是从 `ok_max` 现算的），
+  因此改配置不会出现「阈值变了、文案还在说老数字」。
 - 规则只陈述客观事实（「入睡 00:35 晚于 23:30」），不给结论，结论留给撰写方。
 """
 from __future__ import annotations
@@ -18,9 +19,10 @@ from __future__ import annotations
 import sys
 from datetime import date as _date
 
-from .config import PROFILE, SCORE_THRESHOLDS, system_score_from
-from .db import get_conn, init_db
-from .score import compute_scores
+from .config import PROFILE, SCORE_THRESHOLDS
+from .db import init_db
+from .score import compute_scores, system_score_from
+from .util import is_late_bedtime, minutes_to_clock
 
 # 展示标签
 _LABELS = {
@@ -40,27 +42,23 @@ _DIMS = [("health_score", "健康"), ("work_score", "工作"),
 # 关注点里使用的无单位简称（避免「碳水(g) 160g」这类冗余）
 _FLAG_LABELS = {"carbs_g": "碳水", "protein_g": "蛋白质", "fat_g": "脂肪"}
 
+# 兼容旧调用方的别名
+clock = minutes_to_clock
+
+
+def _bedtime_deadline() -> str:
+    """「该几点前睡」的文案（由 config 阈值现算，默认 23:30）。"""
+    return minutes_to_clock(SCORE_THRESHOLDS["bedtime"]["ok_max"])
+
 
 def _bedtime_is_late(bt: int | None) -> bool:
     """入睡时间是否落在扣分档。
 
-    字段语义 = 距 00:00 的分钟数，与 score.compute_health_score 保持一致：
-    - 0~360（00:00–06:00）判「熬夜」
-    - > 1410（23:30–23:59）判「晚睡」
-    两端都扣分，中间（06:00–23:30）不扣。
+    字段语义 = 距 00:00 的分钟数，与 score.compute_health_score 口径一致：
+    0~late_night_max（00:00–06:00）判「熬夜」，> ok_max（23:30–23:59）判「晚睡」，
+    两端都扣分，中间不扣。
     """
-    if bt is None:
-        return False
-    T = SCORE_THRESHOLDS["bedtime"]
-    return bt <= T["late_night_max"] or bt > T["ok_max"]
-
-
-def clock(minutes: int | None) -> str:
-    """距 00:00 的分钟数 -> 'HH:MM'。"""
-    if minutes is None:
-        return "-"
-    minutes %= 1440
-    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+    return is_late_bedtime(bt, SCORE_THRESHOLDS["bedtime"])
 
 
 def _fmt(v) -> str:
@@ -110,6 +108,7 @@ def attention_flags(day: dict, recent: list[dict],
     if not day:
         return []
     T = SCORE_THRESHOLDS
+    deadline = _bedtime_deadline()
     flags: list[str] = []
 
     # --- 睡眠 ---
@@ -118,7 +117,7 @@ def attention_flags(day: dict, recent: list[dict],
         flags.append(f"睡眠 {sh:g}h 低于 {T['sleep']['good']:g}h 良好线")
     bt = day.get("bedtime")
     if _bedtime_is_late(bt):
-        flags.append(f"入睡 {clock(bt)} 未在 23:30 前（触发熬夜/晚睡档，睡眠时点扣分）")
+        flags.append(f"入睡 {clock(bt)} 未在 {deadline} 前（触发熬夜/晚睡档，睡眠时点扣分）")
     q = day.get("sleep_quality")
     if q is not None and q < 80:
         flags.append(f"睡眠质量 {q} 偏低（<80）")
@@ -154,7 +153,7 @@ def attention_flags(day: dict, recent: list[dict],
     # --- 趋势：连续性问题 ---
     s_bed = _streak(recent, lambda r: _bedtime_is_late(r.get("bedtime")))
     if s_bed >= 3:
-        flags.append(f"连续 {s_bed} 天入睡未在 23:30 前")
+        flags.append(f"连续 {s_bed} 天入睡未在 {deadline} 前")
     s_learn = _streak(recent, lambda r: r.get("learn_score") is not None and r["learn_score"] <= 3)
     if s_learn >= 3:
         flags.append(f"连续 {s_learn} 天学习分 ≤3（学习维度持续垫底）")

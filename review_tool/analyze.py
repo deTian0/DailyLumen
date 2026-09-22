@@ -5,25 +5,59 @@
     python -m review_tool week 32         # 指定 ISO 周
     python -m review_tool month           # 当月 (最近一个月) 汇总
     python -m review_tool month 202608    # 指定月份 202608
+
+口径说明（重要）
+----------------
+「训练日运动达标」按**三态**统计，把「未记录」和「未达标」分开：
+
+    达标 0 / 3 天（训练日共 4 天，另有 1 天未记录）
+
+早期版本用 ``exercise_min > 0`` 直接判达标，会把「字段空着」误判成
+「没运动」，导致达标率系统性偏低。
 """
 from __future__ import annotations
 
 import sys
 
-from .db import init_db, get_conn
 from .config import DIMENSIONS
+from .db import COLUMNS, init_db
 
 DIM_LABEL = {
     "health_score": "健康", "work_score": "工作",
     "learn_score": "学习", "life_score": "生活",
 }
 
+# 数据完整度考察的核心字段（叙事型字段如 summary 不计入）
+_CORE_FIELDS = [
+    "training_day", "sleep_h", "sleep_quality", "bedtime", "exercise_min",
+    "diet_kcal", "phone_h", "deepwork_h", "learn_h", "life_h",
+]
 
-def _avg(conn, col: str, where: str = "") -> float | None:
-    sql = f"SELECT AVG({col}) FROM daily_reviews"
+_WEEK_FIELDS = [
+    ("sleep_h", "睡眠"), ("phone_h", "屏幕"),
+    ("deepwork_h", "深度工作"), ("diet_kcal", "饮食"),
+]
+_MONTH_FIELDS = [
+    ("sleep_h", "睡眠"), ("sleep_quality", "睡眠质量"),
+    ("phone_h", "屏幕"), ("deepwork_h", "深度工作"),
+    ("diet_kcal", "饮食"),
+]
+
+# 标签对齐宽度（按显示列数，中日韩字符算 2 列）
+_LABEL_WIDTH = 12
+
+
+def _check_col(col: str) -> str:
+    if col not in COLUMNS:
+        raise ValueError(f"未知数据列: {col!r}")
+    return col
+
+
+def _avg(conn, col: str, where: str = "", params: tuple = ()) -> float | None:
+    sql = f"SELECT AVG({_check_col(col)}) FROM daily_reviews"
     if where:
         sql += f" WHERE {where}"
-    v = conn.execute(sql).fetchone()[0]
+    v = conn.execute(sql, params).fetchone()[0]
     return round(v, 2) if v is not None else None
 
 
@@ -38,7 +72,13 @@ def _pct(v: float | None) -> str:
     return f"{round(v * 100)}%" if v is not None else "-"
 
 
-def _macro_lines(conn, where: str = "") -> str:
+def _line(label: str, value, width: int = _LABEL_WIDTH) -> str:
+    """中文标签行（按显示宽度对齐：中日韩字符按 2 列计）。"""
+    dw = sum(2 if ord(ch) > 0x2E80 else 1 for ch in label)
+    return f"  {label}{' ' * max(0, width - dw)}: {value}"
+
+
+def _macro_lines(conn, where: str = "", params: tuple = ()) -> str:
     """三大营养素统计：日均碳水/脂肪/蛋白质 + 估算宏量热量与供能占比。
 
     carbs/fat/protein 按 4/9/4 kcal 每克折算。任一宏量都未记录时返回空串。
@@ -46,7 +86,8 @@ def _macro_lines(conn, where: str = "") -> str:
     cond = f" WHERE {where}" if where else ""
     n, c, f, p = conn.execute(
         f"SELECT COUNT(carbs_g), AVG(carbs_g), AVG(fat_g), AVG(protein_g) "
-        f"FROM daily_reviews{cond}"
+        f"FROM daily_reviews{cond}",
+        params,
     ).fetchone()
     if not n:
         return ""
@@ -58,9 +99,107 @@ def _macro_lines(conn, where: str = "") -> str:
     pc, pf = round(kc / total * 100), round(kf / total * 100)
     pp = 100 - pc - pf
     return (
-        f"  宏量日均   : 碳水 {c}g / 脂肪 {f}g / 蛋白质 {p}g (记录 {n} 天)\n"
-        f"  估算宏量热量: {total} kcal ［碳水 {pc}%・脂肪 {pf}%・蛋白质 {pp}%］"
+        _line("宏量日均", f"碳水 {c}g / 脂肪 {f}g / 蛋白质 {p}g (记录 {n} 天)") + "\n"
+        + _line("估算宏量热量", f"{total} kcal ［碳水 {pc}%・脂肪 {pf}%・蛋白质 {pp}%］")
     )
+
+
+def training_stats(conn, where: str, params: tuple) -> dict:
+    """训练日运动三态统计：总训练日 / 有记录 / 达标 / 未记录。"""
+    total, recorded, done = conn.execute(
+        "SELECT "
+        "  SUM(CASE WHEN training_day=1 THEN 1 ELSE 0 END), "
+        "  SUM(CASE WHEN training_day=1 AND exercise_min IS NOT NULL THEN 1 ELSE 0 END), "
+        "  SUM(CASE WHEN training_day=1 AND exercise_min > 0 THEN 1 ELSE 0 END) "
+        f"FROM daily_reviews WHERE {where}",
+        params,
+    ).fetchone()
+    total = total or 0
+    recorded = recorded or 0
+    done = done or 0
+    return {
+        "total": total,
+        "recorded": recorded,
+        "done": done,
+        "missing": total - recorded,
+    }
+
+
+def _training_line(st: dict) -> str:
+    total, recorded, done, missing = st["total"], st["recorded"], st["done"], st["missing"]
+    if total == 0:
+        return _line("训练日运动", "无训练日记录")
+    if recorded == 0:
+        return _line("训练日运动", f"训练日 {total} 天均未记录运动字段")
+    text = f"达标 {done}/{recorded} 天 = {_pct(done / recorded)}"
+    if missing:
+        text += f"  ⚠️ 另有 {missing} 天未记录（不计入达成分母）"
+    return _line("训练日运动", text)
+
+
+def completeness(conn, where: str, params: tuple) -> tuple[float, list[tuple[str, int]]]:
+    """核心字段完整度 -> (完整率, [(字段, 缺失天数), ...] 按缺失降序)。"""
+    n = conn.execute(
+        f"SELECT COUNT(*) FROM daily_reviews WHERE {where}", params
+    ).fetchone()[0]
+    if not n:
+        return 0.0, []
+    missing: list[tuple[str, int]] = []
+    for col in _CORE_FIELDS:
+        m = conn.execute(
+            f"SELECT COUNT(*) FROM daily_reviews WHERE {where} AND {col} IS NULL",
+            params,
+        ).fetchone()[0]
+        if m:
+            missing.append((col, m))
+    missing.sort(key=lambda x: -x[1])
+    filled = n * len(_CORE_FIELDS) - sum(m for _, m in missing)
+    return filled / (n * len(_CORE_FIELDS)), missing
+
+
+def _report(conn, where: str, params: tuple, title: str) -> None:
+    """周 / 月共用的报告主体。"""
+    n = conn.execute(
+        f"SELECT COUNT(*) FROM daily_reviews WHERE {where}", params
+    ).fetchone()[0]
+    if not n:
+        return
+    print(f"\n{'=' * 52}")
+    print(f"{title}  (共 {n} 天)")
+    print(f"{'=' * 52}")
+    print(_line("记录天数", n))
+    print(_line("系统分均值", _avg(conn, "system_score", where, params)))
+    for dim in DIMENSIONS:
+        v = _avg(conn, dim, where, params)
+        bar = _bar(v) if v else "  - "
+        print(_line(f"{DIM_LABEL[dim]}分均值", f"{v}  {bar}"))
+
+    adh = conn.execute(
+        f"SELECT AVG(commute_done), AVG(breakfast_on_time) "
+        f"FROM daily_reviews WHERE {where}",
+        params,
+    ).fetchone()
+    print(_line("早餐按时", _pct(adh[1])))
+    print(_line("通勤完成", _pct(adh[0])))
+    print(_training_line(training_stats(conn, where, params)))
+
+    fields = _MONTH_FIELDS if "month" in where else _WEEK_FIELDS
+    for col, lbl in fields:
+        print(_line(f"{lbl}均值", _avg(conn, col, where, params)))
+
+    ml = _macro_lines(conn, where, params)
+    if ml:
+        print(ml)
+
+    rate, missing = completeness(conn, where, params)
+    detail = "、".join(f"{c}×{m}" for c, m in missing[:6]) or "无"
+    print(_line("数据完整度", f"{_pct(rate)}（核心字段缺失: {detail}）"))
+
+    worst = min(
+        ((DIM_LABEL[d], _avg(conn, d, where, params)) for d in DIMENSIONS),
+        key=lambda x: x[1] if x[1] is not None else 99,
+    )
+    print(f"  >> 最差维度: {worst[0]} ({worst[1]})")
 
 
 def report_week(conn, iso_week: int | None = None) -> None:
@@ -71,98 +210,34 @@ def report_week(conn, iso_week: int | None = None) -> None:
     if not weeks:
         print("无可分析的周数据。")
         return
-
     for wk in weeks:
-        n = conn.execute(
-            "SELECT COUNT(*) FROM daily_reviews WHERE iso_week=?", (wk,)
-        ).fetchone()[0]
-        print(f"\n{'=' * 52}")
-        print(f"ISO 周 {wk}  (共 {n} 天)")
-        print(f"{'=' * 52}")
-        print(f"  系统分均值 : {_avg(conn, 'system_score', f'iso_week={wk}')}")
-        for dim in DIMENSIONS:
-            v = _avg(conn, dim, f"iso_week={wk}")
-            bar = _bar(v) if v else "  - "
-            print(f"  {DIM_LABEL[dim]:>4}分均值 : {v}  {bar}")
-        adh = conn.execute(
-            "SELECT AVG(commute_done), AVG(breakfast_on_time) "
-            "FROM daily_reviews WHERE iso_week=?", (wk,)
-        ).fetchone()
-        tr_days = conn.execute(
-            "SELECT COUNT(*) FROM daily_reviews WHERE iso_week=? AND training_day=1", (wk,)
-        ).fetchone()[0]
-        tr_done = conn.execute(
-            "SELECT COUNT(*) FROM daily_reviews WHERE iso_week=? AND training_day=1 AND exercise_min>0",
-            (wk,),
-        ).fetchone()[0]
-        print(f"  早餐按时   : {_pct(adh[1])}")
-        print(f"  通勤完成   : {_pct(adh[0])}")
-        print(f"  训练日运动达标: {tr_done}/{tr_days} = {_pct(tr_done / tr_days if tr_days else None)}")
-        for col, lbl in [("sleep_h", "睡眠"), ("phone_h", "屏幕"), ("deepwork_h", "深度工作"), ("diet_kcal", "饮食")]:
-            print(f"  {lbl:>4}均值   : {_avg(conn, col, f'iso_week={wk}')}")
-        ml = _macro_lines(conn, f"iso_week={wk}")
-        if ml:
-            print(ml)
-        worst = min(
-            ((DIM_LABEL[d], _avg(conn, d, f"iso_week={wk}")) for d in DIMENSIONS),
-            key=lambda x: x[1] if x[1] is not None else 99,
-        )
-        print(f"  >> 本周最差维度: {worst[0]} ({worst[1]})")
+        _report(conn, "iso_week=?", (wk,), f"ISO 周 {wk}")
 
 
 def report_month(conn, month: int | None = None) -> None:
     if month is None:
-        r = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
-        month = r
-    rows = conn.execute(
-        "SELECT * FROM daily_reviews WHERE month=? ORDER BY date", (month,)
-    ).fetchall()
-    if not rows:
+        month = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
+    if month is None:
+        print("无任何数据。")
+        return
+    n = conn.execute(
+        "SELECT COUNT(*) FROM daily_reviews WHERE month=?", (month,)
+    ).fetchone()[0]
+    if not n:
         print(f"月份 {month} 暂无数据。")
         return
-    n = len(rows)
-    print(f"\n{'=' * 52}")
-    print(f"月份 {month}  (共 {n} 天)")
-    print(f"{'=' * 52}")
-    print(f"  记录天数   : {n}")
-    print(f"  系统分均值 : {_avg(conn, 'system_score', f'month={month}')}")
-    for dim in DIMENSIONS:
-        v = _avg(conn, dim, f"month={month}")
-        bar = _bar(v) if v else "  - "
-        print(f"  {DIM_LABEL[dim]:>4}分均值 : {v}  {bar}")
-    adh = conn.execute(
-        "SELECT AVG(commute_done), AVG(breakfast_on_time), "
-        "AVG(training_day) FROM daily_reviews WHERE month=?", (month,)
-    ).fetchone()
-    tr_days = conn.execute(
-        "SELECT COUNT(*) FROM daily_reviews WHERE month=? AND training_day=1", (month,)
-    ).fetchone()[0]
-    tr_done = conn.execute(
-        "SELECT COUNT(*) FROM daily_reviews WHERE month=? AND training_day=1 AND exercise_min>0",
-        (month,),
-    ).fetchone()[0]
-    print(f"  早餐按时   : {_pct(adh[1])}")
-    print(f"  通勤完成   : {_pct(adh[0])}")
-    print(f"  训练日运动达标: {tr_done}/{tr_days} = {_pct(tr_done / tr_days if tr_days else None)}")
-    for col, lbl in [("sleep_h", "睡眠均值"), ("sleep_quality", "睡眠质量"), ("phone_h", "屏幕均值"), ("deepwork_h", "深度工作"), ("diet_kcal", "饮食均值")]:
-        print(f"  {lbl:>6}   : {_avg(conn, col, f'month={month}')}")
-    ml = _macro_lines(conn, f"month={month}")
-    if ml:
-        print(ml)
-    worst = min(
-        ((DIM_LABEL[d], _avg(conn, d, f"month={month}")) for d in DIMENSIONS),
-        key=lambda x: x[1] if x[1] is not None else 99,
-    )
-    print(f"  >> 本月最差维度: {worst[0]} ({worst[1]})")
+    _report(conn, "month=?", (month,), f"月份 {month}")
+
     prev = conn.execute(
         "SELECT MAX(month) FROM daily_reviews WHERE month<?", (month,)
     ).fetchone()[0]
     if prev:
-        prev_v = _avg(conn, "system_score", f"month={prev}")
-        cur_v = _avg(conn, "system_score", f"month={month}")
-        delta = (cur_v - prev_v) if (cur_v and prev_v) else None
+        prev_v = _avg(conn, "system_score", "month=?", (prev,))
+        cur_v = _avg(conn, "system_score", "month=?", (month,))
+        # 必须取整，否则会打印出 -0.010000000000000675 这种浮点尾差
+        delta = round(cur_v - prev_v, 2) if (cur_v is not None and prev_v is not None) else None
         arrow = "▲" if (delta and delta > 0) else ("▼" if delta and delta < 0 else "—")
-        print(f"  系统分趋势 : {prev_v} -> {cur_v}  {arrow} {delta}")
+        print(_line("系统分趋势", f"{prev_v} -> {cur_v}  {arrow} {delta}"))
 
 
 def main(argv: list[str] | None = None) -> int:
