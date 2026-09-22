@@ -51,6 +51,16 @@ class TestScoreThresholds(unittest.TestCase):
             self.assertGreater(t["full"], t["good"], key)
             self.assertGreater(t["good"], t["ok"], key)
 
+    def test_duration_sub_ok_knobs_sane(self):
+        """未达标区细分档的上下界必须存在且递增、且不越过达标区首档 5。"""
+        for key in ("work", "learn", "life"):
+            t = SCORE_THRESHOLDS[key]
+            self.assertIn("sub_floor", t, key)
+            self.assertIn("sub_ceil", t, key)
+            self.assertGreaterEqual(t["sub_floor"], 1, key)
+            self.assertGreater(t["sub_ceil"], t["sub_floor"], key)
+            self.assertLess(t["sub_ceil"], 5, key)
+
     def test_phone_thresholds_ascending(self):
         p = SCORE_THRESHOLDS["phone"]
         self.assertLess(p["ideal"], p["good"])
