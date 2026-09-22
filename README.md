@@ -304,8 +304,8 @@ python -m review_tool ai-context 2026-09-15
 **人格与跨项目 SOP 不在本仓库**：
 助手人格与协作准则已归到用户级记忆 `~/.workbuddy/MEMORY.md` 的「协作准则」段
 （每会话无条件注入，机制上保证 always-on）；跨项目通用 SOP（`sqlite-safe-migration`
-含「假装自己是 CI」自检、`nmpa-cosmetic-record`）在用户级 `~/.workbuddy/skills/`，
-由重装备份脚本的 **B14** 项兜底。
+含「假装自己是 CI」自检、`nmpa-cosmetic-record`）在用户级 `~/.workbuddy/skills/`。
+用户级资产的保管**不属本仓库职责**，本仓库只保证项目级 skill 随代码入库。
 
 ---
 
