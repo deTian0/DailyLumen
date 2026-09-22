@@ -222,5 +222,65 @@ class TestTrendRounding(_DB):
         self.assertNotIn("0000000", out)
 
 
+class TestJsonOutput(_DB):
+    """`--json`：结构化输出与文本报告共用 `collect()`，口径不可能分歧。"""
+
+    def setUp(self):
+        super().setUp()
+        for i, day in enumerate(("2026-09-07", "2026-09-08")):
+            upsert(self.conn, {
+                "date": day, "training_day": 1,
+                "exercise_min": 30 if i else 0,
+                "exercise_src": None if i else "zero",
+                "sleep_h": 7.0, "sleep_quality": 80, "bedtime": 1400,
+                "phone_h": 9.0, "diet_kcal": 1800, "carbs_g": 200,
+                "fat_g": 50, "protein_g": 80,
+                "deepwork_h": 4.0, "learn_h": 1.0, "life_h": 1.0,
+            })
+        self.conn.commit()
+
+    def _capture(self, fn, *a, **kw):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ret = fn(*a, **kw)
+        return ret, buf.getvalue()
+
+    def test_month_json_is_parseable(self):
+        import json
+        s, out = self._capture(report_month, self.conn, 202609, as_json=True)
+        data = json.loads(out)
+        self.assertEqual(data["days"], 2)
+        self.assertEqual(data["title"], "月份 202609")
+        self.assertEqual(data["training"]["total"], 2)
+        self.assertEqual(data["training"]["done"], 1)
+        self.assertIn("健康", data["dims"])
+        self.assertEqual(data["completeness"]["rate_pct"], 100)
+        self.assertIsNotNone(s)
+
+    def test_month_json_has_macros_and_worst(self):
+        s, _out = self._capture(report_month, self.conn, 202609, as_json=True)
+        self.assertEqual(s["macros"]["carbs_g"], 200)
+        self.assertEqual(s["macros"]["kcal"], 4 * 200 + 9 * 50 + 4 * 80)
+        self.assertIn("name", s["worst_dim"])
+
+    def test_week_json_is_list(self):
+        import json
+        _s, out = self._capture(report_week, self.conn, 37, as_json=True)
+        data = json.loads(out)
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["title"], "ISO 周 37")
+
+    def test_month_json_missing_stays_quiet(self):
+        """无数据时 JSON 模式不应往 stdout 混入散文。"""
+        _s, out = self._capture(report_month, self.conn, 199901, as_json=True)
+        self.assertEqual(out, "")
+
+    def test_text_and_json_agree_on_days(self):
+        s, out = self._capture(report_month, self.conn, 202609)
+        self.assertIsNone(s)                      # 文本模式不返回
+        self.assertIn("共 2 天", out)
+
+
 if __name__ == "__main__":
     unittest.main()

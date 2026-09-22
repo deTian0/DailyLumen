@@ -84,10 +84,10 @@ def _line(label: str, value, width: int = _LABEL_WIDTH) -> str:
     return f"  {label}{' ' * max(0, width - dw)}: {value}"
 
 
-def _macro_lines(conn, where: str = "", params: tuple = ()) -> str:
-    """三大营养素统计：日均碳水/脂肪/蛋白质 + 估算宏量热量与供能占比。
+def _macro_stats(conn, where: str = "", params: tuple = ()) -> dict | None:
+    """三大营养素结构化统计：日均碳水/脂肪/蛋白质 + 宏量热量与供能占比。
 
-    carbs/fat/protein 按 4/9/4 kcal 每克折算。任一宏量都未记录时返回空串。
+    carbs/fat/protein 按 4/9/4 kcal 每克折算。任一宏量都未记录时返回 None。
     """
     cond = f" WHERE {where}" if where else ""
     n, c, f, p = conn.execute(
@@ -96,17 +96,29 @@ def _macro_lines(conn, where: str = "", params: tuple = ()) -> str:
         params,
     ).fetchone()
     if not n:
-        return ""
+        return None
     c, f, p = round(c), round(f), round(p)
     kc, kf, kp = 4 * c, 9 * f, 4 * p
     total = kc + kf + kp
     if total <= 0:
-        return ""
+        return None
     pc, pf = round(kc / total * 100), round(kf / total * 100)
-    pp = 100 - pc - pf
+    return {
+        "days": n, "carbs_g": c, "fat_g": f, "protein_g": p, "kcal": total,
+        "split_pct": {"carbs": pc, "fat": pf, "protein": 100 - pc - pf},
+    }
+
+
+def _macro_lines(macros: dict | None) -> str:
+    """把宏量统计渲染成两行文本（无数据返回空串）。"""
+    if not macros:
+        return ""
+    s = macros["split_pct"]
     return (
-        _line("宏量日均", f"碳水 {c}g / 脂肪 {f}g / 蛋白质 {p}g (记录 {n} 天)") + "\n"
-        + _line("估算宏量热量", f"{total} kcal ［碳水 {pc}%・脂肪 {pf}%・蛋白质 {pp}%］")
+        _line("宏量日均", f"碳水 {macros['carbs_g']}g / 脂肪 {macros['fat_g']}g"
+                          f" / 蛋白质 {macros['protein_g']}g (记录 {macros['days']} 天)") + "\n"
+        + _line("估算宏量热量", f"{macros['kcal']} kcal ［碳水 {s['carbs']}%・"
+                               f"脂肪 {s['fat']}%・蛋白质 {s['protein']}%］")
     )
 
 
@@ -189,108 +201,176 @@ def completeness(conn, where: str, params: tuple) -> tuple[float, list[tuple[str
     return filled / (n * len(_CORE_FIELDS)), missing
 
 
-def _report(conn, where: str, params: tuple, title: str) -> None:
-    """周 / 月共用的报告主体。"""
+def collect(conn, where: str, params: tuple, title: str) -> dict | None:
+    """把周 / 月报告涉及的全部数字收集成结构化 dict（渲染与 JSON 共用同一份数据）。
+
+    返回 None 表示该区间没有任何记录。要点：**先取数、再渲染**，
+    这样 `--json` 与文本报告不可能出现口径分歧。
+    """
     n = conn.execute(
         f"SELECT COUNT(*) FROM daily_reviews WHERE {where}", params
     ).fetchone()[0]
     if not n:
-        return
-    print(f"\n{'=' * 52}")
-    print(f"{title}  (共 {n} 天)")
-    print(f"{'=' * 52}")
-    print(_line("记录天数", n))
-    print(_line("系统分均值", _avg(conn, "system_score", where, params)))
-    for dim in DIMENSIONS:
-        v = _avg(conn, dim, where, params)
-        bar = _bar(v) if v else "  - "
-        print(_line(f"{DIM_LABEL[dim]}分均值", f"{v}  {bar}"))
+        return None
 
+    dims = {DIM_LABEL[d]: _avg(conn, d, where, params) for d in DIMENSIONS}
     adh = conn.execute(
         f"SELECT AVG(commute_done), AVG(breakfast_on_time) "
         f"FROM daily_reviews WHERE {where}",
         params,
     ).fetchone()
-    print(_line("早餐按时", _pct(adh[1])))
-    print(_line("通勤完成", _pct(adh[0])))
-    print(_training_line(training_stats(conn, where, params)))
-
-    dc = derived_count(conn, where, params)
-    if dc:
-        print(_line("运动折算", f"{dc} 天的运动时长由「三件事」描述折算（非计时记录）"))
-
     fields = _MONTH_FIELDS if "month" in where else _WEEK_FIELDS
-    for col, lbl in fields:
-        print(_line(f"{lbl}均值", _avg(conn, col, where, params)))
-
-    ml = _macro_lines(conn, where, params)
-    if ml:
-        print(ml)
-
     rate, missing = completeness(conn, where, params)
-    detail = "、".join(f"{c}×{m}" for c, m in missing[:6]) or "无"
-    print(_line("数据完整度", f"{_pct(rate)}（核心字段缺失: {detail}）"))
-
     worst = min(
-        ((DIM_LABEL[d], _avg(conn, d, where, params)) for d in DIMENSIONS),
+        ((DIM_LABEL[d], dims[DIM_LABEL[d]]) for d in DIMENSIONS),
         key=lambda x: x[1] if x[1] is not None else 99,
     )
-    print(f"  >> 最差维度: {worst[0]} ({worst[1]})")
+    return {
+        "title": title,
+        "days": n,
+        "system_avg": _avg(conn, "system_score", where, params),
+        "dims": dims,
+        "breakfast_on_time_pct": adh[1],   # 0-1 浮点，渲染走 _pct
+        "commute_pct": adh[0],
+        "training": training_stats(conn, where, params),
+        "derived_days": derived_count(conn, where, params),
+        "field_avgs": {lbl: _avg(conn, col, where, params) for col, lbl in fields},
+        "macros": _macro_stats(conn, where, params),
+        "completeness": {
+            "rate": round(rate, 4),
+            "rate_pct": round(rate * 100),
+            "missing": [{"field": c, "days": m} for c, m in missing],
+        },
+        "worst_dim": {"name": worst[0], "value": worst[1]},
+    }
 
 
-def report_week(conn, iso_week: int | None = None) -> None:
+def render_summary(s: dict) -> str:
+    """把 `collect()` 的结构化结果渲染成可读文本。"""
+    L: list[str] = []
+    L.append(f"\n{'=' * 52}")
+    L.append(f"{s['title']}  (共 {s['days']} 天)")
+    L.append(f"{'=' * 52}")
+    L.append(_line("记录天数", s["days"]))
+    L.append(_line("系统分均值", s["system_avg"]))
+    for label, v in s["dims"].items():
+        bar = _bar(v) if v else "  - "
+        L.append(_line(f"{label}分均值", f"{v}  {bar}"))
+    L.append(_line("早餐按时", _pct(s["breakfast_on_time_pct"])))
+    L.append(_line("通勤完成", _pct(s["commute_pct"])))
+    L.append(_training_line(s["training"]))
+    if s["derived_days"]:
+        L.append(_line("运动折算", f"{s['derived_days']} 天的运动时长由"
+                                   "「三件事」描述折算（非计时记录）"))
+    for lbl, v in s["field_avgs"].items():
+        L.append(_line(f"{lbl}均值", v))
+    ml = _macro_lines(s["macros"])
+    if ml:
+        L.append(ml)
+    detail = "、".join(f"{m['field']}×{m['days']}"
+                       for m in s["completeness"]["missing"][:6]) or "无"
+    L.append(_line("数据完整度",
+                   f"{s['completeness']['rate_pct']}%（核心字段缺失: {detail}）"))
+    L.append(f"  >> 最差维度: {s['worst_dim']['name']} ({s['worst_dim']['value']})")
+    return "\n".join(L)
+
+
+def _report(conn, where: str, params: tuple, title: str) -> dict | None:
+    """周 / 月共用的报告主体（文本渲染）。返回结构化结果供上层复用。"""
+    s = collect(conn, where, params, title)
+    if s is not None:
+        print(render_summary(s))
+    return s
+
+
+def _dump(obj) -> None:
+    """打印结构化 JSON（供 `--json` 使用）。"""
+    import json
+    print(json.dumps(obj, ensure_ascii=False, indent=2))
+
+
+def report_week(conn, iso_week: int | None = None, *, as_json: bool = False) -> list[dict]:
+    """周汇总。`as_json=True` 时不打印文本，返回/打印结构化结果。"""
     cur = conn.execute("SELECT DISTINCT iso_week FROM daily_reviews ORDER BY iso_week")
     weeks = [r[0] for r in cur.fetchall()]
     if iso_week is not None:
         weeks = [w for w in weeks if w == iso_week]
     if not weeks:
-        print("无可分析的周数据。")
-        return
+        if not as_json:
+            print("无可分析的周数据。")
+        return []
+    out: list[dict] = []
     for wk in weeks:
-        _report(conn, "iso_week=?", (wk,), f"ISO 周 {wk}")
+        s = collect(conn, "iso_week=?", (wk,), f"ISO 周 {wk}")
+        if s is None:
+            continue
+        out.append(s)
+        if not as_json:
+            print(render_summary(s))
+    if as_json:
+        _dump(out)
+    return out
 
 
-def report_month(conn, month: int | None = None) -> None:
+def report_month(conn, month: int | None = None, *, as_json: bool = False) -> dict | None:
+    """月汇总（含与上月的系统分趋势）。`as_json=True` 时输出结构化结果。"""
     if month is None:
         month = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
     if month is None:
-        print("无任何数据。")
-        return
+        if not as_json:
+            print("无任何数据。")
+        return None
     n = conn.execute(
         "SELECT COUNT(*) FROM daily_reviews WHERE month=?", (month,)
     ).fetchone()[0]
     if not n:
-        print(f"月份 {month} 暂无数据。")
-        return
-    _report(conn, "month=?", (month,), f"月份 {month}")
+        if not as_json:
+            print(f"月份 {month} 暂无数据。")
+        return None
 
     prev = conn.execute(
         "SELECT MAX(month) FROM daily_reviews WHERE month<?", (month,)
     ).fetchone()[0]
+    trend = None
     if prev:
         prev_v = _avg(conn, "system_score", "month=?", (prev,))
         cur_v = _avg(conn, "system_score", "month=?", (month,))
         # 必须取整，否则会打印出 -0.010000000000000675 这种浮点尾差
         delta = round(cur_v - prev_v, 2) if (cur_v is not None and prev_v is not None) else None
-        arrow = "▲" if (delta and delta > 0) else ("▼" if delta and delta < 0 else "—")
-        print(_line("系统分趋势", f"{prev_v} -> {cur_v}  {arrow} {delta}"))
+        trend = {"prev_month": prev, "prev": prev_v, "current": cur_v, "delta": delta}
+
+    if as_json:
+        s = collect(conn, "month=?", (month,), f"月份 {month}")
+        if s is not None:
+            s["trend"] = trend
+            _dump(s)
+        return s
+
+    _report(conn, "month=?", (month,), f"月份 {month}")
+    if trend:
+        d = trend["delta"]
+        arrow = "▲" if (d and d > 0) else ("▼" if d and d < 0 else "—")
+        print(_line("系统分趋势",
+                    f"{trend['prev']} -> {trend['current']}  {arrow} {d}"))
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
-    argv = argv if argv is not None else sys.argv[1:]
+    argv = list(sys.argv[1:] if argv is None else argv)
+    as_json = "--json" in argv
+    pos = [a for a in argv if not a.startswith("-")]
     conn = init_db()
-    mode = argv[0] if argv else "month"
-    if mode == "week":
-        wk = int(argv[1]) if len(argv) > 1 else None
-        report_week(conn, wk)
-    elif mode == "month":
-        mo = int(argv[1]) if len(argv) > 1 else None
-        report_month(conn, mo)
-    else:
-        print("用法: python -m review_tool [week|month] [周号|月份]")
+    try:
+        mode = pos[0] if pos else "month"
+        if mode == "week":
+            report_week(conn, int(pos[1]) if len(pos) > 1 else None, as_json=as_json)
+        elif mode == "month":
+            report_month(conn, int(pos[1]) if len(pos) > 1 else None, as_json=as_json)
+        else:
+            print("用法: python -m review_tool [week|month] [周号|月份] [--json]")
+            return 2
+    finally:
         conn.close()
-        return 2
-    conn.close()
     return 0
 
 
