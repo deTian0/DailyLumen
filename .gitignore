@@ -1,7 +1,12 @@
 # DailyLumen - 每日复盘分析工具
 
 # 项目本地记忆 (敏感/本地状态, 不入库)
-.workbuddy/
+#   例外：skills/ 是可复用的方法资产，跟代码一起版本化、打 tag
+#   ⚠️ 必须用 `.workbuddy/*` 而不是 `.workbuddy/` —— 后者会连同目录一起排除，
+#      导致 git 不再向下遍历，白名单 `!` 规则失效
+.workbuddy/*
+!.workbuddy/skills/
+!.workbuddy/skills/**
 
 # Python 缓存
 __pycache__/
