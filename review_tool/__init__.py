@@ -96,7 +96,7 @@ from .util import (
     to_int,
 )
 
-__version__ = "1.3.3"
+__version__ = "1.4.0"
 
 __all__ = [
     # config
