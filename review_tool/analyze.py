@@ -14,6 +14,10 @@
 
 早期版本用 ``exercise_min > 0`` 直接判达标，会把「字段空着」误判成
 「没运动」，导致达标率系统性偏低。
+
+另外，「运动时长_min」为空但「二、今日三件事」里提到俯卧撑等动作时，
+该值会由 bodyweight 模块**折算**补上（``exercise_src='derived'``）。
+报告里会把折算天数单独标出来，避免把估算值当成计时记录。
 """
 from __future__ import annotations
 
@@ -105,33 +109,47 @@ def _macro_lines(conn, where: str = "", params: tuple = ()) -> str:
 
 
 def training_stats(conn, where: str, params: tuple) -> dict:
-    """训练日运动三态统计：总训练日 / 有记录 / 达标 / 未记录。"""
-    total, recorded, done = conn.execute(
+    """训练日运动三态统计：总训练日 / 有记录 / 达标 / 未记录 / 其中描述折算。"""
+    total, recorded, done, derived = conn.execute(
         "SELECT "
         "  SUM(CASE WHEN training_day=1 THEN 1 ELSE 0 END), "
         "  SUM(CASE WHEN training_day=1 AND exercise_min IS NOT NULL THEN 1 ELSE 0 END), "
-        "  SUM(CASE WHEN training_day=1 AND exercise_min > 0 THEN 1 ELSE 0 END) "
+        "  SUM(CASE WHEN training_day=1 AND exercise_min > 0 THEN 1 ELSE 0 END), "
+        "  SUM(CASE WHEN training_day=1 AND exercise_src='derived' THEN 1 ELSE 0 END) "
         f"FROM daily_reviews WHERE {where}",
         params,
     ).fetchone()
     total = total or 0
     recorded = recorded or 0
     done = done or 0
+    derived = derived or 0
     return {
         "total": total,
         "recorded": recorded,
         "done": done,
+        "derived": derived,
         "missing": total - recorded,
     }
 
 
+def derived_count(conn, where: str, params: tuple) -> int:
+    """该区间内运动时长来自「描述折算」的天数（含非训练日）。"""
+    return conn.execute(
+        f"SELECT COUNT(*) FROM daily_reviews WHERE {where} AND exercise_src='derived'",
+        params,
+    ).fetchone()[0]
+
+
 def _training_line(st: dict) -> str:
     total, recorded, done, missing = st["total"], st["recorded"], st["done"], st["missing"]
+    derived = st.get("derived", 0)
     if total == 0:
         return _line("训练日运动", "无训练日记录")
     if recorded == 0:
         return _line("训练日运动", f"训练日 {total} 天均未记录运动字段")
     text = f"达标 {done}/{recorded} 天 = {_pct(done / recorded)}"
+    if derived:
+        text += f"（其中 {derived} 天为描述折算）"
     if missing:
         text += f"  ⚠️ 另有 {missing} 天未记录（不计入达成分母）"
     return _line("训练日运动", text)
@@ -182,6 +200,10 @@ def _report(conn, where: str, params: tuple, title: str) -> None:
     print(_line("早餐按时", _pct(adh[1])))
     print(_line("通勤完成", _pct(adh[0])))
     print(_training_line(training_stats(conn, where, params)))
+
+    dc = derived_count(conn, where, params)
+    if dc:
+        print(_line("运动折算", f"{dc} 天的运动时长由「三件事」描述折算（非计时记录）"))
 
     fields = _MONTH_FIELDS if "month" in where else _WEEK_FIELDS
     for col, lbl in fields:

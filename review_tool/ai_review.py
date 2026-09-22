@@ -125,6 +125,10 @@ def attention_flags(day: dict, recent: list[dict],
     # --- 运动 ---
     if day.get("training_day") == 1 and not day.get("exercise_min"):
         flags.append("训练日但未记录运动")
+    if day.get("exercise_src") == "derived":
+        flags.append(
+            f"运动 {day.get('exercise_min')}min 由「三件事」描述折算得到（非计时记录）"
+        )
 
     # --- 饮食 / 宏量 ---
     dk = day.get("diet_kcal")
@@ -213,9 +217,15 @@ def render_markdown(ctx: dict) -> str:
     lines.append("## 当日事实")
     lines.append(f"- 星期 {_fmt(day.get('weekday'))}｜训练日 {'是' if day.get('training_day') == 1 else '否'}")
     ex = day.get("exercise_min")
+    if ex is None:
+        ex_text = "未记录"
+    elif day.get("exercise_src") == "derived":
+        ex_text = f"{ex}min（由「三件事」描述折算，非计时记录）"
+    else:
+        ex_text = f"{ex}min"
     lines.append(f"- 睡眠 {_fmt(day.get('sleep_h'))}h｜质量 {_fmt(day.get('sleep_quality'))}"
                  f"｜入睡 {clock(day.get('bedtime'))}"
-                 f"｜运动 {str(ex) + 'min' if ex is not None else '未记录'}")
+                 f"｜运动 {ex_text}")
     lines.append(f"- 饮食 {_fmt(day.get('diet_kcal'))}kcal"
                  f"（碳水 {_fmt(day.get('carbs_g'))}g / 脂肪 {_fmt(day.get('fat_g'))}g"
                  f" / 蛋白 {_fmt(day.get('protein_g'))}g）")

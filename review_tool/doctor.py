@@ -11,6 +11,7 @@
 5. 完整度：核心字段缺失统计
 6. 打卡归一化：是否还有未收敛到规范项的 other:* 记录
 7. 训练日口径：training_day 与「按星期推算」不一致的天数
+8. 运动时长来源：填报 / 描述折算 / 未记录 三者的天数分布
 """
 from __future__ import annotations
 
@@ -98,6 +99,19 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
             "WHERE item_key LIKE 'other:%' GROUP BY item_key ORDER BY 2 DESC"
         ).fetchall()
         result["unnormalized_tracks"] = [(r[0], r[1]) for r in uncollapsed]
+
+        # 运动时长来源（填报 / 描述折算 / 未记录）
+        miss, der, rec = conn.execute(
+            "SELECT "
+            "  SUM(CASE WHEN exercise_min IS NULL THEN 1 ELSE 0 END), "
+            "  SUM(CASE WHEN exercise_min IS NOT NULL AND exercise_src='derived' THEN 1 ELSE 0 END), "
+            "  SUM(CASE WHEN exercise_min IS NOT NULL "
+            "           AND COALESCE(exercise_src, 'record') <> 'derived' THEN 1 ELSE 0 END) "
+            "FROM daily_reviews"
+        ).fetchone()
+        result["exercise_sources"] = {
+            "recorded": rec or 0, "derived": der or 0, "missing": miss or 0,
+        }
 
         # 训练日口径
         drift = []
@@ -198,6 +212,14 @@ def render(result: dict) -> str:
         L.append("     → 在 config.PERSONAL_ITEMS 中补 alias 后重跑 ingest")
     else:
         L.append("  ✓ 全部打卡已归一化到规范项")
+
+    L.append("")
+    L.append("[运动时长来源]")
+    es = result["exercise_sources"]
+    L.append(f"  填报 {es['recorded']} 天｜描述折算 {es['derived']} 天｜未记录 {es['missing']} 天")
+    if es["derived"]:
+        L.append("     · 折算规则见 config.BODYWEIGHT_MOVES：「三件事」里提到动作即自动计入")
+        L.append("     · 想自己控制某天：在数据块填 `运动时长_min`（字段优先，不叠加）")
 
     L.append("")
     L.append("[训练日口径]")
