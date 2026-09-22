@@ -39,7 +39,7 @@ headers = [m.group(2).strip() for m in H.finditer(text)]
 ### 2. 记录解析基线
 
 ```python
-from review_tool.parse import parse_file
+from review_tool.pipeline.parse import parse_file
 base = parse_file(path)
 base.pop("_personal_tracks", None)   # 打卡单独比
 ```

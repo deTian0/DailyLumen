@@ -105,10 +105,14 @@ agent_created: true
 
 ## 6. 工程约定
 
-- **零依赖**：纯标准库。测试用 `unittest`（当前 288 项），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
+- **零依赖**：纯标准库。测试用 `unittest`（当前 293 项），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
 - **CI 是阻塞的**：从仓库内 md 从零重建数据库 → `doctor` / `recompute-scores` / `sync-docs --check`
   **阻塞**（对账干净、分数与字段重算一致、md 无需回写）；`fuse` 不阻塞（人生指标告警）。
   矩阵 3.10–3.13。
+- **四层架构（v1.5.0）**：`core`（零 I/O 纯规则）→ `storage`（SQLite 唯一出入口）→
+  `pipeline`（md ↔ 库）→ `reports`（读库产出）。依赖**只能自上而下**，
+  由 `tests/test_architecture.py` 用 ast 强制；`import sqlite3` 只准出现在 storage；
+  `config.py` 留包根（可配置层，历史文档引用不失效）。新增模块必须归入对应层。
 - **CLI 参数单一来源**：`__main__.py` 是**纯路由**（`ROUTES` 表 + 原样透传 argv），
   参数只在各模块 `main(argv)` 里定义一次；顶层统一拦截 `<子命令> -h`
   （否则 `ingest -h` 会真的跑一遍入库）。

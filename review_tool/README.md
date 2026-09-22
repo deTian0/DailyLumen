@@ -4,28 +4,62 @@
 > 本文件是**包内速查**；使用说明见仓库根目录 [`README.md`](../README.md)，
 > 完整规则（评分口径、统计口径、字段含义、设计要点、变更日志）见 [`docs/设计说明.md`](../docs/设计说明.md)。
 
+## 分层架构
+
+依赖只能自上而下，由 `tests/test_architecture.py` 用 ast 强制（破坏分层 → CI 红）：
+
+```
+reports   ->  pipeline  ->  storage  ->  core
+(读库产出)    (md <-> 库)   (SQLite)   (纯规则)
+```
+
+- **`core/` 领域层**：零 I/O —— 禁止 `sqlite3` / `os` / `pathlib` 等，可脱离库与文件系统单独测试。
+- **`storage/` 持久化层**：`import sqlite3` **只允许出现在这里**，SQLite 是唯一出入口。
+- **`pipeline/` 数据流转层**：复盘 md ↔ 库（解析 / 入库 / 回写 / 转换 / 生成 / 导出）。
+- **`reports/` 产出层**：读库生成面向人的结果（分析 / 体检 / 熔断 / AI 上下文 / 分数维护）。
+- 包根的 **`config.py`** 是可配置层（**唯一要改的文件**）；**`__main__.py`** 是纯路由。
+
 ## 模块地图
 
+### 包根
 | 模块 | 职责 |
 | --- | --- |
-| `config.py` | 路径常量 + 可配置层：`PROFILE` / `PERSONAL_ITEMS` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` |
+| `config.py` | 路径常量（全靠 `__file__` 推导，无硬编码绝对路径）+ 可配置层：`PROFILE` / `PERSONAL_ITEMS` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` |
+| `schema.sql` | 建表语句（含 CHECK 约束），与 `reviews*.db` 同在包根 |
+| `__init__.py` | 包公共 API（对外唯一契约，`__all__`） |
+| `__main__.py` | **纯路由**：只派发子命令，参数由各模块自己解析（单一来源，杜绝静默丢参） |
+
+### core/ —— 领域层（零 I/O）
+| 模块 | 职责 |
+| --- | --- |
 | `util.py` | 时间与数值转换（`clock_to_minutes` / `to_int` / `to_float` / `slugify`） |
 | `tracks.py` | 打卡项归一化：自由文本 → 规范 `track_key` / `item_key` |
 | `bodyweight.py` | 徒手训练折算：描述里的动作 → 运动分钟（段落门控 + 上下限） |
-| `parse.py` | md → 结构化 dict（兼容 ```` ```data ```` 块 / HTML 注释块 / 纯文本散落三种格式）；`has_tracks_section` 供打卡对账判断权威性 |
 | `score.py` | 四维评分规则（健康加权子项；工作/学习/生活时长分档） |
+
+### storage/ —— 持久化层
+| 模块 | 职责 |
+| --- | --- |
 | `db.py` | SQLite 读写 + `PRAGMA user_version` 增量迁移（含表重建的原子化流程）+ `prune_personal_tracks` 打卡对账 |
+
+### pipeline/ —— 数据流转层（md ↔ 库）
+| 模块 | 职责 |
+| --- | --- |
+| `parse.py` | md → 结构化 dict（兼容 ```` ```data ```` 块 / HTML 注释块 / 纯文本散落三种格式）；`has_tracks_section` 供打卡对账判断权威性 |
 | `ingest.py` | 扫描 / 解析 / 折算 / 补零 / 评分 / 入库 |
-| `analyze.py` | 周 / 月聚合报告（`collect()` 取数 + `render_summary()` 排版，`--json` 复用同一份数据） |
-| `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则） |
-| `new_day.py` | 按模板生成当天复盘文件（写入 `每日复盘/复盘/YYYY-MM/`） |
+| `sync_docs.py` | 把库里的四维分回写到复盘 md（附录数据块 + 「六、四维评分」表） |
 | `import_history.py` | 语雀历史复盘 → 标准格式转换（输出到 `每日复盘/复盘/YYYY-MM/`） |
+| `new_day.py` | 按模板生成当天复盘文件（写入 `每日复盘/复盘/YYYY-MM/`） |
+| `export.py` | 导出 CSV / JSON（含依从率表） |
+
+### reports/ —— 产出层
+| 模块 | 职责 |
+| --- | --- |
+| `analyze.py` | 周 / 月聚合报告（`collect()` 取数 + `render_summary()` 排版，`--json` 复用同一份数据） |
 | `doctor.py` | 数据体检：schema / 完整性 / 新鲜度 / md↔DB 对账 / 分数一致性 / 打卡对账 / 归一化 / 来源分布 / 熔断 |
 | `fuse.py` | 熔断检测：单维度连续走低（绝对）+ 近 7 日 vs 前 28 日均值漂移（相对） |
-| `sync_docs.py` | 把库里的四维分回写到复盘 md（附录数据块 + 「六、四维评分」表） |
+| `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则） |
 | `recompute.py` | 按当前规则重算库中四维 / 系统分（默认只试算，`--apply` 落库） |
-| `export.py` | 导出 CSV / JSON（含依从率表） |
-| `__main__.py` | **纯路由**：只派发子命令，参数由各模块自己解析（单一来源，杜绝静默丢参） |
 
 ## 命令行速查
 
@@ -70,6 +104,6 @@ python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 ## 测试与代码风格
 
 ```bash
-python -m unittest discover -s tests -t .   # 200+ 项，标准库零依赖
+python -m unittest discover -s tests -t .   # 293 项，标准库零依赖
 ruff check .                                # 静态检查（CI 同款）
 ```
