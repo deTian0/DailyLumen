@@ -3,27 +3,41 @@
 用法:
     python -m review_tool new-day    [YYYY-MM-DD] [--force]
     python -m review_tool ingest     [路径.md] [--overwrite]
-    python -m review_tool week       [ISO周]
-    python -m review_tool month      [YYYYMM]
+    python -m review_tool week       [ISO周] [--json]
+    python -m review_tool month      [YYYYMM] [--json]
     python -m review_tool ai-context [YYYY-MM-DD]
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool doctor
-    python -m review_tool recompute-scores [--apply]
+    python -m review_tool fuse
+    python -m review_tool sync-docs  [--check]
+    python -m review_tool recompute-scores [--apply] [--db PATH]
     python -m review_tool export     [--format csv|json] [--out DIR] [--stdout]
     python -m review_tool version
 
-任意子命令加 ``-h`` 可查看该项参数。
+任意子命令加 ``-h`` 可查看该项用法。
+
+设计（v1.4.1 起）
+----------------
+本模块**只做路由，不重复定义子命令参数**。此前顶层 argparse 与各模块的
+``main(argv)`` 各写一遍参数，再由顶层把解析结果「翻译」回 argv —— 一旦两边
+不同步，新增的参数会被顶层吞掉（模块收不到、也不报错，属静默丢参）。
+
+现在参数只有一处来源：各模块自己的 ``main(argv)``。因此
+
+    python -m review_tool  ingest --overwrite
+    python -m review_tool.ingest --overwrite
+
+行为完全一致；`ROUTES` 里的一行用法既是 `-h` 输出，也是 README 的对齐来源。
 """
 from __future__ import annotations
 
-import argparse
 import sys
+from collections.abc import Callable
 
 from . import __version__
 from .ai_review import main as ai_context_main
 from .analyze import main as analyze_main
-from .doctor import diagnose, is_healthy
-from .doctor import render as render_doctor
+from .doctor import main as doctor_main
 from .export import main as export_main
 from .fuse import main as fuse_main
 from .import_history import main as import_history_main
@@ -32,136 +46,76 @@ from .new_day import main as new_day_main
 from .recompute import main as recompute_main
 from .sync_docs import main as sync_docs_main
 
-USAGE_HINT = (
-    "子命令: new-day | ingest | week | month | ai-context | import-history"
-    " | doctor | fuse | sync-docs | recompute-scores | export | version"
-)
+
+def _week(rest: list[str]) -> int:
+    return analyze_main(["week", *rest])
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="python -m review_tool",
-        description="DailyLumen · 每日复盘系统（解析 / 评分 / 入库 / 分析 / 体检 / 导出）",
-        epilog=USAGE_HINT,
-    )
-    parser.add_argument("-v", "--version", action="version",
-                        version=f"DailyLumen {__version__}")
-    sub = parser.add_subparsers(dest="command", metavar="<子命令>")
+def _month(rest: list[str]) -> int:
+    return analyze_main(["month", *rest])
 
-    p = sub.add_parser("new-day", help="按模板生成当天复盘文件（复盘/YYYY-MM/）")
-    p.add_argument("date", nargs="?", help="YYYY-MM-DD，默认今天")
-    p.add_argument("--force", action="store_true", help="已存在时覆盖")
 
-    p = sub.add_parser("ingest", help="解析并入库（默认只补空值，不擦已有数据）")
-    p.add_argument("path", nargs="?", help="只入库指定文件；省略则扫描整个 每日复盘/")
-    p.add_argument("--overwrite", "--force", dest="overwrite", action="store_true",
-                   help="整行覆盖模式（会清空源文件中为空的字段）")
+def _version(_rest: list[str]) -> int:
+    print(__version__)
+    return 0
 
-    p = sub.add_parser("week", help="周分析")
-    p.add_argument("iso_week", nargs="?", type=int, help="ISO 周号；省略则输出全部周")
 
-    p = sub.add_parser("month", help="月分析")
-    p.add_argument("month", nargs="?", type=int, help="YYYYMM；省略则用最近一个月")
+# 子命令 -> (处理函数, 一行用法)。顺序即帮助里的顺序。
+ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
+    "new-day": (new_day_main, "new-day [YYYY-MM-DD] [--force]"),
+    "ingest": (ingest_main, "ingest [路径.md] [--overwrite]"),
+    "week": (_week, "week [ISO周] [--json]"),
+    "month": (_month, "month [YYYYMM] [--json]"),
+    "ai-context": (ai_context_main, "ai-context [YYYY-MM-DD]"),
+    "import-history": (
+        import_history_main, "import-history [--check] [--src DIR]"),
+    "doctor": (doctor_main, "doctor"),
+    "fuse": (fuse_main, "fuse"),
+    "sync-docs": (sync_docs_main, "sync-docs [--check]"),
+    "recompute-scores": (
+        recompute_main, "recompute-scores [--apply] [--db PATH]"),
+    "export": (export_main, "export [--format csv|json] [--out DIR] [--stdout]"),
+    "version": (_version, "version"),
+}
 
-    p = sub.add_parser("ai-context", help="输出「七、AI 评价与建议」的确定性上下文")
-    p.add_argument("date", nargs="?", help="YYYY-MM-DD，默认库中最近一天")
 
-    p = sub.add_parser("import-history", help="把语雀历史文件转换为标准格式")
-    p.add_argument("--check", action="store_true", help="只预览解析结果，不写文件")
-    p.add_argument("--src", help="来源目录（也可用环境变量 DAILYLUMEN_HISTORY_SRC）")
-
-    sub.add_parser("doctor", help="数据体检：对账 / 完整度 / 新鲜度 / 归一化")
-
-    sub.add_parser("fuse", help="熔断检测：单维度持续走低 + 相对基线偏离")
-
-    p = sub.add_parser("sync-docs", help="把库里的四维分回写到复盘 md（数据块 + 六章）")
-    p.add_argument("--check", action="store_true", help="只报告差异，不写文件")
-
-    p = sub.add_parser("recompute-scores",
-                       help="按当前规则重算库中四维分 / 系统分（默认只试算）")
-    p.add_argument("--apply", action="store_true", help="写入数据库（默认只打印差异）")
-    p.add_argument("--db", help="指定数据库文件（高级 / 测试用，默认 reviews.db）")
-
-    p = sub.add_parser("export", help="导出 CSV / JSON")
-    p.add_argument("--format", choices=("csv", "json"), default="csv")
-    p.add_argument("--out", help="输出目录，默认 exports/")
-    p.add_argument("--stdout", action="store_true", help="直接打印到终端（JSON）")
-
-    sub.add_parser("version", help="打印版本号")
-    return parser
+def usage() -> str:
+    """顶层帮助：列出所有子命令的一行用法。"""
+    lines = ["DailyLumen · 每日复盘系统", "",
+             "用法: python -m review_tool <子命令> [参数]", "", "子命令:"]
+    lines += [f"  {u}" for _fn, u in ROUTES.values()]
+    lines += ["", "子命令加 -h 查看该项用法。"]
+    return "\n".join(lines)
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:]) if argv is None else list(argv)
-    parser = build_parser()
+
     if not argv:
-        parser.print_help()
+        print(usage())
         return 1
-    args = parser.parse_args(argv)
-    cmd = args.command
-
-    if cmd == "new-day":
-        rest = [args.date] if args.date else []
-        if args.force:
-            rest.append("--force")
-        return new_day_main(rest)
-
-    if cmd == "ingest":
-        rest = [args.path] if args.path else []
-        if args.overwrite:
-            rest.append("--overwrite")
-        return ingest_main(rest)
-
-    if cmd == "week":
-        return analyze_main(["week"] + ([str(args.iso_week)] if args.iso_week else []))
-
-    if cmd == "month":
-        return analyze_main(["month"] + ([str(args.month)] if args.month else []))
-
-    if cmd == "ai-context":
-        return ai_context_main([args.date] if args.date else [])
-
-    if cmd == "import-history":
-        rest = []
-        if args.check:
-            rest.append("--check")
-        if args.src:
-            rest += ["--src", args.src]
-        return import_history_main(rest)
-
-    if cmd == "doctor":
-        result = diagnose()
-        print(render_doctor(result))
-        return 0 if is_healthy(result) else 1
-
-    if cmd == "sync-docs":
-        return sync_docs_main(["--check"] if args.check else [])
-
-    if cmd == "fuse":
-        return fuse_main([])
-
-    if cmd == "recompute-scores":
-        rest = []
-        if args.apply:
-            rest.append("--apply")
-        if args.db:
-            rest += ["--db", args.db]
-        return recompute_main(rest)
-
-    if cmd == "export":
-        rest = ["--format", args.format]
-        if args.out:
-            rest += ["--out", args.out]
-        if args.stdout:
-            rest.append("--stdout")
-        return export_main(rest)
-
-    if cmd == "version":
+    if argv[0] in ("-h", "--help", "help"):
+        print(usage())
+        return 0
+    if argv[0] in ("-v", "--version"):
         print(__version__)
         return 0
 
-    parser.print_help()
-    return 1
+    cmd, rest = argv[0], argv[1:]
+    route = ROUTES.get(cmd)
+    if route is None:
+        print(f"未知子命令: {cmd}", file=sys.stderr)
+        print(usage(), file=sys.stderr)
+        return 2
+
+    fn, usage_line = route
+    # 子命令 -h 由本层统一拦截：模块不一定有 argparse，直接放行可能被当成
+    # 普通参数而触发真实执行（例如 `ingest -h` 会真的扫描全库）。
+    if rest and rest[0] in ("-h", "--help"):
+        print(f"用法: python -m review_tool {usage_line}")
+        return 0
+
+    return fn(rest)
 
 
 if __name__ == "__main__":
