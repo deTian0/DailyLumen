@@ -12,6 +12,8 @@
 6. 打卡归一化：是否还有未收敛到规范项的 other:* 记录
 7. 训练日口径：training_day 与「按星期推算」不一致的天数
 8. 运动时长来源：填报 / 描述折算 / 训练日未记录按 0 计 / 未记录 四者的天数分布
+9. 分数一致性：库中四维/系统分与「按字段重算」的结果是否相符
+10. 熔断检测：单维度连续低分 + 相对基线漂移
 """
 from __future__ import annotations
 
@@ -24,23 +26,86 @@ from .analyze import completeness
 from .config import ARCHIVE_SRC_DIR, FUSE_RULES, INPUT_DIR, PROFILE
 from .db import SCHEMA_VERSION, init_db
 from .fuse import find_fuses
+from .score import (
+    compute_health_score,
+    compute_learn_score,
+    compute_life_score,
+    compute_work_score,
+    system_score_from,
+)
 
-_DATE_IN_NAME = re.compile(r"(\d{4}-\d{2}-\d{2})")
+# 只认可「文件名主干 = 纯日期」的日复盘。历史上用 ``search`` 抓文件名里第一段日期，
+# 会把 ``周总结-W36-2026-08-31_09-06.md`` 误当成 08-31 的日复盘 —— 于是当 08-31
+# 的日文档真的缺失时，对账反而报「一致」（假阴性）。改为逐文件校验主干是否恰为
+# 一个日期，周/月汇总自然被排除。
+_DATE_STEM = re.compile(r"^(\d{4}-\d{2}-\d{2})$")
 
 # 归档目录名（相对 input_dir），与 config.ARCHIVE_SRC_DIR 保持一致
 ARCHIVE_SRC_NAME = os.path.basename(ARCHIVE_SRC_DIR)
 
 
+def _date_from_filename(name: str) -> str | None:
+    """文件名主干恰为 ``YYYY-MM-DD`` 才返回该日期，否则 None（排除周/月汇总等）。"""
+    stem = os.path.splitext(os.path.basename(name))[0]
+    m = _DATE_STEM.match(stem)
+    return m.group(1) if m else None
+
+
 def _dates_from_dir(directory: str) -> set[str]:
-    """从目录下文件名里提取日期集合。"""
+    """从目录下文件名里提取日期集合（只认主干纯日期的日复盘）。"""
     out: set[str] = set()
     if not os.path.isdir(directory):
         return out
     for name in os.listdir(directory):
         if name.endswith(".md"):
-            m = _DATE_IN_NAME.search(name)
-            if m:
-                out.add(m.group(1))
+            d = _date_from_filename(name)
+            if d:
+                out.add(d)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 分数一致性：把「库里的四维分」与「按当前规则从字段重算的结果」逐行比对
+# ---------------------------------------------------------------------------
+
+# 维度列 -> 展示名 -> 重算函数
+_DIM_COMPUTERS = [
+    ("health_score", "健康", compute_health_score),
+    ("work_score", "工作", compute_work_score),
+    ("learn_score", "学习", compute_learn_score),
+    ("life_score", "生活", compute_life_score),
+]
+
+
+def _num_differs(a, b, tol: float) -> bool:
+    """两个数值不同（一方 None 另一方非 None 也算不同）。"""
+    if a is None and b is None:
+        return False
+    if a is None or b is None:
+        return True
+    return abs(float(a) - float(b)) > tol
+
+
+def score_drift(conn, *, tol: float = 1e-9) -> list[dict]:
+    """重算四维 + 系统分并与库中存值比对，返回不一致明细。
+
+    为什么需要：v1.4.0 起「库为准、文档由库渲染」，但 ingest 仍会读回 md 数据块里
+    写的分数（保留字段供人阅读）。若有人手改了 md 里的分数、或某个维度规则变了却
+    没重算历史，库里的值就会与「按字段重算」的结果不符 —— 这正是需要被看见的
+    静默漂移。此处只做**只读**检测，不改库。
+    """
+    out: list[dict] = []
+    for row in conn.execute("SELECT * FROM daily_reviews ORDER BY date"):
+        rec = dict(row)
+        recomp = {col: fn(rec) for col, _label, fn in _DIM_COMPUTERS}
+        recomp["system_score"] = system_score_from(recomp)
+        for col, label, _fn in _DIM_COMPUTERS + [("system_score", "系统", None)]:
+            stored, new = rec.get(col), recomp.get(col)
+            if _num_differs(stored, new, tol):
+                out.append({
+                    "date": rec["date"], "dim": label, "col": col,
+                    "stored": stored, "recomputed": new,
+                })
     return out
 
 
@@ -80,9 +145,9 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
                 continue
             for f in files:
                 if f.endswith(".md"):
-                    m = _DATE_IN_NAME.search(f)
-                    if m:
-                        std_dates.add(m.group(1))
+                    d = _date_from_filename(f)
+                    if d:
+                        std_dates.add(d)
         arch_dates = _dates_from_dir(os.path.join(input_dir, ARCHIVE_SRC_NAME))
 
         result["orphan_in_db"] = sorted(db_dates - std_dates - arch_dates)
@@ -139,6 +204,9 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
 
         # 熔断检测（与数据健康无关，属「人生指标」告警，故不参与 is_healthy）
         result["fuse"] = find_fuses(conn)
+
+        # 分数一致性：库值 vs 字段重算（只读检测，不参与 is_healthy —— 手填覆盖属合法）
+        result["score_drift"] = score_drift(conn)
     finally:
         conn.close()
     return result
@@ -243,6 +311,22 @@ def render(result: dict) -> str:
             L.append(f"    - {d}: {why}")
     else:
         L.append("  ✓ training_day 与星期推算一致")
+
+    L.append("")
+    L.append("[分数一致性]")
+    drift = result.get("score_drift") or []
+    if drift:
+        L.append(f"  ⚠️ {len(drift)} 处库值与「按字段重算」不符"
+                 "（手填覆盖 / 规则变更后未重算）:")
+        for it in drift[:8]:
+            L.append(f"    - {it['date']} {it['dim']}: "
+                     f"库 {it['stored']} → 重算 {it['recomputed']}")
+        if len(drift) > 8:
+            L.append(f"    … 其余 {len(drift) - 8} 处省略")
+        L.append("     → 以字段为准时重算后回写：")
+        L.append("       python -m review_tool recompute-scores && python -m review_tool sync-docs")
+    else:
+        L.append("  ✓ 库中四维 / 系统分与字段重算完全一致")
 
     if result["inbox_files"]:
         L.append("")
