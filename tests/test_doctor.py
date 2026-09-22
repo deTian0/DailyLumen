@@ -96,6 +96,120 @@ class TestReconciliation(_Fixture):
         self.assertNotIn("2026-07-16", r["orphan_in_db"])
 
 
+class TestFilenameDateParsing(unittest.TestCase):
+    """只认「主干恰为日期」的日复盘，周/月汇总不得冒充某一天（v1.4.1 修复）。"""
+
+    def test_plain_date_ok(self):
+        self.assertEqual(doctor._date_from_filename("2026-09-21.md"), "2026-09-21")
+
+    def test_weekly_summary_rejected(self):
+        self.assertIsNone(doctor._date_from_filename("周总结-W36-2026-09-21_09-27.md"))
+        self.assertIsNone(doctor._date_from_filename("周总结-W36-2026-08-31_09-06.md"))
+
+    def test_extra_suffix_rejected(self):
+        self.assertIsNone(doctor._date_from_filename("2026-09-21-补充.md"))
+        self.assertIsNone(doctor._date_from_filename("备份-2026-09-21.md"))
+
+    def test_dates_from_dir_ignores_summary(self):
+        root = tempfile.mkdtemp()
+        try:
+            with open(os.path.join(root, "2026-09-21.md"), "w", encoding="utf-8") as f:
+                f.write("x")
+            with open(os.path.join(root, "周总结-W39-2026-09-21_09-27.md"),
+                      "w", encoding="utf-8") as f:
+                f.write("x")
+            self.assertEqual(doctor._dates_from_dir(root), {"2026-09-21"})
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+
+class TestWeeklySummaryNotADailySource(_Fixture):
+    """假阴性回归：周总结曾让缺失的日文档「看起来有人管」（v1.4.1 修复）。"""
+
+    def test_weekly_summary_does_not_mask_missing_daily(self):
+        # 只有周总结、没有 09-21 的日文档；库里有 09-21 的记录
+        self._md("复盘/2026-09/周总结-W39-2026-09-21_09-27.md")
+        upsert(self.conn, {"date": "2026-09-21"})
+        self.conn.commit()
+        r = self._run(today="2026-09-22")
+        # 修复前：周总结被当成 09-21 的日文档 → 既不报 orphan 也不报 missing（假阴性）
+        # 修复后：09-21 找不到真正的日文档 → 计入 orphan_in_db
+        self.assertIn("2026-09-21", r["orphan_in_db"])
+        self.assertNotIn("2026-09-21", r["not_ingested"])
+
+
+class TestScoreConsistency(_Fixture):
+    """库中四维 / 系统分必须与「按字段重算」一致（v1.4.1 新增检测）。"""
+
+    _ROW = {
+        "date": "2026-09-21", "training_day": 1,
+        "sleep_h": 7.0, "sleep_quality": 85, "bedtime": 1400,
+        "exercise_min": 30, "diet_kcal": 1800, "phone_h": 8.0,
+        "deepwork_h": 4.0, "learn_h": 1.0, "life_h": 1.0,
+    }
+
+    def _row_with_rule_scores(self, **over):
+        from review_tool.score import (
+            compute_health_score,
+            compute_learn_score,
+            compute_life_score,
+            compute_work_score,
+            system_score_from,
+        )
+        row = dict(self._ROW)
+        row.update(over)
+        base = row
+        scores = {
+            "health_score": compute_health_score(base),
+            "work_score": compute_work_score(base),
+            "learn_score": compute_learn_score(base),
+            "life_score": compute_life_score(base),
+        }
+        scores["system_score"] = system_score_from(scores)
+        row.update(scores)
+        return row
+
+    def test_clean_when_values_match_rules(self):
+        upsert(self.conn, self._row_with_rule_scores())
+        self.conn.commit()
+        self.assertEqual(self._run(today="2026-09-22")["score_drift"], [])
+
+    def test_detects_hand_edited_score(self):
+        row = self._row_with_rule_scores(learn_h=0.5)  # 规则算 3 分
+        row["learn_score"] = 9                         # 手改成 9
+        upsert(self.conn, row)
+        self.conn.commit()
+        drift = self._run(today="2026-09-22")["score_drift"]
+        self.assertTrue(any(d["col"] == "learn_score" for d in drift))
+
+    def test_detects_stale_after_field_change(self):
+        """字段改了但分数没跟着重算 → 必须报出来。"""
+        row = self._row_with_rule_scores(deepwork_h=4.0)
+        # 把字段改成 0 小时，但保留旧的 work_score
+        row["deepwork_h"] = 0.0
+        upsert(self.conn, row)
+        self.conn.commit()
+        drift = self._run(today="2026-09-22")["score_drift"]
+        self.assertTrue(any(d["col"] == "work_score" for d in drift))
+
+    def test_drift_does_not_break_health(self):
+        row = self._row_with_rule_scores()
+        row["learn_score"] = 9
+        upsert(self.conn, row)
+        self.conn.commit()
+        self._md("复盘/2026-09/2026-09-21.md")
+        r = self._run(today="2026-09-22")
+        self.assertTrue(r["score_drift"])          # 有漂移
+        self.assertTrue(doctor.is_healthy(r))      # 但手填覆盖属合法，不影响数据健康
+
+    def test_render_lists_consistency_section(self):
+        upsert(self.conn, self._row_with_rule_scores())
+        self.conn.commit()
+        text = doctor.render(self._run(today="2026-09-22"))
+        self.assertIn("[分数一致性]", text)
+        self.assertIn("与字段重算完全一致", text)
+
+
 class TestTrackNormalization(_Fixture):
     def test_unnormalized_flagged(self):
         upsert_personal_track(self.conn, "2026-09-21", "other:某新补剂", "服药",
