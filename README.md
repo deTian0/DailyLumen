@@ -23,7 +23,7 @@
 │   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md（评分/口径/字段/日志）+ 迁移指南.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，288 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，293 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
@@ -32,29 +32,33 @@
 │   │   └── doc-corpus-normalize/     # 文档批量标准化 SOP（可证明无损）
 │   ├── memory/                       # 本机日志 + 环境坑（不入 git，换机不迁移）
 │   └── backup/                       # 迁移备份与一次性脚本（不入 git，换机不迁移）
-└── review_tool/                      # 解析 / 评分 / 入库 / 分析 / 体检（标准 Python 包）
-    ├── __init__.py                   # 包公共 API 导出
-    ├── __main__.py                   # 统一命令行入口 (python -m review_tool)
-    ├── config.py                     # 路径 + 可配置层(PROFILE/PERSONAL_ITEMS/SCORE_THRESHOLDS/BODYWEIGHT_MOVES)
-    ├── util.py                       # 时间与数值转换、slug 生成
-    ├── tracks.py                     # 打卡项归一化（自由文本 -> 规范 ID）★
-    ├── bodyweight.py                 # 徒手训练折算（描述动作 -> 运动时长）★
-    ├── db.py                         # SQLite 读写 + 带版本的增量迁移
-    ├── parse.py                      # 解析 md -> 结构化 dict（兼容三种格式）
-    ├── score.py                      # 四维评分自动生成 ★
-    ├── ingest.py                     # 入库（按 date 主键 upsert，默认不擦数据）
-    ├── analyze.py                    # 周 / 月分析
-    ├── new_day.py                    # 一键生成当天复盘文件
-    ├── ai_review.py                  # 「七、AI 评价与建议」上下文构建器 ★
-    ├── import_history.py             # 语雀历史文件转换导入
-    ├── doctor.py                     # 数据体检（对账 / 完整度 / 新鲜度 / 分数一致性 / 打卡对账 / 熔断）★
-    ├── fuse.py                       # 熔断检测（连续走低 + 相对基线偏离）★
-    ├── sync_docs.py                  # 把库里的分数回写到复盘 md（数据块 + 六章）★
-    ├── recompute.py                  # 按当前规则重算库中四维 / 系统分 ★
-    ├── export.py                     # CSV / JSON 导出
-    ├── schema.sql                    # 建表（含 CHECK 约束）
-    ├── reviews.db                    # 你的数据库（单一数据源，含个人数据）
-    └── reviews.example.db            # 空数据库模板（新用户复制为 reviews.db 即可）
+└── review_tool/                      # 数据管道（标准 Python 包，四层架构：依赖只能自上而下）
+    ├── __init__.py                   # 包公共 API（对外唯一契约，__all__）
+    ├── __main__.py                   # 统一命令行入口 (python -m review_tool，纯路由)
+    ├── config.py                     # ★ 可配置层：路径 + PROFILE / PERSONAL_ITEMS / SCORE_THRESHOLDS / BODYWEIGHT_MOVES
+    ├── schema.sql                    # 建表语句（含 CHECK 约束）—— 与库文件同在包根
+    ├── reviews.db                    # 你的数据库（单一数据源，含个人数据，不入 git）
+    ├── reviews.example.db            # 空数据库模板（新用户复制为 reviews.db 即可）
+    ├── core/                         # 领域层：零 I/O 纯规则（禁碰 SQLite / 文件系统）
+    │   ├── util.py                   #   时间与数值转换、slug 生成
+    │   ├── tracks.py                 #   打卡项归一化（自由文本 -> 规范 ID）★
+    │   ├── bodyweight.py             #   徒手训练折算（描述动作 -> 运动时长）★
+    │   └── score.py                  #   四维评分规则 ★
+    ├── storage/                      # 持久化层：SQLite 的唯一出入口
+    │   └── db.py                     #   读写 + 带版本增量迁移 + 打卡对账
+    ├── pipeline/                     # 数据流转层：复盘 md <-> 库
+    │   ├── parse.py                  #   解析 md -> 结构化 dict（兼容三种格式）
+    │   ├── ingest.py                 #   入库（按 date 主键 upsert，默认不擦数据）
+    │   ├── sync_docs.py              #   库中分数回写复盘 md（数据块 + 六章）★
+    │   ├── import_history.py         #   语雀历史文件转换导入
+    │   ├── new_day.py                #   一键生成当天复盘文件
+    │   └── export.py                 #   CSV / JSON 导出
+    └── reports/                      # 产出层：读库生成面向人的结果
+        ├── analyze.py                #   周 / 月分析（collect / render 分离，--json）
+        ├── doctor.py                 #   数据体检（对账 / 完整度 / 新鲜度 / 一致性 / 熔断）★
+        ├── fuse.py                   #   熔断检测（连续走低 + 相对基线偏离）★
+        ├── ai_review.py              #   「七、AI 评价与建议」上下文构建器 ★
+        └── recompute.py              #   按当前规则重算库中四维 / 系统分 ★
 ```
 
 ---
@@ -104,12 +108,12 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 288 项，零依赖
+python -m unittest discover -s tests -t .      # 293 项，零依赖
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  
 upsert 防覆盖 / 训练日二态口径 / 评分边界 / 模板生成 / 体检 / 导出 /  
-配置自洽 / 版本一致性。
+配置自洽 / 版本一致性 / **分层依赖方向（架构守卫）**。
 
 ---
 
