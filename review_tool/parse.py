@@ -124,6 +124,16 @@ def _scan_kv(body: str, row: dict) -> None:
             row[db_col] = _coerce(db_col, val)
 
 
+def has_tracks_section(text: str) -> bool:
+    """「一、日常打卡」章节是否存在。
+
+    用于区分「当天没有补剂/护肤项」与「该章节压根没解析到」——只有章节存在时，
+    解析出的打卡集合才可以当作该日期的**权威集合**去和库里对账（见 ingest
+    ``--prune-tracks`` 与 doctor 的 [打卡对账]）。
+    """
+    return _SECTION_TRACKS_RE.search(text) is not None
+
+
 def _extract_personal_tracks(text: str) -> list[tuple[str, str, str, str, int]]:
     """从「一、日常打卡」章节提取个人定制勾选（补剂 / 护肤）。
 
@@ -201,6 +211,8 @@ def parse_text(text: str) -> dict:
     tracks = _extract_personal_tracks(text)
     if tracks:
         row["_personal_tracks"] = tracks
+    # 该章节是否存在（供打卡对账判断「解析结果是否可作为权威集合」）
+    row["_tracks_section"] = has_tracks_section(text)
 
     return row
 

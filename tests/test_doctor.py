@@ -280,6 +280,110 @@ class TestExerciseSources(_Fixture):
         self.assertIn("描述折算 1 天", text)
 
 
+class TestTrackReconciliation(_Fixture):
+    """[打卡对账]：库里打卡行必须在源 md 找到对应勾选（v1.4.2）。"""
+
+    def _write_md(self, rel, content):
+        p = os.path.join(self.md_dir, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(content)
+        return p
+
+    def _md_with_tracks(self, date="2026-09-21"):
+        from tests.sample_data import SAMPLE_MD
+        rel = f"复盘/2026-09/{date}.md"
+        return self._write_md(rel, SAMPLE_MD.replace("2026-08-05", date))
+
+    def test_detects_stale_row(self):
+        path = self._md_with_tracks()
+        upsert(self.conn, {"date": "2026-09-21", "raw_path": path})
+        # 源 md 里的三项
+        upsert_personal_track(self.conn, "2026-09-21", "coq10@morning", "服药",
+                              "coq10", "CoQ10 ×1", 1)
+        # 规范 ID 变化后残留的旧键
+        upsert_personal_track(self.conn, "2026-09-21", "movefree", "服药",
+                              "movefree", "Move Free 红色 ×1", 1)
+        self.conn.commit()
+        stale = doctor.stale_track_rows(self.conn)
+        self.assertEqual([s["track_key"] for s in stale], ["movefree"])
+
+    def test_clean_when_all_reproducible(self):
+        path = self._md_with_tracks()
+        upsert(self.conn, {"date": "2026-09-21", "raw_path": path})
+        for key, ik in (("coq10@morning", "coq10"),
+                        ("exia_am@morning", "exia_am"),
+                        ("skincare", "skincare")):
+            upsert_personal_track(self.conn, "2026-09-21", key, "服药", ik, ik, 1)
+        self.conn.commit()
+        self.assertEqual(doctor.stale_track_rows(self.conn), [])
+
+    def test_skips_when_section_missing(self):
+        """源 md 没有打卡章节 → 不敢断言（可能只是解析不到）。"""
+        path = self._write_md("复盘/2026-09/2026-09-21.md",
+                              "## 二、今日三件事\n\n```data\n日期: 2026-09-21\n```\n")
+        upsert(self.conn, {"date": "2026-09-21", "raw_path": path})
+        upsert_personal_track(self.conn, "2026-09-21", "movefree", "服药",
+                              "movefree", "Move Free 红色 ×1", 1)
+        self.conn.commit()
+        self.assertEqual(doctor.stale_track_rows(self.conn), [])
+
+    def test_render_reports_stale(self):
+        path = self._md_with_tracks()
+        upsert(self.conn, {"date": "2026-09-21", "raw_path": path})
+        upsert_personal_track(self.conn, "2026-09-21", "movefree", "服药",
+                              "movefree", "Move Free 红色 ×1", 1)
+        self.conn.commit()
+        text = doctor.render(self._run(today="2026-09-22"))
+        self.assertIn("[打卡对账]", text)
+        self.assertIn("--prune-tracks", text)
+
+    def test_render_clean(self):
+        path = self._md_with_tracks()
+        upsert(self.conn, {"date": "2026-09-21", "raw_path": path})
+        upsert_personal_track(self.conn, "2026-09-21", "skincare", "护肤",
+                              "skincare", "护肤", 1)
+        self.conn.commit()
+        text = doctor.render(self._run(today="2026-09-22"))
+        self.assertIn("每条打卡都能在源 md 找到对应勾选", text)
+
+    def test_does_not_break_health(self):
+        path = self._md_with_tracks()
+        upsert(self.conn, {"date": "2026-09-21", "raw_path": path})
+        upsert_personal_track(self.conn, "2026-09-21", "movefree", "服药",
+                              "movefree", "Move Free 红色 ×1", 1)
+        self.conn.commit()
+        self.assertTrue(doctor.is_healthy(self._run(today="2026-09-22")))
+
+
+class TestHealthConsistency(_Fixture):
+    """结论与退出码同源：render 里的「数据健康」必须等于 is_healthy。"""
+
+    def test_stale_is_advisory(self):
+        """新鲜度只是建议：CI 里历史库必然「过期」，不该算数据故障。"""
+        upsert(self.conn, {"date": "2020-01-01"})
+        self.conn.commit()
+        self._md("复盘/2020-01/2020-01-01.md")
+        r = self._run(today="2026-09-22")
+        self.assertGreater(r["stale_days"], 1)
+        self.assertTrue(doctor.is_healthy(r))
+        self.assertIn("数据健康", doctor.render(r))
+
+    def test_empty_db_unhealthy(self):
+        r = self._run(today="2026-09-22")
+        self.assertFalse(doctor.is_healthy(r))
+        self.assertIn("存在待处理项", doctor.render(r))
+
+    def test_conclusion_matches_exit_code(self):
+        upsert(self.conn, {"date": "2026-09-21"})
+        self.conn.commit()
+        self._md("复盘/2026-09/2026-09-21.md")
+        r = self._run(today="2026-09-22")
+        text = doctor.render(r)
+        self.assertTrue(doctor.is_healthy(r))
+        self.assertIn("结论: ✓ 数据健康", text)
+
+
 class TestRender(_Fixture):
     def test_render_runs_and_reports_health(self):
         upsert(self.conn, {"date": "2026-09-21", "training_day": 1,

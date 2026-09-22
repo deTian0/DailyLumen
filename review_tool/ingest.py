@@ -4,6 +4,7 @@
     python -m review_tool ingest                # 入库「每日复盘/」全部 .md
     python -m review_tool ingest 路径.md        # 只入库指定文件
     python -m review_tool ingest --overwrite    # 整行覆盖（默认只补空、不擦已有值）
+    python -m review_tool ingest --prune-tracks # 顺带清理源 md 已无的陈旧打卡行
 
 扫描范围：``每日复盘/`` 递归，但**跳过** 收件箱（原始素材）与
 历史源复盘（语雀旧格式归档，需先经 import-history 转成标准格式）。
@@ -14,6 +15,11 @@
 **训练日未记录按 0 计**（v1.3.2 口径，用户拍板）：折算也没有命中时，
 训练日的 ``exercise_min`` 记 0、来源记 ``zero`` —— 「没填」即「没练」，
 计入达成分母的「未达标」，不再保留「未记录」豁免态。非训练日不填。
+
+**打卡对账**（v1.4.2）：``upsert_personal_track`` 只增不删，源文本的规范 ID 变化
+（如 Move Free 由裸 ``movefree`` 变成 ``movefree@noon`` + ``movefree@evening``）
+会让旧键永久留在库里、同一剂量被重复计入依从率。``--prune-tracks`` 按
+「一、日常打卡」的解析结果做权威集合删除（章节缺失则跳过，见 parse.has_tracks_section）。
 """
 from __future__ import annotations
 
@@ -25,6 +31,7 @@ from .config import ARCHIVE_SRC_DIR, INBOX_DIR, INPUT_DIR, PROFILE
 from .db import (
     count,
     init_db,
+    prune_personal_tracks,
     upsert,
     upsert_personal_track,
 )
@@ -66,11 +73,16 @@ def fill_exercise_zero(row: dict) -> bool:
     return True
 
 
-def ingest_path(conn, path: str, *, overwrite: bool = False) -> dict | None:
+def ingest_path(conn, path: str, *, overwrite: bool = False,
+                prune_tracks: bool = False) -> dict | None:
     """解析单个 md 文件并 upsert 入库。
 
     成功返回解析出的行 dict（含 ``exercise_src`` 等派生字段），失败返回 None。
     返回值可直接当布尔用（truthy 即成功）。
+
+    ``prune_tracks``：写入打卡后，把该日期下**源 md 已无对应文本**的打卡行删掉
+    （见 ``db.prune_personal_tracks``）。仅当「一、日常打卡」章节确实解析到了才
+    执行 —— 否则解析失败会被误判成「当天没有这些项」。默认关闭。
     """
     row = parse_file(path)
     if not row.get("date"):
@@ -86,10 +98,17 @@ def ingest_path(conn, path: str, *, overwrite: bool = False) -> dict | None:
     row["system_score"] = system_score_from(row)
     upsert(conn, row, overwrite=overwrite)
     # 写入个人定制打卡（补剂/护肤等），独立于通用评分表，不计入四维评分
-    for category, track_key, item_key, item_label, done in row.get("_personal_tracks", []):
+    tracks = row.get("_personal_tracks", [])
+    for category, track_key, item_key, item_label, done in tracks:
         upsert_personal_track(
             conn, row["date"], track_key, category, item_key, item_label, done
         )
+    if prune_tracks and row.get("_tracks_section"):
+        stale = prune_personal_tracks(conn, row["date"], {t[1] for t in tracks})
+        if stale:
+            row["_pruned_tracks"] = stale
+            print(f"  [打卡对账] {row['date']} 删除 {len(stale)} 条源 md 已无的陈旧打卡: "
+                  + ", ".join(stale))
     conn.commit()
     return row
 
@@ -119,7 +138,8 @@ def iter_markdown(input_dir: str) -> list[str]:
     return sorted(result)
 
 
-def ingest_all(conn, input_dir: str = INPUT_DIR, *, overwrite: bool = False) -> int:
+def ingest_all(conn, input_dir: str = INPUT_DIR, *, overwrite: bool = False,
+               prune_tracks: bool = False) -> int:
     """递归扫描 input_dir 下所有 .md 入库，返回成功条数。"""
     paths = iter_markdown(input_dir)
     ok = 0
@@ -127,7 +147,7 @@ def ingest_all(conn, input_dir: str = INPUT_DIR, *, overwrite: bool = False) -> 
     for p in paths:
         if not os.path.exists(p):
             continue
-        row = ingest_path(conn, p, overwrite=overwrite)
+        row = ingest_path(conn, p, overwrite=overwrite, prune_tracks=prune_tracks)
         if row is None:
             continue
         ok += 1
@@ -142,10 +162,12 @@ def ingest_all(conn, input_dir: str = INPUT_DIR, *, overwrite: bool = False) -> 
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     overwrite = "--overwrite" in argv or "--force" in argv
+    prune_tracks = "--prune-tracks" in argv
     args = [a for a in argv if not a.startswith("--")]
 
     conn = init_db()
     before = count(conn)
+    before_tracks = conn.execute("SELECT COUNT(*) FROM personal_tracks").fetchone()[0]
 
     if args:
         ok = 0
@@ -153,19 +175,22 @@ def main(argv: list[str] | None = None) -> int:
             if not os.path.exists(p):
                 print(f"  [缺失] {p}")
                 continue
-            row = ingest_path(conn, p, overwrite=overwrite)
+            row = ingest_path(conn, p, overwrite=overwrite, prune_tracks=prune_tracks)
             if row is not None:
                 ok += 1
                 _report_row(os.path.basename(p), row)
     else:
-        ok = ingest_all(conn, INPUT_DIR, overwrite=overwrite)
+        ok = ingest_all(conn, INPUT_DIR, overwrite=overwrite, prune_tracks=prune_tracks)
 
     after = count(conn)
     mode = "（整行覆盖模式）" if overwrite else "（保护模式：只补空值）"
     print(f"\n完成: 本次入库 {ok} 条, 数据库共 {after} 条 (新增/更新 {after - before})"
           f" {mode}")
     tracks = conn.execute("SELECT COUNT(*) FROM personal_tracks").fetchone()[0]
-    print(f"个人打卡记录: {tracks} 条")
+    line = f"个人打卡记录: {tracks} 条"
+    if prune_tracks and tracks != before_tracks:
+        line += f"（打卡对账删除 {before_tracks - tracks} 条陈旧项）"
+    print(line)
     conn.close()
     return 0
 
