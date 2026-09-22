@@ -10,6 +10,10 @@
 
 运动时长：字段为空时，会由「二、今日三件事」的描述折算补全（见 bodyweight 模块），
 并在输出里标注「由描述折算」，来源记入 ``exercise_src`` 列。
+
+**训练日未记录按 0 计**（v1.3.2 口径，用户拍板）：折算也没有命中时，
+训练日的 ``exercise_min`` 记 0、来源记 ``zero`` —— 「没填」即「没练」，
+计入达成分母的「未达标」，不再保留「未记录」豁免态。非训练日不填。
 """
 from __future__ import annotations
 
@@ -47,6 +51,21 @@ def fill_training_day(row: dict) -> bool:
     return True
 
 
+def fill_exercise_zero(row: dict) -> bool:
+    """训练日运动未记录时按口径记 0（v1.3.2，用户拍板）。
+
+    「没填」即「没练」：exercise_min 记 0、来源记 'zero'，计入达成分母的
+    未达标，不再保留「未记录」态 —— 否则训练日达标率分母永远存疑。
+    折算（bodyweight.estimate）优先于本兜底；非训练日不动（运动不是当天预期）。
+    返回是否发生了兜底填充。
+    """
+    if row.get("training_day") != 1 or row.get("exercise_min") is not None:
+        return False
+    row["exercise_min"] = 0
+    row["exercise_src"] = "zero"
+    return True
+
+
 def ingest_path(conn, path: str, *, overwrite: bool = False) -> dict | None:
     """解析单个 md 文件并 upsert 入库。
 
@@ -59,6 +78,8 @@ def ingest_path(conn, path: str, *, overwrite: bool = False) -> dict | None:
         return None
     # 训练日兜底（缺失才填，不覆盖手填）
     fill_training_day(row)
+    # 训练日运动未记录按 0 计（折算优先，见 fill_exercise_zero）
+    fill_exercise_zero(row)
     # 自动补全缺失的四维评分（只补 None，不覆盖手填）
     compute_scores(row)
     # 重算系统分（四维补齐后）

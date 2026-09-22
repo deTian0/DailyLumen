@@ -20,8 +20,9 @@ CREATE TABLE IF NOT EXISTS daily_reviews (
     exercise_min    INTEGER
         CHECK (exercise_min IS NULL OR exercise_min >= 0),
     exercise_src    TEXT                        -- 运动时长来源: 'record'=字段填报
-        CHECK (exercise_src IS NULL OR exercise_src IN ('record', 'derived')),
+        CHECK (exercise_src IS NULL OR exercise_src IN ('record', 'derived', 'zero')),
                                                 -- 'derived'=由「三件事」描述折算
+                                                -- 'zero'=训练日未记录按 0 计（v1.3.2 口径）
                                                 -- (NULL=无运动信息)
     commute_done    INTEGER
         CHECK (commute_done IN (0, 1)),        -- 1=通勤完成 0=否

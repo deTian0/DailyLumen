@@ -123,11 +123,17 @@ def attention_flags(day: dict, recent: list[dict],
         flags.append(f"睡眠质量 {q} 偏低（<80）")
 
     # --- 运动 ---
-    if day.get("training_day") == 1 and not day.get("exercise_min"):
-        flags.append("训练日但未记录运动")
+    ex = day.get("exercise_min")
+    if day.get("training_day") == 1 and ex == 0:
+        if day.get("exercise_src") == "zero":
+            flags.append("训练日未记录运动，按口径记 0（v1.3.2：没填即没练）")
+        else:
+            flags.append("训练日运动 0 分钟")
+    elif day.get("training_day") == 1 and ex is None:
+        flags.append("训练日但未记录运动（旧库未重跑 ingest）")
     if day.get("exercise_src") == "derived":
         flags.append(
-            f"运动 {day.get('exercise_min')}min 由「三件事」描述折算得到（非计时记录）"
+            f"运动 {ex}min 由「三件事」描述折算得到（非计时记录）"
         )
 
     # --- 饮食 / 宏量 ---
@@ -219,6 +225,8 @@ def render_markdown(ctx: dict) -> str:
     ex = day.get("exercise_min")
     if ex is None:
         ex_text = "未记录"
+    elif day.get("exercise_src") == "zero":
+        ex_text = "0min（训练日未记录，按口径计 0）"
     elif day.get("exercise_src") == "derived":
         ex_text = f"{ex}min（由「三件事」描述折算，非计时记录）"
     else:

@@ -11,7 +11,7 @@
 5. 完整度：核心字段缺失统计
 6. 打卡归一化：是否还有未收敛到规范项的 other:* 记录
 7. 训练日口径：training_day 与「按星期推算」不一致的天数
-8. 运动时长来源：填报 / 描述折算 / 未记录 三者的天数分布
+8. 运动时长来源：填报 / 描述折算 / 训练日未记录按 0 计 / 未记录 四者的天数分布
 """
 from __future__ import annotations
 
@@ -100,17 +100,19 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
         ).fetchall()
         result["unnormalized_tracks"] = [(r[0], r[1]) for r in uncollapsed]
 
-        # 运动时长来源（填报 / 描述折算 / 未记录）
-        miss, der, rec = conn.execute(
+        # 运动时长来源（填报 / 描述折算 / 训练日未记录按 0 计 / 未记录）
+        rec, der, zer, miss = conn.execute(
             "SELECT "
-            "  SUM(CASE WHEN exercise_min IS NULL THEN 1 ELSE 0 END), "
-            "  SUM(CASE WHEN exercise_min IS NOT NULL AND exercise_src='derived' THEN 1 ELSE 0 END), "
             "  SUM(CASE WHEN exercise_min IS NOT NULL "
-            "           AND COALESCE(exercise_src, 'record') <> 'derived' THEN 1 ELSE 0 END) "
+            "           AND COALESCE(exercise_src, 'record') NOT IN ('derived', 'zero') THEN 1 ELSE 0 END), "
+            "  SUM(CASE WHEN exercise_src='derived' THEN 1 ELSE 0 END), "
+            "  SUM(CASE WHEN exercise_src='zero' THEN 1 ELSE 0 END), "
+            "  SUM(CASE WHEN exercise_min IS NULL THEN 1 ELSE 0 END) "
             "FROM daily_reviews"
         ).fetchone()
         result["exercise_sources"] = {
-            "recorded": rec or 0, "derived": der or 0, "missing": miss or 0,
+            "recorded": rec or 0, "derived": der or 0,
+            "zero": zer or 0, "missing": miss or 0,
         }
 
         # 训练日口径
@@ -216,7 +218,10 @@ def render(result: dict) -> str:
     L.append("")
     L.append("[运动时长来源]")
     es = result["exercise_sources"]
-    L.append(f"  填报 {es['recorded']} 天｜描述折算 {es['derived']} 天｜未记录 {es['missing']} 天")
+    L.append(f"  填报 {es['recorded']} 天｜描述折算 {es['derived']} 天"
+             f"｜训练日未记录按 0 计 {es.get('zero', 0)} 天｜未记录 {es['missing']} 天")
+    if es.get("zero"):
+        L.append("     · 训练日未记录按 0 计（v1.3.2 口径）：没填即没练，计入未达标")
     if es["derived"]:
         L.append("     · 折算规则见 config.BODYWEIGHT_MOVES：「三件事」里提到动作即自动计入")
         L.append("     · 想自己控制某天：在数据块填 `运动时长_min`（字段优先，不叠加）")

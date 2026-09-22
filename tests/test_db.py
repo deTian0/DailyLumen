@@ -163,6 +163,100 @@ class TestMigration(unittest.TestCase):
         os.remove(path)
         os.rmdir(d)
 
+    def test_interrupted_rebuild_recovers_from_v3_old(self):
+        """重建中断的现场（空新表 + daily_reviews_v3_old）必须能自愈。
+
+        这是真实发生过的事故形态：旧表已改名、新表已建但未搬运数据。
+        """
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "interrupted.db")
+        conn = sqlite3.connect(path)
+        conn.executescript("""
+            CREATE TABLE daily_reviews_v3_old (
+                date TEXT PRIMARY KEY,
+                training_day INTEGER,
+                exercise_min INTEGER,
+                phone_h REAL
+            );
+            INSERT INTO daily_reviews_v3_old VALUES ('2026-09-13', 1, NULL, 8.0);
+            CREATE TABLE daily_reviews (date TEXT PRIMARY KEY);
+        """)
+        conn.commit()
+        conn.close()
+
+        conn = init_db(db_path=path)
+        rows = [tuple(r) for r in conn.execute(
+            "SELECT date, training_day, exercise_min, phone_h FROM daily_reviews"
+        )]
+        self.assertEqual(rows, [("2026-09-13", 1, None, 8.0)])
+        # 恢复后旧表不应残留，且能正常写 zero
+        tables = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )}
+        self.assertNotIn("daily_reviews_v3_old", tables)
+        conn.execute("UPDATE daily_reviews SET exercise_min=0, exercise_src='zero' "
+                     "WHERE date='2026-09-13'")
+        conn.commit()
+        conn.close()
+        os.remove(path)
+        os.rmdir(d)
+
+    def test_v3_check_rebuild_allows_zero_and_preserves_data(self):
+        """v3 老库（exercise_src CHECK 不含 'zero'）-> v4 重建表。
+
+        重建必须：数据逐行无损、'zero' 可写入、索引仍在、user_version=4。
+        """
+        d = tempfile.mkdtemp()
+        path = os.path.join(d, "v3.db")
+        conn = sqlite3.connect(path)
+        # 仿 v3 真实 schema：exercise_src CHECK 只放行 record/derived
+        conn.executescript("""
+            CREATE TABLE daily_reviews (
+                date TEXT PRIMARY KEY,
+                training_day INTEGER,
+                exercise_min INTEGER CHECK (exercise_min IS NULL OR exercise_min >= 0),
+                exercise_src TEXT CHECK (exercise_src IS NULL
+                                         OR exercise_src IN ('record', 'derived')),
+                phone_h REAL
+            );
+            INSERT INTO daily_reviews VALUES ('2026-09-13', 1, 10, 'derived', 8.0);
+            INSERT INTO daily_reviews VALUES ('2026-09-14', 1, NULL, NULL, 8.1);
+            CREATE INDEX idx_exercise_src ON daily_reviews(exercise_src);
+        """)
+        conn.execute("PRAGMA user_version = 3")
+        conn.commit()
+        conn.close()
+
+        conn = init_db(db_path=path)
+        self.assertEqual(
+            conn.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+        )
+        # 数据无损
+        rows = [tuple(r) for r in conn.execute(
+            "SELECT date, exercise_min, exercise_src, phone_h "
+            "FROM daily_reviews ORDER BY date"
+        )]
+        self.assertEqual(rows, [
+            ("2026-09-13", 10, "derived", 8.0),
+            ("2026-09-14", None, None, 8.1),
+        ])
+        # 新约束放行 zero，仍拦截脏值
+        conn.execute("UPDATE daily_reviews SET exercise_src='zero' "
+                     "WHERE date='2026-09-14'")
+        with self.assertRaises(sqlite3.IntegrityError):
+            conn.execute("UPDATE daily_reviews SET exercise_src='bogus' "
+                         "WHERE date='2026-09-14'")
+        conn.commit()
+        # 索引随重建恢复
+        idx = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='index' "
+            "AND tbl_name='daily_reviews'"
+        )}
+        self.assertIn("idx_exercise_src", idx)
+        conn.close()
+        os.remove(path)
+        os.rmdir(d)
+
     def test_backfills_exercise_src_for_recorded_values(self):
         """新增 exercise_src 后：老库里已有数值的标记 record，空值保持 NULL。"""
         d = tempfile.mkdtemp()

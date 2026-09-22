@@ -8,12 +8,14 @@
 
 口径说明（重要）
 ----------------
-「训练日运动达标」按**三态**统计，把「未记录」和「未达标」分开：
+「训练日运动达标」按**二态**统计（v1.3.2 起）：训练日未记录按 0 计，
+直接落入「未达标」，不再保留「未记录」豁免态 ——「没填」即「没练」，
+达成分母恒等于训练日总数：
 
-    达标 0 / 3 天（训练日共 4 天，另有 1 天未记录）
+    达标 2 / 4 天 = 50%（其中 1 天为描述折算，2 天未记录按 0 计）
 
-早期版本用 ``exercise_min > 0`` 直接判达标，会把「字段空着」误判成
-「没运动」，导致达标率系统性偏低。
+历史背景：更早版本曾把「字段空着」与「没运动」混为一谈（v1.3.0 修复），
+v1.3.1 引入折算后仍留「未记录」豁免；v1.3.2 用户拍板收口为二态。
 
 另外，「运动时长_min」为空但「二、今日三件事」里提到俯卧撑等动作时，
 该值会由 bodyweight 模块**折算**补上（``exercise_src='derived'``）。
@@ -109,26 +111,33 @@ def _macro_lines(conn, where: str = "", params: tuple = ()) -> str:
 
 
 def training_stats(conn, where: str, params: tuple) -> dict:
-    """训练日运动三态统计：总训练日 / 有记录 / 达标 / 未记录 / 其中描述折算。"""
-    total, recorded, done, derived = conn.execute(
+    """训练日运动二态统计（v1.3.2 口径）。
+
+    total=训练日总数；done=达标(>0)；derived=描述折算；zero=未记录按 0 计；
+    missing=仍无任何数据的天数（理论上仅存在于未重跑 ingest 的旧库）。
+    """
+    total, done, derived, zero, missing = conn.execute(
         "SELECT "
         "  SUM(CASE WHEN training_day=1 THEN 1 ELSE 0 END), "
-        "  SUM(CASE WHEN training_day=1 AND exercise_min IS NOT NULL THEN 1 ELSE 0 END), "
         "  SUM(CASE WHEN training_day=1 AND exercise_min > 0 THEN 1 ELSE 0 END), "
-        "  SUM(CASE WHEN training_day=1 AND exercise_src='derived' THEN 1 ELSE 0 END) "
+        "  SUM(CASE WHEN training_day=1 AND exercise_src='derived' THEN 1 ELSE 0 END), "
+        "  SUM(CASE WHEN training_day=1 AND exercise_src='zero' THEN 1 ELSE 0 END), "
+        "  SUM(CASE WHEN training_day=1 AND exercise_min IS NULL THEN 1 ELSE 0 END) "
         f"FROM daily_reviews WHERE {where}",
         params,
     ).fetchone()
     total = total or 0
-    recorded = recorded or 0
     done = done or 0
     derived = derived or 0
+    zero = zero or 0
+    missing = missing or 0
     return {
         "total": total,
-        "recorded": recorded,
+        "recorded": total - missing,
         "done": done,
         "derived": derived,
-        "missing": total - recorded,
+        "zero": zero,
+        "missing": missing,
     }
 
 
@@ -141,17 +150,22 @@ def derived_count(conn, where: str, params: tuple) -> int:
 
 
 def _training_line(st: dict) -> str:
-    total, recorded, done, missing = st["total"], st["recorded"], st["done"], st["missing"]
-    derived = st.get("derived", 0)
+    total, done, missing = st["total"], st["done"], st["missing"]
+    derived, zero = st.get("derived", 0), st.get("zero", 0)
     if total == 0:
         return _line("训练日运动", "无训练日记录")
-    if recorded == 0:
-        return _line("训练日运动", f"训练日 {total} 天均未记录运动字段")
-    text = f"达标 {done}/{recorded} 天 = {_pct(done / recorded)}"
+    if missing == total:
+        return _line("训练日运动", f"训练日 {total} 天均无运动数据（旧库未重跑 ingest）")
+    text = f"达标 {done}/{total} 天 = {_pct(done / total)}"
+    notes = []
     if derived:
-        text += f"（其中 {derived} 天为描述折算）"
+        notes.append(f"{derived} 天为描述折算")
+    if zero:
+        notes.append(f"{zero} 天未记录按 0 计")
+    if notes:
+        text += f"（其中 {'，'.join(notes)}）"
     if missing:
-        text += f"  ⚠️ 另有 {missing} 天未记录（不计入达成分母）"
+        text += f"  ⚠️ 另有 {missing} 天无数据（旧库未重跑 ingest）"
     return _line("训练日运动", text)
 
 
