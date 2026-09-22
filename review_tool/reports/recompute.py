@@ -18,14 +18,14 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 
-from .db import init_db
-from .score import (
+from ..core.score import (
     compute_health_score,
     compute_learn_score,
     compute_life_score,
     compute_work_score,
     system_score_from,
 )
+from ..storage.db import init_db
 
 # 维度列 -> 展示名 -> 重算函数（与 doctor._DIM_COMPUTERS 同源）
 _COMPUTERS = [

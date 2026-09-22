@@ -35,8 +35,8 @@ import os
 import re
 import sys
 
-from .config import GENERATED_DIR
-from .db import init_db
+from ..config import GENERATED_DIR
+from ..storage.db import init_db
 
 # 数据块里的分数行：标签 -> 数据库列
 SCORE_LABELS: list[tuple[str, str]] = [

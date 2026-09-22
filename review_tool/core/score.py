@@ -11,7 +11,7 @@
 """
 from __future__ import annotations
 
-from .config import DIMENSIONS, SCORE_THRESHOLDS
+from ..config import DIMENSIONS, SCORE_THRESHOLDS
 
 
 def _clamp(v, lo: int = 1, hi: int = 10) -> int:

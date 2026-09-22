@@ -27,8 +27,9 @@ import os
 import sys
 from datetime import datetime
 
-from .config import ARCHIVE_SRC_DIR, INBOX_DIR, INPUT_DIR, PROFILE
-from .db import (
+from ..config import ARCHIVE_SRC_DIR, INBOX_DIR, INPUT_DIR, PROFILE
+from ..core.score import compute_scores, system_score_from
+from ..storage.db import (
     count,
     init_db,
     prune_personal_tracks,
@@ -36,7 +37,6 @@ from .db import (
     upsert_personal_track,
 )
 from .parse import parse_file
-from .score import compute_scores, system_score_from
 
 # 扫描时跳过的子目录（原始素材 / 旧格式归档，都不属于标准复盘）
 SKIP_DIRS = (os.path.basename(INBOX_DIR), os.path.basename(ARCHIVE_SRC_DIR))

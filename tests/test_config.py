@@ -16,7 +16,7 @@ from review_tool.config import (
     SLOT_CN,
     WEEKDAY_CN,
 )
-from review_tool.tracks import resolve_item
+from review_tool.core.tracks import resolve_item
 
 
 class TestScoreThresholds(unittest.TestCase):
@@ -34,7 +34,7 @@ class TestScoreThresholds(unittest.TestCase):
         """健康分权重必须与 compute_health_score 实际使用的子项一一对应。"""
         import inspect
 
-        from review_tool.score import compute_health_score
+        from review_tool.core.score import compute_health_score
         src = inspect.getsource(compute_health_score)
         for key in SCORE_THRESHOLDS["weights"]:
             self.assertIn(f'w["{key}"]', src, f"权重 {key} 未被健康分使用")

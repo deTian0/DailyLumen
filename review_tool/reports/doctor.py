@@ -23,17 +23,17 @@ import re
 from datetime import date as _date
 from datetime import datetime
 
-from .analyze import completeness
-from .config import ARCHIVE_SRC_DIR, FUSE_RULES, INPUT_DIR, PROFILE
-from .db import SCHEMA_VERSION, init_db
-from .fuse import find_fuses
-from .score import (
+from ..config import ARCHIVE_SRC_DIR, FUSE_RULES, INPUT_DIR, PROFILE
+from ..core.score import (
     compute_health_score,
     compute_learn_score,
     compute_life_score,
     compute_work_score,
     system_score_from,
 )
+from ..storage.db import SCHEMA_VERSION, init_db
+from .analyze import completeness
+from .fuse import find_fuses
 
 # 只认可「文件名主干 = 纯日期」的日复盘。历史上用 ``search`` 抓文件名里第一段日期，
 # 会把 ``周总结-W36-2026-08-31_09-06.md`` 误当成 08-31 的日复盘 —— 于是当 08-31
@@ -86,7 +86,7 @@ def stale_track_rows(conn) -> list[dict]:
     ``movefree@evening``），同一剂量被重复计入依从率。这里只**报告**，
     清理走 `python -m review_tool ingest --prune-tracks`。
     """
-    from .parse import parse_file
+    from ..pipeline.parse import parse_file
     out: list[dict] = []
     for row in conn.execute(
         "SELECT date, raw_path FROM daily_reviews ORDER BY date"

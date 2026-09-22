@@ -5,7 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from review_tool.db import (
+from review_tool.storage.db import (
     COLUMNS,
     SCHEMA_VERSION,
     count,

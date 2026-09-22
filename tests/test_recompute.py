@@ -4,8 +4,8 @@ import shutil
 import tempfile
 import unittest
 
-from review_tool.db import init_db, upsert
-from review_tool.recompute import apply_changes, main, plan, render, target_row
+from review_tool.reports.recompute import apply_changes, main, plan, render, target_row
+from review_tool.storage.db import init_db, upsert
 
 
 class _Fixture(unittest.TestCase):

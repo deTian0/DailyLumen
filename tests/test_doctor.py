@@ -4,8 +4,8 @@ import shutil
 import tempfile
 import unittest
 
-from review_tool import doctor
-from review_tool.db import SCHEMA_VERSION, init_db, upsert, upsert_personal_track
+from review_tool.reports import doctor
+from review_tool.storage.db import SCHEMA_VERSION, init_db, upsert, upsert_personal_track
 
 
 class _Fixture(unittest.TestCase):
@@ -149,7 +149,7 @@ class TestScoreConsistency(_Fixture):
     }
 
     def _row_with_rule_scores(self, **over):
-        from review_tool.score import (
+        from review_tool.core.score import (
             compute_health_score,
             compute_learn_score,
             compute_life_score,

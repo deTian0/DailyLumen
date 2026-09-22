@@ -10,7 +10,7 @@ import unittest
 from datetime import date
 from unittest import mock
 
-from review_tool import new_day as nd
+from review_tool.pipeline import new_day as nd
 
 TEMPLATE = """# 每日复盘 · YYYY-MM-DD（星期X）
 
@@ -110,7 +110,7 @@ class TestGenerate(unittest.TestCase):
 
     def test_generated_file_is_parsable(self):
         """生成的空文件应能被 parse 识别出日期（否则入库会静默跳过）。"""
-        from review_tool.parse import parse_text
+        from review_tool.pipeline.parse import parse_text
         _, text = self._gen()
         row = parse_text(text)
         self.assertEqual(row["date"], "2026-03-05")

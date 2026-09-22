@@ -8,8 +8,8 @@ import shutil
 import tempfile
 import unittest
 
-from review_tool.db import init_db, upsert, upsert_personal_track
-from review_tool.export import export
+from review_tool.pipeline.export import export
+from review_tool.storage.db import init_db, upsert, upsert_personal_track
 
 
 class _Fixture(unittest.TestCase):
