@@ -9,6 +9,7 @@ import unittest
 from review_tool.analyze import (
     _avg,
     completeness,
+    derived_count,
     report_month,
     report_week,
     training_stats,
@@ -56,6 +57,54 @@ class TestTrainingStats(_DB):
         st = training_stats(self.conn, "1=1", ())
         self.assertEqual(st["total"], 0)
         self.assertEqual(st["missing"], 0)
+
+
+class TestDerivedExercise(_DB):
+    """运动时长来源必须可区分：字段填报 vs 描述折算。
+
+    这是「徒手训练算不算运动时长」的验收点 —— 折算出来的值要真的让
+    训练日计入达标，同时又要能被单独标出来，不能混进计时记录。
+    """
+
+    def _capture(self, fn, *a):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            fn(*a)
+        return buf.getvalue()
+
+    def test_derived_value_makes_training_day_count_as_done(self):
+        upsert(self.conn, {"date": "2026-09-07", "training_day": 1,
+                           "exercise_min": 10, "exercise_src": "derived"})
+        self.conn.commit()
+        st = training_stats(self.conn, "1=1", ())
+        self.assertEqual(st["recorded"], 1)
+        self.assertEqual(st["done"], 1)
+        self.assertEqual(st["missing"], 0)
+
+    def test_derived_counted_separately_from_recorded(self):
+        upsert(self.conn, {"date": "2026-09-07", "training_day": 1,
+                           "exercise_min": 30, "exercise_src": "record"})
+        upsert(self.conn, {"date": "2026-09-09", "training_day": 1,
+                           "exercise_min": 10, "exercise_src": "derived"})
+        self.conn.commit()
+        st = training_stats(self.conn, "1=1", ())
+        self.assertEqual(st["recorded"], 2)
+        self.assertEqual(st["derived"], 1)
+        self.assertEqual(derived_count(self.conn, "1=1", ()), 1)
+
+    def test_no_derived_by_default(self):
+        upsert(self.conn, {"date": "2026-09-07", "training_day": 1, "exercise_min": 30})
+        self.conn.commit()
+        st = training_stats(self.conn, "1=1", ())
+        self.assertEqual(st["derived"], 0)
+        self.assertEqual(derived_count(self.conn, "1=1", ()), 0)
+
+    def test_week_report_labels_derivation(self):
+        upsert(self.conn, {"date": "2026-09-07", "training_day": 1,
+                           "exercise_min": 10, "exercise_src": "derived"})
+        self.conn.commit()
+        out = self._capture(report_week, self.conn)
+        self.assertIn("描述折算", out)
 
 
 class TestCompleteness(_DB):

@@ -1,4 +1,6 @@
 """ingest 端到端测试：解析 -> 补全评分 -> upsert 入库。"""
+import contextlib
+import io
 import os
 import shutil
 import tempfile
@@ -6,7 +8,7 @@ import unittest
 
 from review_tool.db import count, fetch_all, init_db
 from review_tool.ingest import ingest_all, ingest_path, iter_markdown
-from tests.sample_data import SAMPLE_MD
+from tests.sample_data import BODYWEIGHT_MD, EMPTY_EXERCISE_LINE, SAMPLE_MD
 
 
 def _tmp_db():
@@ -155,6 +157,54 @@ class TestIngestAll(unittest.TestCase):
         n = ingest_all(self.conn, self.indir)
         self.assertEqual(n, 3)
         self.assertEqual(count(self.conn), 3)
+
+
+class TestIngestBodyweight(unittest.TestCase):
+    """端到端：描述里的俯卧撑 -> 运动时长入库 -> 训练日计入达标。"""
+
+    def setUp(self):
+        self.conn, self.path = _tmp_db()
+        self.indir = tempfile.mkdtemp()
+        self.md = os.path.join(self.indir, "2026-09-21.md")
+        with open(self.md, "w", encoding="utf-8") as f:
+            f.write(BODYWEIGHT_MD)
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.indir, ignore_errors=True)
+        shutil.rmtree(os.path.dirname(self.path), ignore_errors=True)
+
+    def test_derived_minutes_ingested(self):
+        ingest_path(self.conn, self.md)
+        row = fetch_all(self.conn)[0]
+        self.assertEqual(row["exercise_min"], 10)
+        self.assertEqual(row["exercise_src"], "derived")
+
+    def test_rerun_does_not_duplicate_or_lose(self):
+        ingest_path(self.conn, self.md)
+        ingest_path(self.conn, self.md)
+        rows = fetch_all(self.conn)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["exercise_min"], 10)
+
+    def test_manual_value_wins_over_derivation(self):
+        """数据块里填了运动时长后，折算不得叠加。"""
+        p = os.path.join(self.indir, "manual.md")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(BODYWEIGHT_MD.replace(EMPTY_EXERCISE_LINE, "运动时长_min: 25"))
+        ingest_path(self.conn, p)
+        row = self.conn.execute(
+            "SELECT exercise_min, exercise_src FROM daily_reviews WHERE date='2026-09-21'"
+        ).fetchone()
+        self.assertEqual(row[0], 25)
+        self.assertEqual(row[1], "record")
+
+    def test_ingest_all_reports_derived_count(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            n = ingest_all(self.conn, self.indir)
+        self.assertEqual(n, 1)
+        self.assertIn("描述折算", buf.getvalue())
 
 
 if __name__ == "__main__":
