@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.4.0**（熔断检测 + 评分档位细分 + md↔DB 分数单向权威）· 变更见文末「变更日志」｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
+> 当前版本 **1.4.1**（熔断检测 + 评分档位细分 + md↔DB 分数单向权威 + 数据可信度加固）· 变更见文末「变更日志」｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
 
@@ -20,7 +20,7 @@
 │   ├── 复盘/2026-08/                # 标准复盘（按月份归档，ingest 扫描这里）
 │   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
 │   └── 收件箱/                       # 晨间收集投放截图/简报的目录（不参与 ingest）
-├── tests/                            # 测试套件（标准库 unittest，零依赖，225 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，252 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行，见「工作区配置」一节）
 │   ├── skills/soul/                  # 助手人格与协作准则（skill 形式）
@@ -40,9 +40,10 @@
     ├── new_day.py                    # 一键生成当天复盘文件
     ├── ai_review.py                  # 「七、AI 评价与建议」上下文构建器 ★
     ├── import_history.py             # 语雀历史文件转换导入
-    ├── doctor.py                     # 数据体检（对账 / 完整度 / 新鲜度 / 熔断）★
+    ├── doctor.py                     # 数据体检（对账 / 完整度 / 新鲜度 / 分数一致性 / 熔断）★
     ├── fuse.py                       # 熔断检测（连续走低 + 相对基线偏离）★
     ├── sync_docs.py                  # 把库里的分数回写到复盘 md（数据块 + 六章）★
+    ├── recompute.py                  # 按当前规则重算库中四维 / 系统分 ★
     ├── export.py                     # CSV / JSON 导出
     ├── schema.sql                    # 建表（含 CHECK 约束）
     ├── reviews.db                    # 你的数据库（单一数据源，含个人数据）
@@ -63,9 +64,10 @@
 | `week [ISO周]` / `month [YYYYMM]` | 周 / 月分析 |
 | `ai-context [YYYY-MM-DD]` | 输出「七、AI 评价与建议」的确定性上下文 |
 | `import-history [--check] [--src DIR]` | 语雀历史文件转换为标准格式 |
-| `doctor` | 数据体检：对账 / 完整度 / 新鲜度 / 归一化 / 熔断 |
+| `doctor` | 数据体检：对账 / 完整度 / 新鲜度 / 分数一致性 / 归一化 / 熔断 |
 | `fuse` | 熔断检测：单维度持续走低 + 相对基线偏离 |
 | `sync-docs [--check]` | 把库里的四维分回写到复盘 md（数据块 + 六章表格） |
+| `recompute-scores [--apply]` | 按当前规则重算库中四维 / 系统分（默认只试算） |
 | `export [--format csv\|json] [--out DIR] [--stdout]` | 导出结构化数据 |
 | `version` | 打印版本号 |
 
@@ -288,12 +290,15 @@ upsert 防覆盖 / 训练日二态口径 / 评分边界 / 模板生成 / 体检 
 约定：
 
 1. **分数不在数据块里手改** —— 它由 `sync-docs` 从库里渲染；
-2. 改了 `score.py` / `config.SCORE_THRESHOLDS` 之后，跑一次
-   `python -m review_tool ingest && python -m review_tool sync-docs`
-   全库即刻统一；
+2. 改了 `score.py` / `config.SCORE_THRESHOLDS` 之后，跑
+   `python -m review_tool recompute-scores --apply && python -m review_tool sync-docs`
+   全库即刻统一（`recompute-scores` 默认只试算并列出差异，加 `--apply` 才落库）；
 3. `sync-docs --check` 只报告差异不写文件，可放心先看；
 4. **语雀九段式原文（标题带「（1 – 10）」）不在回写范围内** —— 保留原貌，
-   见 v1.3.3 的文档格式规约；其数据块仍会同步。
+   见 v1.3.3 的文档格式规约；其数据块仍会同步；
+5. `doctor` 的 `[分数一致性]` 段会逐行比对「库中分数」与「按字段重算的结果」，
+   一旦有人手改了 md 分数、或规则变更后没重算，就会被点名（v1.4.1 新增）。
+   该检测**不影响 `is_healthy`** —— 手填覆盖属合法行为，只提示不拦。
 
 ---
 
@@ -409,6 +414,8 @@ python -m review_tool doctor
 | 数据完整度 | 核心字段缺失统计 |
 | 打卡归一化 | 是否还有未收敛到规范项的 `other:*` 记录 |
 | 训练日口径 | 记录值与日期约定不一致的天数（提示性） |
+| 分数一致性 | 库中四维 / 系统分 vs「按字段重算」的结果（v1.4.1；提示性，不拦） |
+| 熔断检测 | 单维度连续低分 + 相对基线漂移（v1.4.0；提示性，不拦） |
 
 退出码：健康 = 0，有待处理项 = 1（便于接入自动化）。
 
@@ -568,6 +575,35 @@ python -m review_tool ai-context 2026-09-15
 ---
 
 ## 变更日志
+
+### v1.4.1 — 数据可信度加固（对账假阴性 / 分数漂移可见 / 空模板同版）
+
+**背景**：v1.4.0 把「分数单一权威」立起来了，但三处「沉默的不可信」还没堵：
+① 对账用文件名里**第一段**日期，周总结 `周总结-W36-2026-08-31_09-06.md` 被
+当成 08-31 的日复盘 —— 日文档真缺失时反而报「一致」；② 库里的分数与「按字段
+重算」是否相符，此前**无从检测**（手改 / 漏重算都看不见）；③ `reviews.example.db`
+停留在 schema **v2**（缺 `exercise_src`、CHECK 不含 `'zero'`），新用户复制后
+首次 ingest 写 `zero` 会被 CHECK 拒绝。
+
+1. **对账口径收紧（`doctor`）**：只认「文件名主干恰为 `YYYY-MM-DD`」的日复盘，
+   周 / 月汇总与带后缀的文件自然排除。修复是**预防性**的 —— 当前周总结的日期
+   恰好与日文档重合，所以历史报告没暴露过假阴性；新测试锁死该行为。
+2. **新增 `[分数一致性]` 体检项**：逐行把「库中四维 / 系统分」与「按当前规则
+   从字段重算」的结果比对，列出不符明细。只读、**不参与 `is_healthy`**
+   （手填覆盖合法，只提示不拦）。
+3. **`recompute-scores` 升格为正式子命令**（`recompute.py`）：取代原先散落在
+   `.workbuddy/backup/` 的一次性迁移脚本。默认**只试算并列出差异**，
+   `--apply` 才落库；口径与 v1.4.0 历史迁移一致（字段不足 → 置空，不保留旧手填）。
+4. **`reviews.example.db` 重建到 v4**：空模板与当前 schema 逐列、逐 CHECK 对齐；
+   新增 `tests/test_example_db.py` 守卫（版本 / 列集 / `'zero'` CHECK / 空表 /
+   完整性 / 写入 `zero` 可接受），防止再次静默漂移。
+
+**验证**：单测 225 → **252**（`test_recompute.py` 11 项 + `test_doctor.py` 新增
+分数一致性与对账 11 项 + `test_example_db.py` 7 项）；`ruff` 干净；
+真库 49 天 `[分数一致性]` 全部一致；`doctor` 结论仍为「数据健康」。
+
+**库内结果**：真库未改动（`daily_reviews` 49 行、`personal_tracks` 360 条、
+`integrity_check` ok、schema v4 均未变）；仅 `reviews.example.db` 由 v2 重建为 v4。
 
 ### v1.4.0 — 分档细化 + 熔断检测落地 + 分数单一权威
 

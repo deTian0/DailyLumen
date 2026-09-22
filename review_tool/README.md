@@ -19,7 +19,10 @@
 | `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则） |
 | `new_day.py` | 按模板生成当天复盘文件（写入 `每日复盘/复盘/YYYY-MM/`） |
 | `import_history.py` | 语雀历史复盘 → 标准格式转换（输出到 `每日复盘/复盘/YYYY-MM/`） |
-| `doctor.py` | 数据体检：schema / 完整性 / 新鲜度 / md↔DB 对账 / 归一化 / 来源分布 |
+| `doctor.py` | 数据体检：schema / 完整性 / 新鲜度 / md↔DB 对账 / 分数一致性 / 归一化 / 来源分布 / 熔断 |
+| `fuse.py` | 熔断检测：单维度连续走低（绝对）+ 近 7 日 vs 前 28 日均值漂移（相对） |
+| `sync_docs.py` | 把库里的四维分回写到复盘 md（附录数据块 + 「六、四维评分」表） |
+| `recompute.py` | 按当前规则重算库中四维 / 系统分（默认只试算，`--apply` 落库） |
 | `export.py` | 导出 CSV / JSON（含依从率表） |
 | `__main__.py` | argparse 子命令入口 |
 
@@ -34,6 +37,9 @@ python -m review_tool month [YYYYMM]                   # 月报（省略 = 最�
 python -m review_tool ai-context YYYY-MM-DD            # AI 上下文（当日 + 7 日趋势 + 关注点）
 python -m review_tool import-history [--check] [--src 目录]   # 旧格式转换（--check 仅预览）
 python -m review_tool doctor                           # 数据体检（exit≠0 表示有问题）
+python -m review_tool fuse                             # 熔断检测（有绝对熔断时 exit=1）
+python -m review_tool sync-docs [--check]              # 库中分数回写到 md（--check 仅报告）
+python -m review_tool recompute-scores [--apply]       # 按规则重算四维/系统分（默认试算）
 python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 ```
 
@@ -48,8 +54,11 @@ python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 
 ## 数据与安全
 
-- `reviews.db` 是**唯一数据源**（含个人数据，勿提交）；`reviews.example.db` 是空库模板。
-- 四维分、系统分由系统按规则生成，**只补缺失值、不覆盖手填**；upsert 用 `COALESCE` 防止空值刷掉已有数据。
+- `reviews.db` 是**唯一数据源**（含个人数据，勿提交）；`reviews.example.db` 是空库模板
+  （与当前 schema 同版，见 `tests/test_example_db.py` 守卫）。
+- **分数单一权威（v1.4.0 起）**：库为准、md 由 `sync-docs` 渲染。改评分规则后跑
+  `recompute-scores --apply && sync-docs` 全库统一；`doctor` 的 `[分数一致性]` 段
+  会点名「库值与字段重算不符」的行。upsert 仍用 `COALESCE`，防止空值刷掉已有数据。
 - 改 schema 必须走迁移流程：**备份 → 副本验证 → 快照逐列 diff → 落真库**
   （流程与零依赖比对脚本见 `~/.workbuddy/skills/sqlite-safe-migration`）。
 - 迁移完毕后跑 `doctor`：`md↔DB` 对账为 0、结论「数据健康」才算通过。
