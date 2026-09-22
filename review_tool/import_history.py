@@ -1,59 +1,39 @@
-"""将桌面语雀历史复盘文件归一化为 DailyLumen 格式，写入 每日复盘/。
+"""将语雀历史复盘文件归一化为 DailyLumen 格式，写入 每日复盘/复盘/YYYY-MM/。
 
 处理对象：真实每日文件（跳过 'DD' 占位模板）。
 解析策略：
   - 优先解析 `---` 前置 YAML 块（11 个文件）
   - bedtime 从正文「入睡时间」表格行提取（前置块不含该字段）
-  - training_day / weekday 由日期推算（周一~三、五、六 = 训练日，与模板约定一致）
+  - training_day / weekday 由日期推算（训练日约定见 config.PROFILE["training_weekdays"]）
   - 7/21 为纯正文（无前置块），走专用解析（健康表 + 四维评分表 + 打卡勾选）
 生成：标准 DailyLumen .md（含 ```data 数据块 + 原文），随后由 ingest 入库。
   （注：服药/护肤等个人定制项不再写入通用数据块，改由 ingest 从日常打卡
    勾选写入 personal_tracks 表，不计入通用评分）
 
 用法：
-    python -m review_tool import-history            # 转换并写入 每日复盘/
+    python -m review_tool import-history            # 转换并写入 每日复盘/复盘/YYYY-MM/
     python -m review_tool import-history --check    # 仅打印解析结果，不写文件
     python -m review_tool import-history --src DIR  # 指定来源目录
 """
 from __future__ import annotations
 
+import datetime
 import os
 import re
 import sys
-import datetime
 
-from .config import BASE_DIR, HISTORY_SRC_DIR
-from .parse import _to_bool, _to_bedtime_min
-
-OUT_DIR = os.path.join(BASE_DIR, "每日复盘")
-
-TRAIN_WD = {0, 1, 2, 4, 5}  # Mon, Tue, Wed, Fri, Sat
-CN_WD = ["一", "二", "三", "四", "五", "六", "日"]
-
+from .config import GENERATED_DIR, HISTORY_SRC_DIR, PROFILE, WEEKDAY_CN
+from .util import clock_to_minutes, minutes_to_clock, to_bool, to_float, to_int
 
 # ---------- 小工具 ----------
 
-def _to_float(v) -> float | None:
-    if v is None or str(v).strip() == "":
-        return None
-    m = re.search(r"-?\d+(?:\.\d+)?", str(v))
-    return float(m.group()) if m else None
-
-
-def _to_int(v) -> int | None:
-    if v is None or str(v).strip() == "":
-        return None
-    m = re.search(r"-?\d+", str(v))
-    return int(m.group()) if m else None
-
-
 def _table_val(text: str, name: str) -> str | None:
-    m = re.search(r"\|\s*%s\s*[|｜]\s*([^|\n]+)" % re.escape(name), text)
+    m = re.search(rf"\|\s*{re.escape(name)}\s*[|｜]\s*([^|\n]+)", text)
     return m.group(1).strip() if m else None
 
 
 def _scores_from_table(text: str) -> dict:
-    """从 `| 健康（...） | **5** |` 这类表格行提取四维手填分。"""
+    """从 `| health（健康） | **5** |` 这类表格行提取四维手填分。"""
     out: dict = {}
     for dim, key in [
         ("health", "health_score"),
@@ -61,10 +41,15 @@ def _scores_from_table(text: str) -> dict:
         ("learn", "learn_score"),
         ("life", "life_score"),
     ]:
-        m = re.search(r"\|\s*%s[（(][^|]+?[）)]\s*[|｜]\s*\**\s*(\d+)" % dim, text)
+        m = re.search(rf"\|\s*{dim}[（(][^|]+?[）)]\s*[|｜]\s*\**\s*(\d+)", text)
         if m:
             out[key] = int(m.group(1))
     return out
+
+
+def out_path(date_str: str) -> str:
+    """标准复盘的输出路径：复盘/YYYY-MM/YYYY-MM-DD.md。"""
+    return os.path.join(GENERATED_DIR, date_str[:7], f"{date_str}.md")
 
 
 # ---------- 解析 ----------
@@ -85,24 +70,26 @@ def parse_frontmatter(text: str) -> dict:
 
 
 def date_meta(date_str: str) -> tuple[str, int]:
+    """日期 -> (星期X, 是否训练日)，训练日约定来自 config。"""
     y, mo, d = map(int, date_str.split("-"))
     wd = datetime.date(y, mo, d).weekday()
-    return "星期" + CN_WD[wd], (1 if wd in TRAIN_WD else 0)
+    train = 1 if wd in PROFILE["training_weekdays"] else 0
+    return "星期" + WEEKDAY_CN[wd], train
 
 
 def parse_prose_721(text: str) -> dict:
     """7/21 纯正文解析（无前置块）。"""
     row: dict = {}
-    row["sleep_h"] = _to_float(_table_val(text, "睡眠时长"))
+    row["sleep_h"] = to_float(_table_val(text, "睡眠时长"))
     q = _table_val(text, "睡眠质量")
     row["sleep_quality"] = (
-        None if (q and ("未显示" in q or "___" in q)) else _to_int(q)
+        None if (q and ("未显示" in q or "___" in q)) else to_int(q)
     )
-    row["exercise_min"] = _to_float(_table_val(text, "运动时长"))
-    row["diet_kcal"] = _to_int(_table_val(text, "饮食热量"))
+    row["exercise_min"] = to_float(_table_val(text, "运动时长"))
+    row["diet_kcal"] = to_int(_table_val(text, "饮食热量"))
     mc = _table_val(text, "三餐")
     row["meals_count"] = mc.count("✓") if mc else None
-    row["phone_h"] = _to_float(_table_val(text, "手机屏幕"))
+    row["phone_h"] = to_float(_table_val(text, "手机屏幕"))
     cm = _table_val(text, "通勤")
     if cm:
         row["commute_done"] = 0 if "✗" in cm else 1
@@ -131,6 +118,8 @@ FM_MAP = {
     "life_score": ("life_score", "int"),
 }
 
+_CONVERTERS = {"float": to_float, "int": to_int, "bool": to_bool, "text": str}
+
 
 def build_row(path: str) -> tuple[dict | None, str]:
     """解析单文件 -> (row, 原文)。无法解析日期返回 (None, 原文)。"""
@@ -147,19 +136,12 @@ def build_row(path: str) -> tuple[dict | None, str]:
     row: dict = {}
     for k, (col, kind) in FM_MAP.items():
         if k in fm and fm[k] != "":
-            v = fm[k]
-            if kind == "float":
-                v = _to_float(v)
-            elif kind == "int":
-                v = _to_int(v)
-            elif kind == "bool":
-                v = _to_bool(v)
-            row[col] = v
+            row[col] = _CONVERTERS[kind](fm[k])
 
     if not fm:  # 纯正文（7/21）
         row.update(parse_prose_721(text))
 
-    bt = _to_bedtime_min(_table_val(text, "入睡时间"))
+    bt = clock_to_minutes(_table_val(text, "入睡时间"))
     if bt is not None:
         row["bedtime"] = bt
 
@@ -180,12 +162,6 @@ def _fmt_bool(v) -> str:
     if v is None:
         return ""
     return "yes" if v == 1 else "no"
-
-
-def _fmt_min(minutes) -> str:
-    if minutes is None:
-        return ""
-    return f"{minutes // 60:02d}:{minutes % 60:02d}"
 
 
 def _vals(row: dict) -> str:
@@ -211,7 +187,7 @@ def render(row: dict, original_text: str) -> str:
         f"睡眠质量: {_fmt(row.get('sleep_quality'))}",
     ]
     bt = row.get("bedtime")
-    lines.append(f"入睡时间: {_fmt_min(bt)}" if bt is not None else "入睡时间:")
+    lines.append(f"入睡时间: {minutes_to_clock(bt)}" if bt is not None else "入睡时间:")
     lines += [
         f"运动时长_min: {_fmt(row.get('exercise_min'))}",
         f"通勤完成: {_fmt_bool(row.get('commute_done'))}",
@@ -223,10 +199,10 @@ def render(row: dict, original_text: str) -> str:
         f"早餐按时: {_fmt_bool(row.get('breakfast_on_time'))}",
         f"手机屏幕_h: {_fmt(row.get('phone_h'))}",
         f"深度工作_h: {_fmt(row.get('deepwork_h'))}",
-        f"健康分: {_fmt(row.get('health_score'))}",
-        f"工作分: {_fmt(row.get('work_score'))}",
-        f"学习分: {_fmt(row.get('learn_score'))}",
-        f"生活分: {_fmt(row.get('life_score'))}",
+        "健康分: " + _fmt(row.get("health_score")),
+        "工作分: " + _fmt(row.get("work_score")),
+        "学习分: " + _fmt(row.get("learn_score")),
+        "生活分: " + _fmt(row.get("life_score")),
         "```",
         "",
         "## 原始复盘（语雀导入）",
@@ -239,8 +215,12 @@ def render(row: dict, original_text: str) -> str:
 
 # ---------- 入口 ----------
 
-def run(source_dir: str | None = None, check_only: bool = False) -> int:
+def run(source_dir: str | None = None, check_only: bool = False,
+        out_root: str | None = None) -> int:
     source_dir = source_dir or HISTORY_SRC_DIR
+    if not source_dir or not os.path.isdir(source_dir):
+        print("未指定来源目录。请用 --src DIR 或设置环境变量 DAILYLUMEN_HISTORY_SRC")
+        return 2
     files = sorted(
         f for f in os.listdir(source_dir) if f.endswith(".md") and "DD" not in f
     )
@@ -258,7 +238,7 @@ def run(source_dir: str | None = None, check_only: bool = False) -> int:
         print(
             f"  [OK] {row['date']} {row.get('weekday', '')} "
             f"训练={'Y' if row.get('training_day') == 1 else 'N'} "
-            f"bed={_fmt_min(row.get('bedtime'))} "
+            f"bed={minutes_to_clock(row.get('bedtime'))} "
             f"睡{_fmt(row.get('sleep_h'))} 质{_fmt(row.get('sleep_quality'))} "
             f"运{_fmt(row.get('exercise_min'))} 食{_fmt(row.get('diet_kcal'))} "
             f"屏{_fmt(row.get('phone_h'))} 深{_fmt(row.get('deepwork_h'))} "
@@ -266,14 +246,15 @@ def run(source_dir: str | None = None, check_only: bool = False) -> int:
             f"四维={_vals(row)} ({tag})"
         )
         if not check_only:
-            out_path = os.path.join(OUT_DIR, f"{row['date']}.md")
-            with open(out_path, "w", encoding="utf-8") as f:
+            path = os.path.join(out_root, f"{row['date']}.md") if out_root else out_path(row["date"])
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(render(row, text))
             ok += 1
     if check_only:
         print("\n--check 完成，未写入文件。")
     else:
-        print(f"\n完成：已写入 {ok} 个标准文件到 {OUT_DIR}")
+        print(f"\n完成：已写入 {ok} 个标准文件到 {GENERATED_DIR}/YYYY-MM/")
     return 0
 
 
