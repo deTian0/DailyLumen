@@ -8,7 +8,7 @@ import unittest
 
 from review_tool.db import count, fetch_all, init_db
 from review_tool.ingest import ingest_all, ingest_path, iter_markdown
-from tests.sample_data import BODYWEIGHT_MD, EMPTY_EXERCISE_LINE, SAMPLE_MD
+from tests.sample_data import BODYWEIGHT_MD, EMPTY_EXERCISE_LINE, PROSE_MD, SAMPLE_MD
 
 
 def _tmp_db():
@@ -205,6 +205,62 @@ class TestIngestBodyweight(unittest.TestCase):
             n = ingest_all(self.conn, self.indir)
         self.assertEqual(n, 1)
         self.assertIn("描述折算", buf.getvalue())
+
+
+class TestZeroFill(unittest.TestCase):
+    """v1.3.2 口径：训练日未记录按 0 计，非训练日不动。"""
+
+    def setUp(self):
+        self.conn, self.path = _tmp_db()
+        self.indir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.indir, ignore_errors=True)
+        shutil.rmtree(os.path.dirname(self.path), ignore_errors=True)
+
+    def _write(self, name: str, text: str) -> str:
+        p = os.path.join(self.indir, name)
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(text)
+        return p
+
+    def test_training_day_without_exercise_records_zero(self):
+        """训练日 + 无折算命中 -> exercise_min=0 / src=zero。"""
+        # 2026-09-21 周一 = 训练日；把俯卧撑行换掉，折算不命中
+        no_move = BODYWEIGHT_MD.replace("1. 做了二十个俯卧撑，而且有喝蛋白粉", "1. 写完周报")
+        p = self._write("2026-09-21.md", no_move)
+        ingest_path(self.conn, p)
+        row = self.conn.execute(
+            "SELECT training_day, exercise_min, exercise_src FROM daily_reviews"
+        ).fetchone()
+        self.assertEqual(row[0], 1)
+        self.assertEqual(row[1], 0)
+        self.assertEqual(row[2], "zero")
+
+    def test_non_training_day_stays_null(self):
+        """非训练日运动不是当天预期，exercise_min 保持 NULL。"""
+        p = self._write("2026-08-10.md", PROSE_MD)  # 2026-08-10 周日
+        ingest_path(self.conn, p)
+        row = self.conn.execute(
+            "SELECT training_day, exercise_min, exercise_src FROM daily_reviews"
+        ).fetchone()
+        self.assertEqual(row[0], 0)
+        self.assertIsNone(row[1])
+        self.assertIsNone(row[2])
+
+    def test_explicit_zero_is_record_not_zero_src(self):
+        """手填 0 是明确记录（src=record），不是口径兜底。"""
+        no_move = BODYWEIGHT_MD.replace(
+            EMPTY_EXERCISE_LINE, "运动时长_min: 0"
+        ).replace("1. 做了二十个俯卧撑，而且有喝蛋白粉", "1. 写完周报")
+        p = self._write("2026-09-21.md", no_move)
+        ingest_path(self.conn, p)
+        row = self.conn.execute(
+            "SELECT exercise_min, exercise_src FROM daily_reviews"
+        ).fetchone()
+        self.assertEqual(row[0], 0)
+        self.assertEqual(row[1], "record")
 
 
 if __name__ == "__main__":

@@ -84,7 +84,21 @@ class TestAttentionFlags(unittest.TestCase):
 
     def test_catches_training_day_without_exercise(self):
         d = dict(DAY, training_day=1, exercise_min=None)
-        self.assertIn("训练日但未记录运动", self._flags(day=d))
+        flags = self._flags(day=d)
+        self.assertTrue(any("训练日但未记录运动" in f for f in flags))
+
+    def test_zero_src_flagged_with_convention_note(self):
+        """src=zero：0 分钟要有「按口径记 0」的来源说明，AI 才不会当成计时事实。"""
+        d = dict(DAY, training_day=1, exercise_min=0, exercise_src="zero")
+        flags = self._flags(day=d)
+        self.assertTrue(any("按口径记 0" in f for f in flags))
+
+    def test_explicit_zero_record(self):
+        """手填 0 是明确记录，文案不带口径说明。"""
+        d = dict(DAY, training_day=1, exercise_min=0, exercise_src="record")
+        flags = self._flags(day=d)
+        self.assertTrue(any("运动 0 分钟" in f for f in flags))
+        self.assertFalse(any("按口径记 0" in f for f in flags))
 
     def test_healthy_day_has_no_flags(self):
         good = {

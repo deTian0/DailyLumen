@@ -81,6 +81,16 @@ class TestDerivedExercise(_DB):
         self.assertEqual(st["done"], 1)
         self.assertEqual(st["missing"], 0)
 
+    def test_zero_src_counted_separately(self):
+        """src=zero 是口径兜底，与折算/填报互不混淆。"""
+        upsert(self.conn, {"date": "2026-09-07", "training_day": 1,
+                           "exercise_min": 0, "exercise_src": "zero"})
+        self.conn.commit()
+        st = training_stats(self.conn, "1=1", ())
+        self.assertEqual(st["zero"], 1)
+        self.assertEqual(st["derived"], 0)
+        self.assertEqual(st["done"], 0)
+
     def test_derived_counted_separately_from_recorded(self):
         upsert(self.conn, {"date": "2026-09-07", "training_day": 1,
                            "exercise_min": 30, "exercise_src": "record"})
@@ -151,7 +161,9 @@ class TestReports(_DB):
         super().setUp()
         for i, day in enumerate(("2026-09-07", "2026-09-08")):
             upsert(self.conn, {
-                "date": day, "training_day": 1, "exercise_min": 30 if i else None,
+                "date": day, "training_day": 1,
+                "exercise_min": 30 if i else 0,
+                "exercise_src": None if i else "zero",
                 "sleep_h": 7.0, "phone_h": 9.0, "diet_kcal": 1800,
                 "deepwork_h": 4.0, "learn_h": 1.0, "life_h": 1.0,
             })

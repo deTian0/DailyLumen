@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import re
 import sqlite3
 from datetime import datetime
 
@@ -17,7 +18,7 @@ from .config import DB_PATH, SCHEMA_PATH
 from .tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
@@ -115,6 +116,80 @@ def _migrate_daily_reviews(conn: sqlite3.Connection) -> None:
         )
 
 
+def _exec_schema(conn: sqlite3.Connection) -> None:
+    """逐条执行 schema.sql 里的建表语句（不用 executescript）。
+
+    executescript 会先 COMMIT，破坏重建的事务原子性；逐条 execute 则可以
+    包在同一个事务里，中途失败整体回滚。
+    """
+    with open(SCHEMA_PATH, encoding="utf-8") as f:
+        sql = f.read()
+    sql = re.sub(r"--[^\n]*", "", sql)  # 去注释，避免分号切分踩到注释里的分号
+    for stmt in (s.strip() for s in sql.split(";")):
+        if stmt:
+            conn.execute(stmt)
+
+
+def _migrate_exercise_src_check(conn: sqlite3.Connection) -> list[str]:
+    """v3 -> v4：exercise_src 的 CHECK 放行 'zero'（训练日未记录按 0 计）。
+
+    SQLite 不能修改 CHECK 约束，只能重建表。要点：
+
+    - **原子**：rename -> 重建 -> 搬运 -> 删旧表 -> 还原索引包在显式事务里，
+      中途失败整体回滚（SQLite DDL 支持事务回滚）。
+    - **断点续迁**：更早版本若中断会留下 daily_reviews_v3_old（数据在旧表），
+      这里先把它恢复原名再正常重建。
+    - **列交集搬运**：老库里可能存在 schema 之外的遗留列（如 supps_done），
+      只拷贝两表共有的列，遗留列随备份留存、不阻塞迁移。
+
+    返回被丢弃的遗留列名列表（无则空表）。
+    """
+    # 断点续迁：中断现场 = 新表(可能空) + daily_reviews_v3_old(有数据)
+    if "daily_reviews_v3_old" in _table_names(conn):
+        conn.execute("DROP TABLE IF EXISTS daily_reviews")
+        conn.execute("ALTER TABLE daily_reviews_v3_old RENAME TO daily_reviews")
+
+    if "daily_reviews" not in _table_names(conn):
+        return []
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='daily_reviews'"
+    ).fetchone()
+    ddl = row[0] if row else ""
+    # 极老表连 exercise_src 列都没有：交给 _migrate_daily_reviews 补列（无 CHECK，可写入）
+    if not ddl or "exercise_src" not in ddl or "'zero'" in ddl:
+        return []
+
+    old_cols = _table_columns(conn, "daily_reviews")
+    old_indexes = [
+        r[0] for r in conn.execute(
+            "SELECT sql FROM sqlite_master "
+            "WHERE type='index' AND tbl_name='daily_reviews' AND sql IS NOT NULL"
+        )
+    ]
+
+    conn.commit()  # 结束前置步骤可能开启的隐式事务
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("ALTER TABLE daily_reviews RENAME TO daily_reviews_v3_old")
+        _exec_schema(conn)
+        new_cols = set(_table_columns(conn, "daily_reviews"))
+        common = ", ".join(f'"{c}"' for c in old_cols if c in new_cols)
+        dropped = [c for c in old_cols if c not in new_cols]
+        conn.execute(
+            f"INSERT INTO daily_reviews ({common}) "
+            f"SELECT {common} FROM daily_reviews_v3_old"
+        )
+        conn.execute("DROP TABLE daily_reviews_v3_old")  # 旧索引随之消失
+        for idx_ddl in old_indexes:
+            conn.execute(idx_ddl)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return dropped
+
+
+
 def _migrate_personal_tracks(conn: sqlite3.Connection) -> int:
     """把 personal_tracks 从「自由文本主键」升级为「规范 track_key 主键」。
 
@@ -170,17 +245,27 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     """
     version_before = conn.execute("PRAGMA user_version").fetchone()[0]
     _migrate_daily_reviews(conn)
+    rebuilt = _migrate_exercise_src_check(conn)
+    # 断点续迁恢复的旧表可能缺列（如 exercise_src），补列是幂等的，再跑一次
+    _migrate_daily_reviews(conn)
     tracks_rows = _migrate_personal_tracks(conn)
     _create_indexes(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     if verbose:
         print(f"  schema 版本: {version_before} -> {SCHEMA_VERSION}")
+        if isinstance(rebuilt, list):
+            print("  daily_reviews 重建: exercise_src 约束放行 'zero'")
+            if rebuilt:
+                print(f"  ⚠️ 遗留列未入新 schema（数据仅存备份）: {', '.join(rebuilt)}")
+        elif rebuilt:
+            print("  daily_reviews 重建: exercise_src 约束放行 'zero'")
         if tracks_rows:
             print(f"  personal_tracks 归一化: {tracks_rows} 条规范记录")
     return {
         "version_before": version_before,
         "version_after": SCHEMA_VERSION,
         "tracks_migrated": tracks_rows,
+        "columns_dropped": rebuilt,
     }
 
 

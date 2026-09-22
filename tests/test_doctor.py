@@ -119,18 +119,20 @@ class TestTrainingDayDrift(_Fixture):
 
 
 class TestExerciseSources(_Fixture):
-    """运动时长来源分布：填报 / 描述折算 / 未记录 必须分得开。"""
+    """运动时长来源分布：填报 / 描述折算 / 按 0 计 / 未记录 必须分得开。"""
 
     def test_counts_by_source(self):
         upsert(self.conn, {"date": "2026-09-07", "exercise_min": 30,
                            "exercise_src": "record"})
         upsert(self.conn, {"date": "2026-09-08", "exercise_min": 10,
                            "exercise_src": "derived"})
-        upsert(self.conn, {"date": "2026-09-09", "exercise_min": None})
+        upsert(self.conn, {"date": "2026-09-09", "exercise_min": 0,
+                           "exercise_src": "zero"})
+        upsert(self.conn, {"date": "2026-09-10", "exercise_min": None})
         self.conn.commit()
         r = self._run(today="2026-09-22")
         self.assertEqual(r["exercise_sources"],
-                         {"recorded": 1, "derived": 1, "missing": 1})
+                         {"recorded": 1, "derived": 1, "zero": 1, "missing": 1})
 
     def test_derivation_does_not_break_health(self):
         """折算只是来源差异，不应把体检判成不健康。"""
