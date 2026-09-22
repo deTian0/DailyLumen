@@ -8,6 +8,7 @@
     python -m review_tool ai-context [YYYY-MM-DD]
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool doctor
+    python -m review_tool recompute-scores [--apply]
     python -m review_tool export     [--format csv|json] [--out DIR] [--stdout]
     python -m review_tool version
 
@@ -28,11 +29,12 @@ from .fuse import main as fuse_main
 from .import_history import main as import_history_main
 from .ingest import main as ingest_main
 from .new_day import main as new_day_main
+from .recompute import main as recompute_main
 from .sync_docs import main as sync_docs_main
 
 USAGE_HINT = (
     "子命令: new-day | ingest | week | month | ai-context | import-history"
-    " | doctor | fuse | sync-docs | export | version"
+    " | doctor | fuse | sync-docs | recompute-scores | export | version"
 )
 
 
@@ -74,6 +76,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("sync-docs", help="把库里的四维分回写到复盘 md（数据块 + 六章）")
     p.add_argument("--check", action="store_true", help="只报告差异，不写文件")
+
+    p = sub.add_parser("recompute-scores",
+                       help="按当前规则重算库中四维分 / 系统分（默认只试算）")
+    p.add_argument("--apply", action="store_true", help="写入数据库（默认只打印差异）")
+    p.add_argument("--db", help="指定数据库文件（高级 / 测试用，默认 reviews.db）")
 
     p = sub.add_parser("export", help="导出 CSV / JSON")
     p.add_argument("--format", choices=("csv", "json"), default="csv")
@@ -132,6 +139,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if cmd == "fuse":
         return fuse_main([])
+
+    if cmd == "recompute-scores":
+        rest = []
+        if args.apply:
+            rest.append("--apply")
+        if args.db:
+            rest += ["--db", args.db]
+        return recompute_main(rest)
 
     if cmd == "export":
         rest = ["--format", args.format]
