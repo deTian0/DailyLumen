@@ -14,11 +14,16 @@
 字段名兼容中英文两套命名（如 睡眠时长_h / sleep_h）。
 个人打卡（补剂/护肤）由「一、日常打卡」勾选提取，经 tracks 模块归一化后
 落到 personal_tracks 表，不参与通用评分。
+
+徒手训练折算：「运动时长_min」为空但「二、今日三件事」里提到俯卧撑等动作时，
+由 bodyweight 模块按确定性模型折算分钟数（并记 exercise_src='derived'）。
+字段已有数值时以字段为准，不做叠加。
 """
 from __future__ import annotations
 
 import re
 
+from .bodyweight import estimate
 from .config import (
     BOOL_FIELDS,
     FLOAT_FIELDS,
@@ -180,7 +185,19 @@ def parse_text(text: str) -> dict:
     if row.get("date"):
         row["system_score"] = system_score_from(row)
 
-    # 4) 提取「一、日常打卡」下的个人定制勾选 -> personal_tracks（补剂/护肤）
+    # 4) 徒手训练折算：字段为空但「三件事」里提到动作（俯卧撑…）时补上运动时长。
+    #    字段已有数值则**以字段为准、不叠加**，避免同一份运动被计两次。
+    #    exercise_src 记录来源，供报告区分「填报」与「折算」。
+    if row.get("exercise_min") is not None:
+        row["exercise_src"] = "record"
+    else:
+        minutes, detail = estimate(text)
+        if minutes is not None:
+            row["exercise_min"] = minutes
+            row["exercise_src"] = "derived"
+            row["_exercise_detail"] = detail
+
+    # 5) 提取「一、日常打卡」下的个人定制勾选 -> personal_tracks（补剂/护肤）
     tracks = _extract_personal_tracks(text)
     if tracks:
         row["_personal_tracks"] = tracks

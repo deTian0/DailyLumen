@@ -18,9 +18,10 @@
     python -m review_tool export     [--format csv|json] [--out DIR] [--stdout]
 
 模块分工:
-    config  路径 + 可配置层（PROFILE / PERSONAL_ITEMS / SCORE_THRESHOLDS）
+    config  路径 + 可配置层（PROFILE / PERSONAL_ITEMS / SCORE_THRESHOLDS / BODYWEIGHT_MOVES）
     util    时间与数值转换、slug 生成
     tracks  打卡项归一化（自由文本 -> 规范 ID）
+    bodyweight  徒手训练折算（描述动作 -> 运动时长）
     db      SQLite 读写 + 带版本的增量迁移
     parse   md -> 结构化 dict（兼容三种格式）
     score   四维评分规则
@@ -37,9 +38,13 @@ from __future__ import annotations
 from .ai_review import build_context as ai_context
 from .ai_review import render_markdown as render_ai_context
 from .analyze import report_month, report_week
+from .bodyweight import estimate as bodyweight_minutes
+from .bodyweight import extract as bodyweight_extract
 from .config import (
     ARCHIVE_SRC_DIR,
     BASE_DIR,
+    BODYWEIGHT_MOVES,
+    BODYWEIGHT_RULES,
     DB_PATH,
     DIMENSIONS,
     GENERATED_DIR,
@@ -91,7 +96,7 @@ from .util import (
     to_int,
 )
 
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 __all__ = [
     # config
@@ -99,11 +104,13 @@ __all__ = [
     "GENERATED_DIR", "INBOX_DIR", "ARCHIVE_SRC_DIR",
     "TEMPLATE_PATH", "HISTORY_SRC_DIR", "DIMENSIONS",
     "PROFILE", "PERSONAL_ITEMS", "SCORE_THRESHOLDS",
+    "BODYWEIGHT_MOVES", "BODYWEIGHT_RULES",
     # util
     "clock_to_minutes", "minutes_to_clock", "to_int", "to_float", "to_bool",
     "is_late_bedtime", "slugify",
-    # tracks
+    # tracks / bodyweight
     "resolve_item", "resolve_track", "normalize_legacy_item",
+    "bodyweight_minutes", "bodyweight_extract",
     # db
     "get_conn", "init_db", "migrate", "upsert", "upsert_personal_track",
     "fetch_all", "count", "count_tracks", "COLUMNS", "SCHEMA_VERSION",

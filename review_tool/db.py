@@ -17,12 +17,13 @@ from .config import DB_PATH, SCHEMA_PATH
 from .tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
     "date", "weekday", "iso_week", "month", "training_day",
-    "sleep_h", "sleep_quality", "bedtime", "exercise_min", "commute_done",
+    "sleep_h", "sleep_quality", "bedtime", "exercise_min", "exercise_src",
+    "commute_done",
     "diet_kcal", "carbs_g", "fat_g", "protein_g",
     "meals_count", "breakfast_on_time", "phone_h",
     "deepwork_h", "learn_h", "life_h", "energy", "mood",
@@ -31,7 +32,9 @@ COLUMNS = [
 ]
 
 # 这些列在任何情况下都跟着新值走（元数据 / 派生值，不是用户填报值）
-_ALWAYS_OVERWRITE = {"raw_path", "ingested_at", "iso_week", "month"}
+# exercise_src 也在此列：它由 parse 每次重新判定（record / derived / None），
+# 若走 COALESCE 就会出现「用户改成手填了、来源还写着 derived」的陈旧标记。
+_ALWAYS_OVERWRITE = {"raw_path", "ingested_at", "iso_week", "month", "exercise_src"}
 
 
 def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -53,6 +56,7 @@ _ADD_COLUMNS = [
     ("carbs_g", "ALTER TABLE daily_reviews ADD COLUMN carbs_g INTEGER CHECK (carbs_g IS NULL OR carbs_g >= 0)"),
     ("fat_g", "ALTER TABLE daily_reviews ADD COLUMN fat_g INTEGER CHECK (fat_g IS NULL OR fat_g >= 0)"),
     ("protein_g", "ALTER TABLE daily_reviews ADD COLUMN protein_g INTEGER CHECK (protein_g IS NULL OR protein_g >= 0)"),
+    ("exercise_src", "ALTER TABLE daily_reviews ADD COLUMN exercise_src TEXT"),
 ]
 
 _TRACKS_DDL = """
@@ -89,13 +93,26 @@ def _create_indexes(conn: sqlite3.Connection) -> None:
 
 
 def _migrate_daily_reviews(conn: sqlite3.Connection) -> None:
-    """补齐 daily_reviews 缺失的列（幂等：表或列已存在则跳过）。"""
+    """补齐 daily_reviews 缺失的列（幂等：表或列已存在则跳过）。
+
+    新增 ``exercise_src`` 后，把**已有数值**的行标记为 ``'record'`` —— 因为
+    在折算功能出现之前写进库的运动时长只可能来自字段填报。空值行保持 NULL。
+    """
     if "daily_reviews" not in _table_names(conn):
         return
     cols = _table_columns(conn, "daily_reviews")
     for name, ddl in _ADD_COLUMNS:
         if name not in cols:
             conn.execute(ddl)
+
+    # 回填前重新取列：极老的表可能连 exercise_min 都没有（本函数只补 _ADD_COLUMNS
+    # 里列出的列），此时跳过回填，避免「引用不存在的列」而中断整个迁移。
+    cols = _table_columns(conn, "daily_reviews")
+    if {"exercise_min", "exercise_src"} <= cols:
+        conn.execute(
+            "UPDATE daily_reviews SET exercise_src='record' "
+            "WHERE exercise_min IS NOT NULL AND exercise_src IS NULL"
+        )
 
 
 def _migrate_personal_tracks(conn: sqlite3.Connection) -> int:
