@@ -46,7 +46,13 @@ class TestWorkScore(unittest.TestCase):
         self.assertEqual(compute_work_score({"deepwork_h": 6}), 9)
         self.assertEqual(compute_work_score({"deepwork_h": 4}), 7)
         self.assertEqual(compute_work_score({"deepwork_h": 2}), 5)
-        self.assertEqual(compute_work_score({"deepwork_h": 0.5}), 3)
+
+    def test_subthreshold_gradient(self):
+        """未达标区（< ok=2h）细分：0/0.5/1/1.5 -> 1/2/3/4。"""
+        for hours, expected in ((0, 1), (0.5, 2), (1, 3), (1.5, 4)):
+            self.assertEqual(
+                compute_work_score({"deepwork_h": hours}), expected, f"{hours}h"
+            )
 
     def test_missing(self):
         self.assertIsNone(compute_work_score({}))
@@ -57,15 +63,44 @@ class TestLearnLifeScore(unittest.TestCase):
         self.assertEqual(compute_learn_score({"learn_h": 3}), 9)
         self.assertEqual(compute_learn_score({"learn_h": 2}), 7)
         self.assertEqual(compute_learn_score({"learn_h": 1}), 5)
-        self.assertEqual(compute_learn_score({"learn_h": 0.5}), 3)
         self.assertIsNone(compute_learn_score({}))
+
+    def test_learn_subthreshold_gradient(self):
+        """0h 与 0.5h 必须可区分（v1.4.0 细分前两者都是 3）。"""
+        self.assertEqual(compute_learn_score({"learn_h": 0}), 1)
+        self.assertEqual(compute_learn_score({"learn_h": 0.25}), 2)
+        self.assertEqual(compute_learn_score({"learn_h": 0.5}), 3)
+        self.assertEqual(compute_learn_score({"learn_h": 0.75}), 4)
+        self.assertLess(
+            compute_learn_score({"learn_h": 0}),
+            compute_learn_score({"learn_h": 0.5}),
+        )
 
     def test_life_thresholds(self):
         self.assertEqual(compute_life_score({"life_h": 3}), 9)
         self.assertEqual(compute_life_score({"life_h": 2}), 7)
         self.assertEqual(compute_life_score({"life_h": 1}), 5)
+        self.assertEqual(compute_life_score({"life_h": 0}), 1)
         self.assertEqual(compute_life_score({"life_h": 0.5}), 3)
         self.assertIsNone(compute_life_score({}))
+
+    def test_ok_line_unchanged_by_v140(self):
+        """>= ok 线的分值语义完全不变（5/7/9 = 踩线分）。"""
+        self.assertEqual(compute_learn_score({"learn_h": 1.0}), 5)
+        self.assertEqual(compute_life_score({"life_h": 1.0}), 5)
+        self.assertEqual(compute_work_score({"deepwork_h": 2.0}), 5)
+
+    def test_sub_ok_knobs_are_configurable(self):
+        """sub_floor/sub_ceil 是可配置层的调节阀，改了就应生效。"""
+        import review_tool.score as sc
+        original = sc.SCORE_THRESHOLDS["learn"]
+        try:
+            sc.SCORE_THRESHOLDS["learn"] = {**original, "sub_floor": 2}
+            self.assertEqual(compute_learn_score({"learn_h": 0}), 2)
+            sc.SCORE_THRESHOLDS["learn"] = {**original, "sub_floor": 1, "sub_ceil": 4}
+            self.assertEqual(compute_learn_score({"learn_h": 0}), 1)
+        finally:
+            sc.SCORE_THRESHOLDS["learn"] = original
 
 
 class TestComputeScores(unittest.TestCase):

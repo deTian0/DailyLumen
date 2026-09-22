@@ -26,21 +26,35 @@ def system_score_from(row: dict) -> float | None:
     return None
 
 
-def _band(value, thresholds: dict, scale: tuple[int, int, int, int] = (9, 7, 5, 3)) -> int | None:
+def _band(value, thresholds: dict) -> int | None:
     """时长型指标的分档评分（工作 / 学习 / 生活三者共用）。
 
-    ``value >= full`` 得最高档，依次 good / ok，低于 ok 得最低档；None 返回 None。
+    **达标区**（``>= ok`` 线）保持三档步进：ok -> 5、good -> 7、full -> 9。
+    **未达标区**（``< ok`` 线）按 ``value/ok`` 等分成 n 档（n = sub_ceil - sub_floor + 1，
+    默认 1/2/3/4 四档）：``0 -> sub_floor``，其余落在 ``(k/n, (k+1)/n]`` 区间取
+    ``sub_floor + k``。用整数分档而非线性取整，避免 ``round()`` 的银行家舍入
+    让 ``2.5 -> 2``（那会让「刚好半程」反而拿不到对应档位）。
+
+    为什么要细分未达标区（v1.4.0）：历史数据显示绝大多数记录落在未达标区
+    （学习分 60% 集中在最低档），原先「一律 3 分」会让 0h 与 1.5h 投入无法
+    区分 —— 49 天的趋势被压成一条直线，改善不可见，熔断信号也被地板吞掉。
+    细分只作用于未达标区，``>= ok`` 的分值语义（5/7/9 = 踩线分）完全不变。
     """
     if value is None:
         return None
-    top, good, ok, low = scale
     if value >= thresholds["full"]:
-        return top
+        return 9
     if value >= thresholds["good"]:
-        return good
+        return 7
     if value >= thresholds["ok"]:
-        return ok
-    return low
+        return 5
+    floor = int(thresholds.get("sub_floor", 1))
+    ceil = int(thresholds.get("sub_ceil", 4))
+    if value <= 0 or ceil <= floor:
+        return floor
+    n = ceil - floor + 1
+    idx = int(value / thresholds["ok"] * n)
+    return floor + max(0, min(n - 1, idx))
 
 
 def compute_health_score(row: dict) -> int | None:
