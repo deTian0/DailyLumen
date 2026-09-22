@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dailylumen"
-version = "1.0.0"
+version = "1.3.0"
 description = "每日复盘系统：结构化复盘沉淀进 SQLite 单一数据源，自动评分并做周/月分析"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -20,3 +20,17 @@ include = ["review_tool*"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+# ---------------------------------------------------------------------------
+# 开发期工具（不影响运行时零依赖：ruff 仅在本地/CI 安装）
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+exclude = [".workbuddy", "exports"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+# E501 行长由 formatter 兜底；中文注释/文案按字符宽度计行，不宜硬卡
+ignore = ["E501", "B008"]
+
