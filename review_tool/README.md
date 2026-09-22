@@ -1,92 +1,62 @@
-# 每日复盘分析工具
+# review_tool — 包级说明（速查）
 
-把每日复盘的结构化数据沉淀进 SQLite，再用 SQL 做周/月分析。
+> 每日复盘数据管道：`md → 解析 → 评分 → SQLite → 周/月分析 / 体检 / 导出`。
+> 本文件是**包内速查**；完整规则（评分口径、字段含义、迁移历史、变更日志）见仓库根目录 [`README.md`](../README.md)。
 
-## 目录结构
+## 模块地图
 
-```
-每日复盘计划/
-├── 每日复盘/            # 你每天把复盘 .md 文件丢这里
-│   ├── 复盘/2026-08/    # 自动生成/回填的复盘（按月份归档）
-│   └── 历史源复盘/       # 旧源文件归档
-└── review_tool/         # 本项目
-    ├── schema.sql       # 建表 (含 CHECK 约束 + personal_tracks)
-    ├── config.py        # 路径与字段映射 + 个人化配置(PROFILE/SCORE_THRESHOLDS)
-    ├── db.py            # SQLite 读写
-    ├── parse.py         # 解析 md -> 结构化 dict
-    ├── score.py         # 四维评分自动生成
-    ├── ingest.py        # 入库脚本
-    ├── analyze.py       # 周/月分析
-    ├── new_day.py       # 一键生成当天复盘文件
-    ├── import_history.py# 语雀历史文件转换导入
-    ├── reviews.db       # 你的数据库 (含个人数据)
-    └── reviews.example.db # 空数据库模板 (新用户复制为 reviews.db)
-```
+| 模块 | 职责 |
+| --- | --- |
+| `config.py` | 路径常量 + 可配置层：`PROFILE` / `PERSONAL_ITEMS` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` |
+| `util.py` | 时间与数值转换（`clock_to_minutes` / `to_int` / `to_float` / `slugify`） |
+| `tracks.py` | 打卡项归一化：自由文本 → 规范 `track_key` / `item_key` |
+| `bodyweight.py` | 徒手训练折算：描述里的动作 → 运动分钟（段落门控 + 上下限） |
+| `parse.py` | md → 结构化 dict（兼容 ```` ```data ```` 块 / HTML 注释块 / 纯文本散落三种格式） |
+| `score.py` | 四维评分规则（健康加权子项；工作/学习/生活时长分档） |
+| `db.py` | SQLite 读写 + `PRAGMA user_version` 增量迁移（含表重建的原子化流程） |
+| `ingest.py` | 扫描 / 解析 / 折算 / 补零 / 评分 / 入库 |
+| `analyze.py` | 周 / 月聚合报告（含训练日二态达标、完整度） |
+| `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则） |
+| `new_day.py` | 按模板生成当天复盘文件（写入 `每日复盘/复盘/YYYY-MM/`） |
+| `import_history.py` | 语雀历史复盘 → 标准格式转换（输出到 `每日复盘/复盘/YYYY-MM/`） |
+| `doctor.py` | 数据体检：schema / 完整性 / 新鲜度 / md↔DB 对账 / 归一化 / 来源分布 |
+| `export.py` | 导出 CSV / JSON（含依从率表） |
+| `__main__.py` | argparse 子命令入口 |
 
-## 使用流程
+## 命令行速查
 
-1. 生成当天文件：`python -m review_tool new-day`（或 `python -m review_tool new-day 2026-08-20` 指定日期），
-   自动从模板复制并填好日期/星期，你只需改 `数据块` 里的数值和打卡勾选。
-2. 入库：`python -m review_tool ingest` （或 `python -m review_tool ingest 某个文件.md`）
-3. 周分析：`python -m review_tool week` 或 `python -m review_tool week 32`
-4. 月分析：`python -m review_tool month` 或 `python -m review_tool month 202608`
-
-模板数据块（```data 代码块）是**通用**数据入口，示例：
-
-```data
-日期: 2026-08-05
-星期: 二
-训练日: yes
-睡眠时长_h: 6.42
-睡眠质量: 84
-入睡时间: 00:39
-运动时长_min: 0
-饮食热量_kcal: 1199
-三餐情况: 早✓午✓晚✓
-早餐按时: yes
-手机屏幕_h: 10.9
-健康分: 4
-工作分: 6
-学习分: 6
-生活分: 5
-一句话总结: ...
+```bash
+python -m review_tool version                       # 版本
+python -m review_tool new-day [YYYY-MM-DD] [--force]   # 生成当天文件 → 复盘/YYYY-MM/
+python -m review_tool ingest [文件] [--overwrite]      # 入库（默认保护已有值）
+python -m review_tool week [周号]                      # 周报（省略 = 全部周）
+python -m review_tool month [YYYYMM]                   # 月报（省略 = 最近一个月）
+python -m review_tool ai-context YYYY-MM-DD            # AI 上下文（当日 + 7 日趋势 + 关注点）
+python -m review_tool import-history [--check] [--src 目录]   # 旧格式转换（--check 仅预览）
+python -m review_tool doctor                           # 数据体检（exit≠0 表示有问题）
+python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 ```
 
-> 服药 / 护肤等个人定制项不在通用数据块中，由「日常打卡」勾选提取，单独落入 `personal_tracks` 表（不计入通用评分）。
+## 目录约定
 
-## 字段说明
+```
+每日复盘/
+├── 复盘/YYYY-MM/     # 标准复盘源（ingest 只扫这里）——日复盘 + 周/月总结
+├── 收件箱/           # 晨间素材，不参与 ingest（README/下划线前缀文件不计为待处理素材）
+└── 历史源复盘/        # 旧格式源归档，不参与 ingest（需先 import-history 转换）
+```
 
-**`daily_reviews` 表（通用）**
+## 数据与安全
 
-| 列                                             | 含义                     |
-| --------------------------------------------- | ---------------------- |
-| date                                          | 日期主键                   |
-| iso_week / month                              | 派生：ISO 周号 / 年月(202608) |
-| training_day                                  | 是否训练日                  |
-| sleep_h / sleep_quality                       | 睡眠时长(h) / 质量(0-100)    |
-| commute_done / breakfast_on_time              | 通勤/早餐是否完成              |
-| exercise_min                                  | 正式运动分钟                 |
-| diet_kcal / meals_count                       | 饮食热量 / 三餐次数            |
-| phone_h                                       | 手机屏幕时长(h)              |
-| deepwork_h / learn_h / life_h                 | 深度工作 / 学习投入 / 生活投入 (h) |
-| health/work/learn/life_score                  | 四维评分(1-10)：均可由系统按数据自动生成（完整规则见根目录 README.md） |
-| system_score                                  | 派生：四维均值                |
+- `reviews.db` 是**唯一数据源**（含个人数据，勿提交）；`reviews.example.db` 是空库模板。
+- 四维分、系统分由系统按规则生成，**只补缺失值、不覆盖手填**；upsert 用 `COALESCE` 防止空值刷掉已有数据。
+- 改 schema 必须走迁移流程：**备份 → 副本验证 → 快照逐列 diff → 落真库**
+  （流程与零依赖比对脚本见 `~/.workbuddy/skills/sqlite-safe-migration`）。
+- 迁移完毕后跑 `doctor`：`md↔DB` 对账为 0、结论「数据健康」才算通过。
 
-**`personal_tracks` 表（个人定制，不计入通用评分）**
+## 测试与代码风格
 
-| 列                          | 含义                                       |
-| -------------------------- | ---------------------------------------- |
-| date / category / item (PK) | 日期 / 类别(服药·护肤·自定义) / 具体项           |
-| done                       | 是否完成 (0/1)                              |
-| note                       | 备注                                       |
-
-## 设计要点
-
-- SQLite 是唯一数据源；Excel 仅为可选导出（如需可另写脚本从 db 导出）。
-- 解析兼容三种格式：```data 代码块 / markdown 注释块 / 用户直接发的纯文本表头。
-- 按 `date` 主键 upsert：同一天重复入库会覆盖，不会重复。
-- 系统分四维度齐全才计算，缺失则留空。
-- 自动评分：ingest 时若四维分缺失则自动生成——健康分基于睡眠/运动/饮食/屏幕等客观指标规则加权计算（补剂/护肤等个人定制项不计入，见 personal_tracks 表），工作分基于 `深度工作_h`、学习分基于 `学习投入_h`、生活分基于 `生活投入_h` 分档计算；只补缺失值，不覆盖手填。完整阈值见根目录 README.md 的「评分规则」一节，阈值与权重定义于 `config.SCORE_THRESHOLDS`。
-- 数据块字段：四维分 1-10、睡眠质量 0-100、布尔 0/1、数值非负，均有 CHECK 约束拦截脏数据。
-- 入睡时间 `bedtime` 存距 00:00 分钟数（23:47 → 1427），便于聚合分析。
-- 个人化配置：`config.PROFILE`（补剂/护肤/作息）与 `config.SCORE_THRESHOLDS`（评分阈值）为可配置层，小伙伴改这两处即可适配自己。
+```bash
+python -m unittest discover -s tests -t .   # 200+ 项，标准库零依赖
+ruff check .                                # 静态检查（CI 同款）
+```
