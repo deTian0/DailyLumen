@@ -56,6 +56,11 @@ _CN_DIGITS = {
 # 一个「数字」token：阿拉伯数字或中文数字
 _NUM = r"(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百]+)"
 
+# 同一行内的分段符：换行之外的并列分隔（「20*1 + 12*1」「20 个、12 个」「20；12」）。
+# 拆段是为了让一段一次（`_volume_in_line` 只取行内首个命中）变成一段多次 ——
+# 真实来源：2026-09-22「俯卧撑 20 *1  + 12 * 1」原只读出 20 次，12 次被丢掉。
+_LINE_SPLIT_RE = re.compile(r"[+＋、;；,，/]|(?:\s+和\s+)")
+
 # 任意数字（兜底）
 _NUM_ALL = re.compile(f"({_NUM})")
 # 「数字 + 量词」——优先识别，能天然排除「一组」「一共」这类噪声
@@ -172,12 +177,19 @@ def _sets_in_line(line: str) -> int | None:
 
 
 def _volume_in_line(line: str, pattern: re.Pattern, spec: dict,
-                    rules: dict) -> tuple[int, int, str] | None:
-    """从一行里读出 (次数, 组数, 原始片段)。识别不出动作则返回 None。"""
+                    rules: dict, keyword_optional: bool = False) -> tuple[int, int, str] | None:
+    """从一行里读出 (次数, 组数, 原始片段)。识别不出动作则返回 None。
+
+    ``keyword_optional=True`` 用于「同一行并列多组」拆分后的**后续段** —— 那里
+    只有数量、没有动作词（如「20 *1 + 12 * 1」拆出的第二段「12 * 1」），
+    此时沿用前一段已确认的动作，只读数量。
+    """
     stripped = _LINE_MARKER_RE.sub("", line.strip())
     m = pattern.search(stripped)
     if not m:
-        return None
+        if not keyword_optional:
+            return None
+        m = None
 
     # 1) 「A * B」写法：A = 每组次数，B = 组数
     sr = _SETS_REPS_RE.search(stripped)
@@ -188,12 +200,26 @@ def _volume_in_line(line: str, pattern: re.Pattern, spec: dict,
             return each * sets, sets, sr.group(0).strip()
 
     # 2) 关键词附近的单个数字（次数），组数另找「N 组」
-    reps = _reps_near(stripped, m)
+    reps = _reps_near(stripped, m) if m else _bare_reps(stripped)
     default = spec.get("default_reps", 20)
     if reps is None or reps <= 0 or reps > rules["max_reps"]:
         return default, _sets_in_line(stripped) or 1, f"未写数量，按默认 {default} 次估"
 
     return reps, _sets_in_line(stripped) or 1, f"{reps} 次"
+
+
+def _bare_reps(segment: str) -> int | None:
+    """无动作关键词的纯数量段：取「数字+个/次/下」或裸数字里的最后一个。
+
+    用于并列多组的后续段（「20 *1 + 12 * 1」的第二段）。取最后一个是为了让
+    「12 个」这种「数量在量词前」与量词在后的写法都能读到。
+    """
+    for pattern in (_COUNTED_RE, _NUM_ALL):
+        hits = [cn_to_int(m.group(1)) for m in pattern.finditer(segment)]
+        hits = [n for n in hits if n is not None]
+        if hits:
+            return hits[-1]
+    return None
 
 
 def extract(text: str, moves: dict | None = None,
@@ -213,17 +239,33 @@ def extract(text: str, moves: dict | None = None,
     for line in body.splitlines():
         if _NEGATIVE_RE.search(line):
             continue
+        stripped = _LINE_MARKER_RE.sub("", line.strip())
         for move_name, spec in moves.items():
             pattern = _alias_pattern(spec["aliases"])
-            got = _volume_in_line(line, pattern, spec, rules)
-            if got is None:
+            m = pattern.search(stripped)
+            if not m:
                 continue
-            reps, sets, source = got
-            minutes = reps / spec["per_minute"] + max(0, sets - 1) * spec["set_rest_sec"] / 60.0
-            entries.append({
-                "move": move_name, "reps": reps, "sets": sets,
-                "minutes": round(minutes, 2), "source": source,
-            })
+            # 动作关键词之后按并列分隔符拆段，各段独立读数量 —— 同一行写多组
+            # （「20 *1 + 12 * 1」）原来只能读出第一段，第二段被丢掉。
+            # 只在关键词之后拆，避免把「做俯卧撑，20*1」这类把动作与数量
+            # 用逗号连起来的写法切散。无分隔符时就是单段，行为与原来一致。
+            _, end = m.span()
+            head, tail = stripped[:end], stripped[end:]
+            segments = [s for s in _LINE_SPLIT_RE.split(tail) if s.strip()] or [tail]
+            first = True
+            for segment in segments:
+                piece = head + segment if first else segment
+                got = _volume_in_line(piece, pattern, spec, rules,
+                                      keyword_optional=not first)
+                if got is None:
+                    continue
+                reps, sets, source = got
+                minutes = reps / spec["per_minute"] + max(0, sets - 1) * spec["set_rest_sec"] / 60.0
+                entries.append({
+                    "move": move_name, "reps": reps, "sets": sets,
+                    "minutes": round(minutes, 2), "source": source,
+                })
+                first = False
     return entries
 
 
