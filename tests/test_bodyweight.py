@@ -116,6 +116,32 @@ class TestEstimate(unittest.TestCase):
     def test_no_section_returns_none(self):
         self.assertIsNone(estimate("## 一、日常打卡\n\n- [x] 护肤\n")[0])
 
+    def test_same_line_multiple_sets_accumulate(self):
+        """同一行并列写多组时逐段累加。
+
+        真实来源：2026-09-22「俯卧撑 20 *1  + 12 * 1」原来只读出第一段 20 次，
+        第二段的 12 次被静默丢掉（第二段没有动作关键词，匹配失败）。
+        """
+        for line, expected in (
+            ("1. 俯卧撑 20 *1  + 12 * 1", 32),
+            ("1. 俯卧撑 20*1 + 12*1", 32),
+            ("1. 俯卧撑 20 个、12 个", 32),
+        ):
+            with self.subTest(line=line):
+                entries = extract(wrap(line))
+                self.assertEqual(sum(e["reps"] for e in entries), expected)
+
+    def test_keyword_before_comma_still_accumulates(self):
+        """动作词在逗号前、数量在后，也应逐段读出。"""
+        entries = extract(wrap("1. 做俯卧撑，20*1 + 12*1"))
+        self.assertEqual(sum(e["reps"] for e in entries), 32)
+
+    def test_single_segment_not_duplicated(self):
+        """没有并列分隔符时仍是单条，不重复计。"""
+        entries = extract(wrap("1. 俯卧撑 100 个"))
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["reps"], 100)
+
 
 class TestExtract(unittest.TestCase):
     def test_entry_shape(self):
