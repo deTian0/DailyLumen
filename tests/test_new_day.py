@@ -73,7 +73,7 @@ class TestGenerate(unittest.TestCase):
         _, text = self._gen()
         self.assertIn("# 每日复盘 · 2026-03-05（星期四）", text)
         self.assertIn("日期: 2026-03-05", text)
-        self.assertIn("星期: 四", text)
+        self.assertIn("星期: 星期四", text)
 
     def test_data_block_values_cleared(self):
         _, text = self._gen()
@@ -114,7 +114,15 @@ class TestGenerate(unittest.TestCase):
         _, text = self._gen()
         row = parse_text(text)
         self.assertEqual(row["date"], "2026-03-05")
-        self.assertEqual(row["weekday"], "四")
+        self.assertEqual(row["weekday"], "星期四")
+
+    def test_data_block_weekday_matches_title(self):
+        """数据块星期必须与标题同为全称 —— 它直接落 DB 的 weekday 字段，
+        单字会与归档文件（全称）和报告分组口径打架。"""
+        _, text = self._gen()
+        self.assertIn("# 每日复盘 · 2026-03-05（星期四）", text)
+        self.assertIn("星期: 星期四", text)
+        self.assertNotIn("星期: 四\n", text)
 
     def test_template_change_does_not_break_clearing(self):
         """改模板里 data 块的字段名，清空逻辑依然生效（不再依赖硬编码字段清单）。"""
