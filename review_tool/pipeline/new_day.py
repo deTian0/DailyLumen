@@ -62,7 +62,9 @@ def generate(target_date: date | None = None, *, force: bool = False) -> str:
     # 生成出「（四）」，与既有归档文件「（星期一）」的格式不一致。
     content = re.sub(r"星期[Xx]", f"星期{wd}", content)
     content = _DATE_LINE_RE.sub(rf"\1 {iso}", content)
-    content = _WEEKDAY_LINE_RE.sub(rf"\1 {wd}", content)
+    # 数据块同样写全称「星期六」而不是单字「六」：解析后直接进 DB 的 weekday 字段，
+    # 单字会与既有归档（54/54 篇均为全称）和报告分组口径不一致。
+    content = _WEEKDAY_LINE_RE.sub(rf"\1 星期{wd}", content)
     # 4) 打卡全部复位为未勾选
     content = content.replace("- [x]", "- [ ]").replace("- [X]", "- [ ]")
 
