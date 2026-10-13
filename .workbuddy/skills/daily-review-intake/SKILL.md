@@ -64,8 +64,14 @@ agent_created: true
    - **不写「补剂完成」**（补剂 / 护肤由「一、日常打卡」勾选提取到 `personal_tracks`）
    - 不要塞图片注解、不要写截图路径
 3. **用户原文照录**：一~五章节的叙述**原样保留、不改写**（AI 只补数据与评价）。
-4. 入库算分：`python -m review_tool ingest`
+4. 入库算分：`python -m review_tool ingest`（⚠️ **只吃第一个路径参数**，多传静默丢弃；
+   一次处理多天就循环调用。**传绝对路径** —— 相对路径会把 `raw_path` 改写成相对值，
+   而 doctor 在项目根执行 `os.path.exists` 照样通过、不报错）
 5. 回填六段：`python -m review_tool sync-docs`（**分数由库渲染，别在 md 里手改分数**）。
+6. ⚠️ **补完「七、AI 评价与建议」和「一句话总结」之后，必须再跑一次 `ingest`。**
+   `summary` 只在 ingest 时写库，`sync-docs` 完全不碰它 —— 而 §4 的 ingest 跑在写评价
+   之前，所以漏这步的话 `daily_reviews.summary` 会整段留空（10-02~10-09 八天就中过）。
+   **全程没有任何报错**：md 看着正常、`sync-docs --check` 仍是 0 篇、doctor 照样「数据健康」。
 
 ## 4. 生成「七、AI 评价与建议」
 
