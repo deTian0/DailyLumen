@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.7.0**（ClickUp 回写通道 `clickup-push`：复盘入库后勾「每日复盘总结」，默认 dry-run）
+> 当前版本 **1.7.1**（`doctor` 历史断更清单 + 非 UTF-8 控台 ASCII 降级）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -23,7 +23,7 @@
 │   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md（评分/口径/字段/日志）+ 迁移指南.md + 路线图.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，366 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，373 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
@@ -58,7 +58,7 @@
     │   └── export.py                 #   CSV / JSON 导出
     └── reports/                      # 产出层：读库生成面向人的结果
         ├── analyze.py                #   周 / 月分析（collect / render 分离，--json）
-        ├── doctor.py                 #   数据体检（对账 / 完整度 / 新鲜度 / 一致性 / 熔断）★
+        ├── doctor.py                 #   数据体检（对账 / 完整度 / 新鲜度 / 断更 / 一致性 / 熔断）★
         ├── fuse.py                   #   熔断检测（连续走低 + 相对基线偏离）★
         ├── ai_review.py              #   「七、AI 评价与建议」上下文构建器 ★
         └── recompute.py              #   按当前规则重算库中四维 / 系统分 ★
@@ -81,7 +81,7 @@
 | `import-history [--check] [--src DIR]`               | 语雀历史文件转换为标准格式                          |
 | `clickup [YYYY-MM-DD] [--out DIR] [--stdout]`        | 拉 ClickUp 当日完成项 → **素材**简报（只读，不落库、不参与评分） |
 | `clickup-push [YYYY-MM-DD] [--apply]`                | 复盘已入库 → 勾 ClickUp「每日复盘总结」（**默认 dry-run**） |
-| `doctor`                                             | 数据体检：对账 / 完整度 / 新鲜度 / 分数一致性 / 打卡对账 / 归一化 / 熔断 |
+| `doctor`                                             | 数据体检：对账 / 完整度 / 新鲜度 / 历史断更 / 分数一致性 / 打卡对账 / 归一化 / 熔断 |
 | `fuse`                                               | 熔断检测：单维度持续走低 + 相对基线偏离                  |
 | `sync-docs [--check]`                                | 把库里的四维分回写到复盘 md（数据块 + 六章表格）            |
 | `recompute-scores [--apply]`                         | 按当前规则重算库中四维 / 系统分（默认只试算）               |
@@ -126,7 +126,7 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 366 项，零依赖
+python -m unittest discover -s tests -t .      # 373 项，零依赖
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  
@@ -232,6 +232,7 @@ python -m review_tool doctor
 | ---------- | -------------------------------------- |
 | 数据库        | schema 版本 / 记录数 / 完整性检查                |
 | 新鲜度        | 最新复盘距今多少天，超过 1 天即提示补录                  |
+| 历史断更       | 相邻入库日间隔 > 1 天的空洞（v1.7.1；建议性，不拦）         |
 | 文件 ↔ 数据库对账 | 双向差集：哪些 md 没入库、哪些库中记录找不到源文件            |
 | 旧格式归档      | 哪些天的数据源只存在于「历史源复盘」，建议先转换               |
 | 数据完整度      | 核心字段缺失统计                               |
