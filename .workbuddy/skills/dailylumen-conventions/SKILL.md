@@ -23,6 +23,9 @@ agent_created: true
 - **本项目 = 个人健康 / 复盘系统**：md 复盘 → `review_tool` → `reviews.db` → 评分 / 熔断 / 报告。
 - ⛔ **不混"重装备份 / win-reinstall-toolkit"那套** —— 那是跨项目基础设施，与本系统**相互独立**。
   不要在本仓库文档里引用备份脚本，也不要把本仓库内容写进备份清单。
+- **行为跟踪执行层在 ClickUp**（个人行为 / 习惯 / 年度目标 / 书单）：与本系统是**单向素材供给**
+  关系 —— ClickUp **不参与评分、不落库**。空间结构、list ID、映射口径、日期归属（`date_closed`）
+  与「两套打卡体系不许混」的边界，见 skill **`clickup-tracking`**。
 - **不在本仓库的资产**：助手人格 / 协作准则在用户级记忆 `~/.workbuddy/MEMORY.md`；
   跨项目通用 SOP 在用户级 `~/.workbuddy/skills/`（`sqlite-safe-migration`、`nmpa-cosmetic-record`）。
   用户级资产怎么保管**不属本仓库职责**，本仓库只保证项目级 skill 随代码入库。
@@ -203,6 +206,8 @@ agent_created: true
 | 换机怎么落地 | `docs/迁移指南.md` |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
+| **ClickUp 行为跟踪 → 复盘素材**（结构 / 映射 / 日期口径 / 边界） | skill **`clickup-tracking`** |
+| ClickUp API 通用能力（批量建任务 / 迁移 / 坑清单） | skill `clickup-api-bulk-tasks`（用户级） |
 | 安全的库迁移 / 重建可复现性自检 | skill `sqlite-safe-migration`（用户级） |
 | 模块级速查 | `review_tool/README.md` |
 
