@@ -166,6 +166,7 @@ class TestEnergyMoodCommute(unittest.TestCase):
 
     def test_template_defaults_commute_yes(self):
         from pathlib import Path
+
         from review_tool.config import TEMPLATE_PATH
         body = Path(TEMPLATE_PATH).read_text(encoding="utf-8")
         self.assertIn("通勤完成: 是", body)
