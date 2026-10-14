@@ -1,0 +1,70 @@
+---
+description: DailyLumen 项目约定 —— 零依赖 Python 每日复盘系统；改代码前先读这些硬规则
+globs: ["**/*.py", "**/*.md", "**/*.toml"]
+alwaysApply: true
+---
+
+# DailyLumen 开发约定（Cursor 入口）
+
+> 本文件只是**入口**。权威来源是仓库内的 skill 与文档，**冲突时以它们为准**。
+> 本系统同时用 WorkBuddy 开发；那份约定在 `.workbuddy/skills/` 里（原文照读即可）。
+
+## 项目坐标
+
+- **路径**：`D:\soft_data\WorkBuddy\每日复盘计划`
+- **远端**：`git@github.com:deTian0/DailyLumen.git`（分支 `main`）
+- **零运行时依赖**：纯 Python 标准库（`pyproject.toml` 的 `dependencies = []`）。
+  **不要引入任何第三方包** —— 测试、脚本、工具一律不加。
+- **Python ≥ 3.10**。本机托管解释器：
+  `C:\Users\63516\.workbuddy\binaries\python\versions\3.13.12\python.exe`
+  （系统备选：`C:\Python314\python.exe`）。**Cursor 里请选其中一个，别用别的 venv。**
+
+## 开工前先读（口径的单一来源）
+
+| 文件 | 内容 |
+| --- | --- |
+| `.workbuddy/skills/dailylumen-conventions/SKILL.md` | **范围边界 / 权威归属 / 评分与熔断 / 文档与库规约 / 工程约定 / 交付流程** —— 必读 |
+| `.workbuddy/skills/clickup-tracking/SKILL.md` | ClickUp 素材源、list ID、映射口径、`date_closed` 归日规则 |
+| `.workbuddy/skills/daily-review-intake/SKILL.md` | 素材（截图 / 文档 / ClickUp）→ 成品复盘的流程 |
+| `docs/设计说明.md` | 评分规则 / 统计口径 / 数据库字段速查 / **变更日志** |
+| `docs/路线图.md` | **接下来做什么** —— 里程碑 M1–M8 + 每项的范围与验收清单 + 通用 DoD |
+
+## 命令
+
+```bash
+# 解释器（本机托管 Python 3.13）
+PY="C:/Users/63516/.workbuddy/binaries/python/versions/3.13.12/python.exe"
+
+$PY -m unittest discover -s tests -t .   # 全量测试（当前 347 项，零依赖，离线可跑）
+$PY -m review_tool                       # 列出所有子命令
+$PY -m review_tool doctor                # 数据体检（库是否健康、有无该补的）
+$PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
+
+# lint（ruff 装在托管 python 的 Scripts 里，不在 PATH）
+"C:/Users/63516/.workbuddy/binaries/python/envs/default/Scripts/ruff.exe" check .
+```
+
+## 硬规则（违反会出事）
+
+1. **四层架构，依赖只能自上而下**：
+   `core`（零 I/O 纯规则）← `storage`（SQLite 唯一出入口）← `pipeline`（md ↔ 库）← `reports`（读库产出）。
+   由 `tests/test_architecture.py` 用 ast 强制。**新增模块必须归对层**（例：外部素材源管道归 `pipeline`）。
+2. **零依赖**：不得引入第三方包（运行时 / 测试 / 工具都不行）。
+3. **写盘不可信**：本机（Windows）写文件会**间歇性「报告成功但不落盘」**。每次写文件后必须
+   **回读校验**（哈希或子串断言），**不相信工具的成功回报**；`git` 的权威永远是 `git ls-remote`，
+   不是 `git push` 的输出。（SOP：用户级 skill `safe-write`）
+4. **动 `reviews.db` 要谨慎**：任何 schema 变更 / 批量重算 → 先备份 → 副本验证 → 快照逐列 diff，
+   确认无损才落到真库。（SOP：用户级 skill `sqlite-safe-migration`）
+5. **交付纪律（DoD）**：一个 feature = **一处版本号 + 一个 commit + 一个 tag**。版本号**四处对齐**：
+   `pyproject.toml` / `review_tool/__init__.py` / `README.md` 头 / `docs/设计说明.md` 变更日志。
+   测试全绿 + ruff 干净 + 文档与相关 skill 同步 + 工作树干净。
+6. **不擅自打开功能开关**：`config.FEATURES["new_day"] = False` 是刻意的（手动复制模板更顺手），
+   别"顺手"改成 `True`。
+7. **不重建定时任务**：本项目刻意无任何自动化调度，素材靠**手动投递**。
+8. **两套打卡体系不许混**：复盘 md 的补剂/护肤勾选 → `personal_tracks`（算依从率）；
+   ClickUp「习惯与打卡」→ **不落库**，只当素材。混了会污染依从率。
+
+## 一次只做一个里程碑
+
+按 `docs/路线图.md` 的编号开发（当前从 **M1** 开始）。严格照该节的「范围 + 涉及文件 + 验收清单」，
+走 §4 的通用 DoD，**不跨里程碑混提交**。
