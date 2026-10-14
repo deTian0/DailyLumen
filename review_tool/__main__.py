@@ -16,6 +16,7 @@
     python -m review_tool version
 
 任意子命令加 ``-h`` 可查看该项用法。
+被 ``config.FEATURES`` 关掉的命令会在帮助里标注「（已关闭）」，当前默认关闭 ``new-day``。
 
 设计（v1.4.1 起）
 ----------------
@@ -40,6 +41,7 @@ from .pipeline.clickup import main as clickup_main
 from .pipeline.export import main as export_main
 from .pipeline.import_history import main as import_history_main
 from .pipeline.ingest import main as ingest_main
+from .pipeline.new_day import is_enabled as _new_day_enabled
 from .pipeline.new_day import main as new_day_main
 from .pipeline.sync_docs import main as sync_docs_main
 from .reports.ai_review import main as ai_context_main
@@ -82,12 +84,29 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
 }
 
 
+def disabled_commands() -> set[str]:
+    """当前被 ``config.FEATURES`` 关掉的子命令名（``usage()`` 里标注用）。
+
+    与各模块的闸门读的是**同一份配置**，所以不会出现「帮助里说开着、一跑却拒绝」
+    （或反过来）这种两处口径打架的情况。新增开关时在这里加一行即可。
+    """
+    off: set[str] = set()
+    if not _new_day_enabled():
+        off.add("new-day")
+    return off
+
+
 def usage() -> str:
-    """顶层帮助：列出所有子命令的一行用法。"""
+    """顶层帮助：列出所有子命令的一行用法，并标注已被关掉的命令。"""
+    off = disabled_commands()
     lines = ["DailyLumen · 每日复盘系统", "",
              "用法: python -m review_tool <子命令> [参数]", "", "子命令:"]
-    lines += [f"  {u}" for _fn, u in ROUTES.values()]
+    lines += [f"  {u}" + ("（已关闭）" if name in off else "")
+              for name, (_fn, u) in ROUTES.items()]
     lines += ["", "子命令加 -h 查看该项用法。"]
+    if off:
+        lines += [f"（已关闭）的命令默认不执行，开关在 config.FEATURES（当前关闭："
+                  f"{'、'.join(sorted(off))}）。"]
     return "\n".join(lines)
 
 

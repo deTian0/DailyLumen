@@ -5,6 +5,12 @@
     python -m review_tool new-day 2026-08-20 # 生成指定日期
     python -m review_tool new-day --force    # 已存在时覆盖
 
+⛔ **本命令默认关闭**（``config.FEATURES['new_day'] = False``）—— 用户习惯手动复制
+模板，此命令不参与日常流程，仍保留是为了「补录历史日期」时能一把生成。关闭状态下
+``main()`` 只打印指引并返回退出码 2，**不会**写任何文件；``generate()`` 不受影响。
+
+打开方式：把 ``review_tool/config.py`` 里 ``FEATURES['new_day']`` 改成 ``True``。
+
 输出位置统一为 ``每日复盘/复盘/YYYY-MM/YYYY-MM-DD.md``（config.GENERATED_DIR），
 与既有归档目录保持一致，不再散落到「每日复盘/」根目录。
 
@@ -20,7 +26,7 @@ import re
 import sys
 from datetime import date, datetime
 
-from ..config import GENERATED_DIR, TEMPLATE_PATH, WEEKDAY_CN
+from ..config import FEATURES, GENERATED_DIR, TEMPLATE_PATH, WEEKDAY_CN
 
 # ```data 代码块
 _DATA_BLOCK_RE = re.compile(r"```data\s*\n(.*?)```", re.S)
@@ -79,7 +85,28 @@ def generate(target_date: date | None = None, *, force: bool = False) -> str:
     return out
 
 
+# 开关关闭时的提示。文案是单一来源：CLI 输出与测试都引用它，避免两处漂移。
+DISABLED_HINT = (
+    "new-day 已关闭：config.FEATURES['new_day'] = False。\n"
+    "  手动路径（你现在的方式）：复制「每日复盘模板.md」到「每日复盘/复盘/YYYY-MM/」，\n"
+    "  改名为 YYYY-MM-DD.md，再把标题与数据块里的「日期」「星期」改成当天。\n"
+    "  想启用本命令：把 review_tool/config.py 里 FEATURES['new_day'] 改成 True。"
+)
+
+
+def is_enabled() -> bool:
+    """本命令是否启用。
+
+    **每次现读** ``config.FEATURES``（不缓存），这样测试与运行时改配置都能立即生效。
+    """
+    return bool(FEATURES.get("new_day", False))
+
+
 def main(argv: list[str] | None = None) -> int:
+    # 闸门放在最前：解析参数、读写文件之前就退出，关闭状态下绝不产生副作用。
+    if not is_enabled():
+        print(DISABLED_HINT)
+        return 2
     argv = argv if argv is not None else sys.argv[1:]
     force = "--force" in argv
     args = [a for a in argv if not a.startswith("--")]
