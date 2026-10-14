@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.9.0**（保留 energy/mood/commute，模板默认启用）
+> 当前版本 **1.9.1**（正向 streak：复盘/训练/打卡连续天数）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -23,7 +23,7 @@
 │   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md（评分/口径/字段/日志）+ 迁移指南.md + 路线图.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，385 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，391 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
@@ -126,7 +126,7 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 385 项，零依赖
+python -m unittest discover -s tests -t .      # 391 项，零依赖
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  

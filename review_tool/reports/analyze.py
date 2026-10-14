@@ -35,6 +35,7 @@ from datetime import datetime
 from ..config import DIMENSIONS, GENERATED_DIR
 from ..core.util import minutes_to_clock
 from ..storage.db import COLUMNS, init_db
+from .streak import render_streaks, summarize_streaks
 
 DIM_LABEL = {
     "health_score": "健康", "work_score": "工作",
@@ -355,7 +356,22 @@ def collect(conn, where: str, params: tuple, title: str) -> dict | None:
         },
         "worst_dim": {"name": worst[0], "value": worst[1]},
         "track_adherence": track_adherence(conn, where, params),
+        "streaks": _streaks_for_scope(conn, where, params),
     }
+
+
+def _streaks_for_scope(conn, where: str, params: tuple) -> dict:
+    """周期末日为 as_of；打卡键限于本周期出现过的 item_key。"""
+    end = conn.execute(
+        f"SELECT MAX(date) FROM daily_reviews WHERE {where}", params
+    ).fetchone()[0]
+    keys = [r[0] for r in conn.execute(
+        "SELECT DISTINCT pt.item_key FROM personal_tracks pt "
+        "JOIN daily_reviews dr ON dr.date = pt.date "
+        f"WHERE {where} ORDER BY pt.item_key",
+        params,
+    )]
+    return summarize_streaks(conn, as_of=end, track_keys=keys)
 
 
 def render_summary(s: dict) -> str:
@@ -386,6 +402,8 @@ def render_summary(s: dict) -> str:
                    f"{s['completeness']['rate_pct']}%（核心字段缺失: {detail}）"))
     L.append(f"  >> 最差维度: {s['worst_dim']['name']} ({s['worst_dim']['value']})")
     L.extend(_track_adherence_lines(s.get("track_adherence")))
+    if s.get("streaks"):
+        L.append(render_streaks(s["streaks"]))
     return "\n".join(L)
 
 
