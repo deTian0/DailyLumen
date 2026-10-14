@@ -7,8 +7,9 @@
 - ``PROFILE``      个人作息 / 目标 / 训练日约定
 - ``PERSONAL_ITEMS`` 个人打卡项定义（补剂 / 护肤 / 自定义）——解析与归一化的单一来源
 - ``SCORE_THRESHOLDS`` 四维评分阈值与权重（同时驱动「AI 评价与建议」的关注点规则）
+- ``CLICKUP_LISTS`` 外部素材源（可选）：ClickUp list → 中文名 / 用途的一处定义
 
-改这三处即可，无需改动模板与其余代码。
+改这几处即可，无需改动模板与其余代码。
 """
 from __future__ import annotations
 
@@ -228,3 +229,46 @@ FUSE_RULES = {
     "baseline_days": 28,   # 相对信号：与之对比的之前 28 日均值
     "drift": 1.0,          # 均值偏离达到此值才算「真的在变」
 }
+
+
+# ---------------------------------------------------------------------------
+# 外部素材源：ClickUp（可选，v1.6.0）
+#
+# ClickUp 是**行为跟踪的执行层**，只向复盘**单向供给素材**：
+#   · 只读 —— 只 GET 任务，不回写 ClickUp；**不读进 reviews.db**，不参与任何评分；
+#   · 四维分只由 SCORE_THRESHOLDS + 复盘 md 的数据块决定，ClickUp 拿不到一票；
+#   · 「习惯与打卡」的勾选**不得**写进复盘 md 的「一、日常打卡」——那一节只收
+#     补剂 / 护肤（``PERSONAL_ITEMS``），混进去会污染 personal_tracks 的依从率。
+# 映射口径、list ID 语义与日期归属（``date_closed`` 而非 ``due_date``）另见项目级
+# skill ``clickup-tracking``。
+#
+# 不用 ClickUp 的话整段不用管 —— 没有凭据就没有 `clickup` 子命令可用，
+# 其余功能零影响（依旧零依赖、无网络调用）。
+# ---------------------------------------------------------------------------
+
+# 凭据来源（本机）：``~/.workbuddy/mcp.json`` → ``mcpServers.clickup.env``；
+# 环境变量 ``CLICKUP_API_KEY`` / ``CLICKUP_TEAM_ID`` 同名可覆盖（优先级更高）。
+# ⛔ 本仓库入 git，**token 绝不写在这里**，运行时现读。
+CLICKUP_MCP_PATH = os.path.join(os.path.expanduser("~"), ".workbuddy", "mcp.json")
+
+# ClickUp 的时间戳是 UTC 毫秒；「某天完成了什么」按东八区归日。
+CLICKUP_TZ_HOURS = 8
+
+# 采集哪些 list —— 按需增删。``daily=True`` 的是默认每日素材来源。
+CLICKUP_LISTS = [
+    {"id": "901422213138", "name": "日常事务", "role": "行为流水", "daily": True},
+    {"id": "901422213139", "name": "习惯与打卡", "role": "长期习惯", "daily": True},
+    {"id": "901422213140", "name": "成长课 · 14周计划", "role": "学习进度", "daily": False},
+    {"id": "901422213142", "name": "阅读与学习", "role": "读书进度", "daily": False},
+    {"id": "901410092299", "name": "工作", "role": "工作产出", "daily": False},
+    {"id": "901422213133", "name": "2026 年度目标", "role": "长期方向", "daily": False},
+]
+
+# 不传 ``--list`` 时采哪些（顺序即素材简报里的分组顺序）
+CLICKUP_DAILY_IDS = tuple(item["id"] for item in CLICKUP_LISTS if item["daily"])
+
+# list id -> 中文名 / 用途（渲染素材简报分组标题用）
+CLICKUP_LIST_META = {item["id"]: item for item in CLICKUP_LISTS}
+
+# 素材简报文件名前缀（落 ``每日复盘/收件箱/``；该目录不参与 ingest 扫描）
+CLICKUP_INBOX_PREFIX = "clickup-素材"

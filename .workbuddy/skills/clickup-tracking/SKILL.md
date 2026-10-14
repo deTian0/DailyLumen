@@ -61,6 +61,10 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 | 顶层 | 2026 年度目标 | `901422213133` | 12 个 Flag（父任务「计划-2026Flag」+ 11 子任务） |
 | Space | 个人 | `90144434151` | 空 |
 
+> ⚠️ **list 清单有两处，改要一起改**：本文是**口径与语义**的来源；代码侧的采集清单在
+> `review_tool/config.py` 的 `CLICKUP_LISTS`（`clickup` 子命令按它取数，`daily=True` 为默认每日来源）。
+> 新增 / 归档 list 时两处同步，否则「文档里有、命令不采」或反过来。
+
 **「习惯与打卡」6 条**：每日阅读 30 分钟 / 练练健身 / 整理随手记app数据 / 每日复盘总结 /
 墨墨背单词app / 寻找一些个人提升的好习惯，然后调整自己。
 
@@ -89,8 +93,23 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 
 ## 4. 取「某天完成了什么」（复盘时的标准动作）
 
-`cu.bat ls` 看不到 `date_closed`，要按日期取就现写一段（纯标准库，骨架见下）。
-**口径**：先拉全量（**必须带 `include_closed=true`**，否则已完成任务全漏），
+**首选：直接跑项目自带命令**（v1.6.0 起，取数已代码化 —— 别再手写脚本）：
+
+```bash
+python -m review_tool clickup 2026-10-13            # 落 每日复盘/收件箱/clickup-素材-2026-10-13.md
+python -m review_tool clickup 2026-10-13 --stdout   # 只看不落文件
+python -m review_tool clickup --list 901422213142   # 换一批 list（可重复，也可逗号分隔）
+```
+
+- 默认采 `config.CLICKUP_DAILY_IDS`（日常事务 + 习惯与打卡）；改范围改 `config.CLICKUP_LISTS`。
+- 它**已经替你处理**了三个坑：按 `date_closed` 归日（东八区）、带 `include_closed=true`、
+  按 id 去重 **+ 翻页**（单页 100，不翻页会静默漏）。
+- 产出是**素材**（落 `收件箱/`，不参与 ingest 扫描），**不是**复盘成品；同一分钟 ≥10 条完成
+  时素材会自带「疑似批量改状态」提示，别把那数字读成「一口气干了 N 件事」。
+- 退出码：`0` 成功 / `1` 取数失败（网络 / 认证）/ `2` 用法或凭据问题。
+
+**临时查别的维度**（命令没覆盖的）才手写脚本，但下面这条口径必须守死：
+先拉全量（**必须带 `include_closed=true`**，否则已完成任务全漏），
 再按 `date_closed` 落在目标日过滤，最后按 list 分组。
 
 ```python
@@ -123,6 +142,11 @@ for lid in ['901422213138', '901422213139']:        # 日常事务 / 习惯与�
 ## 5. 常用命令
 
 ```bash
+# ① 复盘取数（首选，走项目自带管道；只读、不落库、不参与评分）
+cd <仓库根> && python -m review_tool clickup 2026-10-13          # → 收件箱/clickup-素材-<日期>.md
+python -m review_tool clickup --stdout                           # 只看不落文件（默认今天）
+
+# ② 直接问 ClickUp（临时查 / 写操作）
 PY=$(cat ~/.workbuddy/clickup-tools/python_path.txt)
 CLI=~/.workbuddy/clickup-tools/clickup_client.py
 $PY $CLI whoami                      # 确认连得上（认证失败 = token 失效/已轮换）

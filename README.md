@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.5.1**（ClickUp 行为跟踪接入：新增 `clickup-tracking` 项目级 skill）
+> 当前版本 **1.6.0**（ClickUp 接入为**只读素材源**：新增 `clickup` 子命令 + `pipeline/clickup.py`）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -23,7 +23,7 @@
 │   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md（评分/口径/字段/日志）+ 迁移指南.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，297 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，337 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
@@ -53,6 +53,7 @@
     │   ├── sync_docs.py              #   库中分数回写复盘 md（数据块 + 六章）★
     │   ├── import_history.py         #   语雀历史文件转换导入
     │   ├── new_day.py                #   一键生成当天复盘文件
+    │   ├── clickup.py                #   ClickUp → 素材简报（只读，不落库）★
     │   └── export.py                 #   CSV / JSON 导出
     └── reports/                      # 产出层：读库生成面向人的结果
         ├── analyze.py                #   周 / 月分析（collect / render 分离，--json）
@@ -77,6 +78,7 @@
 | `week [ISO周] [--json]` / `month [YYYYMM] [--json]`   | 周 / 月分析（`--json` 输出结构化结果，便于接自动化）      |
 | `ai-context [YYYY-MM-DD]`                            | 输出「七、AI 评价与建议」的确定性上下文                  |
 | `import-history [--check] [--src DIR]`               | 语雀历史文件转换为标准格式                          |
+| `clickup [YYYY-MM-DD] [--out DIR] [--stdout]`        | 拉 ClickUp 当日完成项 → **素材**简报（只读，不落库、不参与评分） |
 | `doctor`                                             | 数据体检：对账 / 完整度 / 新鲜度 / 分数一致性 / 打卡对账 / 归一化 / 熔断 |
 | `fuse`                                               | 熔断检测：单维度持续走低 + 相对基线偏离                  |
 | `sync-docs [--check]`                                | 把库里的四维分回写到复盘 md（数据块 + 六章表格）            |
@@ -109,7 +111,7 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 297 项，零依赖
+python -m unittest discover -s tests -t .      # 337 项，零依赖
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  
@@ -195,6 +197,7 @@ upsert 防覆盖 / 训练日二态口径 / 评分边界 / 模板生成 / 体检 
 | 四维评分怎么算、档位阈值、熔断规则 | [设计说明 · 评分规则](docs/设计说明.md#-评分规则核心) |
 | 分数的单一权威（库为准 / md 由库渲染） | [设计说明 · 分数的单一权威](docs/设计说明.md#-分数的单一权威v140) |
 | 训练日达标、运动折算等统计口径 | [设计说明 · 统计口径](docs/设计说明.md#-统计口径v130v132-三轮收口) |
+| **ClickUp 素材源**（只读管道 / 归日口径 / 不参与评分） | [设计说明 · ClickUp 素材源](docs/设计说明.md) |
 | 数据库字段含义 | [设计说明 · 数据库字段速查](docs/设计说明.md#数据库字段速查) |
 | 版本变更历史 | [设计说明 · 变更日志](docs/设计说明.md#变更日志) |
 | **项目口径总纲**（范围 / 权威归属 / 评分与熔断 / 规约 / 工程约定） | 项目级 skill `.workbuddy/skills/dailylumen-conventions/`（随 git 走） |
@@ -313,8 +316,9 @@ python -m review_tool ai-context 2026-09-15
     素材由用户手动投递，靠这个 skill 按需生成复盘。
   - `doc-corpus-normalize` —— 批量文档标准化 SOP（保证解析 / 入库可证明无损）。
   - `clickup-tracking` —— **ClickUp 行为跟踪 ↔ 复盘衔接**（空间结构 / list ID / 映射口径 /
-    按 `date_closed` 取当日完成项 / 「两套打卡体系不许混」的边界）。**零代码改动**：
-    ClickUp 是行为跟踪的执行层，只向复盘**单向供给素材**，不参与评分。
+    按 `date_closed` 取当日完成项 / 「两套打卡体系不许混」的边界）。取数**已代码化**：
+    `python -m review_tool clickup [日期]` 直接产素材简报到 `收件箱/`（只读，不落库、
+    不参与评分）；本 skill 讲的是空间结构与映射口径。
   `.gitignore` 用 `.workbuddy/*` + `!.workbuddy/skills/` 开白名单；**注意必须写成
   `.workbuddy/*`**，写成 `.workbuddy/` 会连目录一起排除，白名单会静默失效。
 - **`memory/`**（不入 git，**换机不迁移**）：本机会话执行日志（按日期）+ `MEMORY.md`。

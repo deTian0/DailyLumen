@@ -15,7 +15,8 @@ reports   ->  pipeline  ->  storage  ->  core
 
 - **`core/` 领域层**：零 I/O —— 禁止 `sqlite3` / `os` / `pathlib` 等，可脱离库与文件系统单独测试。
 - **`storage/` 持久化层**：`import sqlite3` **只允许出现在这里**，SQLite 是唯一出入口。
-- **`pipeline/` 数据流转层**：复盘 md ↔ 库（解析 / 入库 / 回写 / 转换 / 生成 / 导出）。
+- **`pipeline/` 数据流转层**：复盘 md ↔ 库（解析 / 入库 / 回写 / 转换 / 生成 / 导出）
+  ＋ 外部素材源（ClickUp → 素材简报，只读）。
 - **`reports/` 产出层**：读库生成面向人的结果（分析 / 体检 / 熔断 / AI 上下文 / 分数维护）。
 - 包根的 **`config.py`** 是可配置层（**唯一要改的文件**）；**`__main__.py`** 是纯路由。
 
@@ -50,6 +51,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `sync_docs.py` | 把库里的四维分回写到复盘 md（附录数据块 + 「六、四维评分」表） |
 | `import_history.py` | 语雀历史复盘 → 标准格式转换（输出到 `每日复盘/复盘/YYYY-MM/`） |
 | `new_day.py` | 按模板生成当天复盘文件（写入 `每日复盘/复盘/YYYY-MM/`） |
+| `clickup.py` | **ClickUp → 素材简报**（只读：按 `date_closed` 取当日完成项，落 `收件箱/`，不落库、不参与评分） |
 | `export.py` | 导出 CSV / JSON（含依从率表） |
 
 ### reports/ —— 产出层
@@ -71,6 +73,7 @@ python -m review_tool week [周号] [--json]             # 周报（省略 = 全
 python -m review_tool month [YYYYMM] [--json]          # 月报（省略 = 最近一个月）
 python -m review_tool ai-context YYYY-MM-DD            # AI 上下文（当日 + 7 日趋势 + 关注点）
 python -m review_tool import-history [--check] [--src 目录]   # 旧格式转换（--check 仅预览）
+python -m review_tool clickup [YYYY-MM-DD] [--out 目录] [--stdout] [--list ID]   # ClickUp 当日素材（只读）
 python -m review_tool doctor                           # 数据体检（exit≠0 表示有问题）
 python -m review_tool fuse                             # 熔断检测（有绝对熔断时 exit=1）
 python -m review_tool sync-docs [--check]              # 库中分数回写到 md（--check 仅报告）
@@ -104,6 +107,6 @@ python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 ## 测试与代码风格
 
 ```bash
-python -m unittest discover -s tests -t .   # 293 项，标准库零依赖
+python -m unittest discover -s tests -t .   # 337 项，标准库零依赖
 ruff check .                                # 静态检查（CI 同款）
 ```
