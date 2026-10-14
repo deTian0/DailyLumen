@@ -8,13 +8,15 @@ import unittest
 
 from review_tool.reports.analyze import (
     _avg,
+    collect,
     completeness,
     derived_count,
     report_month,
     report_week,
+    track_adherence,
     training_stats,
 )
-from review_tool.storage.db import init_db, upsert
+from review_tool.storage.db import init_db, upsert, upsert_personal_track
 
 
 class _DB(unittest.TestCase):
@@ -280,6 +282,73 @@ class TestJsonOutput(_DB):
         s, out = self._capture(report_month, self.conn, 202609)
         self.assertIsNone(s)                      # 文本模式不返回
         self.assertIn("共 2 天", out)
+
+
+class TestTrackAdherence(_DB):
+    """个人打卡依从率进 week/month（v1.7.2）。"""
+
+    def _seed_tracks(self):
+        # 2026-09-07 / 09-08 同属 ISO 周 37；09-14 属周 38（用于周趋势）
+        for d in ("2026-09-07", "2026-09-08", "2026-09-14"):
+            upsert(self.conn, {"date": d, "month": 202609})
+        # coq10: 2/2 done in W37 dates; 0/1 on 09-14
+        upsert_personal_track(self.conn, "2026-09-07", "coq10@morning", "服药",
+                              "coq10", "CoQ10 ×1", 1)
+        upsert_personal_track(self.conn, "2026-09-08", "coq10@morning", "服药",
+                              "coq10", "CoQ10 ×1", 1)
+        upsert_personal_track(self.conn, "2026-09-14", "coq10@morning", "服药",
+                              "coq10", "CoQ10 ×1", 0)
+        # skincare: 1/2 in W37
+        upsert_personal_track(self.conn, "2026-09-07", "skincare", "护肤",
+                              "skincare", "护肤", 1)
+        upsert_personal_track(self.conn, "2026-09-08", "skincare", "护肤",
+                              "skincare", "护肤", 0)
+        self.conn.commit()
+
+    def test_rates_and_category_groups(self):
+        self._seed_tracks()
+        adh = track_adherence(self.conn, "iso_week=?", (37,))
+        by_key = {it["item_key"]: it for it in adh["items"]}
+        self.assertEqual(by_key["coq10"]["done"], 2)
+        self.assertEqual(by_key["coq10"]["recorded"], 2)
+        self.assertEqual(by_key["coq10"]["adherence"], 1.0)
+        self.assertEqual(by_key["skincare"]["done"], 1)
+        self.assertEqual(by_key["skincare"]["recorded"], 2)
+        self.assertEqual(by_key["skincare"]["adherence"], 0.5)
+        cats = {c["category"]: c for c in adh["categories"]}
+        self.assertEqual(cats["服药"]["done"], 2)
+        self.assertEqual(cats["服药"]["recorded"], 2)
+        self.assertEqual(cats["护肤"]["adherence"], 0.5)
+
+    def test_week_report_section(self):
+        self._seed_tracks()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report_week(self.conn, 37)
+        out = buf.getvalue()
+        self.assertIn("个人打卡依从率", out)
+        self.assertIn("coq10", out)
+        self.assertIn("不计入四维评分", out)
+
+    def test_month_collect_has_week_trend(self):
+        self._seed_tracks()
+        s = collect(self.conn, "month=?", (202609,), "月份 202609")
+        self.assertIsNotNone(s)
+        weeks = s["track_adherence"]["by_week"]
+        self.assertGreaterEqual(len(weeks), 2)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            report_month(self.conn, 202609)
+        self.assertIn("周趋势", buf.getvalue())
+
+    def test_empty_tracks_section(self):
+        upsert(self.conn, {"date": "2026-09-07"})
+        self.conn.commit()
+        adh = track_adherence(self.conn, "iso_week=?", (37,))
+        self.assertEqual(adh["items"], [])
+        s = collect(self.conn, "iso_week=?", (37,), "ISO 周 37")
+        text = __import__("review_tool.reports.analyze", fromlist=["render_summary"]).render_summary(s)
+        self.assertIn("无 personal_tracks 记录", text)
 
 
 if __name__ == "__main__":
