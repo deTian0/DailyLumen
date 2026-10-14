@@ -351,5 +351,57 @@ class TestTrackAdherence(_DB):
         self.assertIn("无 personal_tracks 记录", text)
 
 
+class TestWriteMd(_DB):
+    """week/month --write 落盘（v1.8.0）；只碰临时目录。"""
+
+    def setUp(self):
+        super().setUp()
+        self.out = os.path.join(self.dir, "复盘")
+        os.makedirs(self.out, exist_ok=True)
+        for d in ("2026-09-14", "2026-09-15"):
+            upsert(self.conn, {
+                "date": d, "training_day": 1, "health_score": 5,
+                "work_score": 5, "learn_score": 3, "life_score": 3,
+                "system_score": 4.0, "sleep_h": 7.0, "phone_h": 10.0,
+                "deepwork_h": 3.0, "diet_kcal": 1800, "bedtime": 30,
+            })
+        self.conn.commit()
+
+    def test_write_week_to_temp(self):
+        from review_tool.reports.analyze import render_week_md, write_week_md
+        text = render_week_md(self.conn, 38)
+        self.assertIsNotNone(text)
+        self.assertIn("周总结 · ISO 第 38 周", text)
+        self.assertIn("## 一、四维总览", text)
+        self.assertIn("## 二、每日明细", text)
+        path, status = write_week_md(self.conn, 38, root=self.out)
+        self.assertEqual(status, "written")
+        self.assertTrue(os.path.isfile(path))
+        self.assertIn("周总结-W38-", os.path.basename(path))
+        with open(path, encoding="utf-8") as f:
+            body = f.read()
+        self.assertIn("四维总览", body)
+        # 幂等：不 --force 则跳过
+        path2, status2 = write_week_md(self.conn, 38, root=self.out)
+        self.assertEqual(status2, "skipped")
+        # --force 覆盖
+        _, status3 = write_week_md(self.conn, 38, root=self.out, force=True)
+        self.assertEqual(status3, "written")
+        # --check 一致
+        _, status4 = write_week_md(self.conn, 38, root=self.out, check_only=True)
+        self.assertEqual(status4, "ok")
+
+    def test_write_month_to_temp(self):
+        from review_tool.reports.analyze import render_month_md, write_month_md
+        text = render_month_md(self.conn, 202609)
+        self.assertIsNotNone(text)
+        self.assertIn("月总结 · 2026 年 9 月", text)
+        path, status = write_month_md(self.conn, 202609, root=self.out)
+        self.assertEqual(status, "written")
+        self.assertTrue(path.endswith("月总结-202609.md"))
+        with open(path, encoding="utf-8") as f:
+            self.assertIn("月度核心数字", f.read())
+
+
 if __name__ == "__main__":
     unittest.main()
