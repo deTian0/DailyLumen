@@ -31,13 +31,18 @@ def _ms(iso: str) -> str:
     return str(int(dt.timestamp() * 1000))
 
 
-def _task(tid, name, *, closed=None, due=None, status="complete"):
+def _task(tid, name, *, closed=None, due=None, status="complete",
+          status_type=None, created=None):
+    st = {"status": status}
+    if status_type is not None:
+        st["type"] = status_type
     return {
         "id": tid,
         "name": name,
         "date_closed": _ms(closed) if closed else None,
         "due_date": _ms(due) if due else None,
-        "status": {"status": status},
+        "date_created": _ms(created) if created else None,
+        "status": st,
     }
 
 
@@ -110,6 +115,49 @@ class TestSelect(unittest.TestCase):
     def test_empty_inputs_are_safe(self):
         self.assertEqual(cu.select_completed([], DAY), [])
         self.assertEqual(cu.select_due_open([], DAY), [])
+
+
+class TestSelectEnhanced(unittest.TestCase):
+    """进行中 / 逾期 / 跨天未闭合（v1.8.1）。"""
+
+    def setUp(self):
+        self.tasks = [
+            _task("ip", "写周报", status="进行中", status_type="custom"),
+            _task("od", "上周就该交", due="2026-10-10T09:00", status="to do",
+                  status_type="open"),
+            _task("xd", "前天开的还挂着", created="2026-10-12T08:00",
+                  status="to do", status_type="open"),
+            _task("done", "已完成不该进", closed="2026-10-14T10:00"),
+            _task("today_due", "今天到期未做", due="2026-10-14T09:00",
+                  status="to do", status_type="open"),
+        ]
+
+    def test_in_progress(self):
+        names = [t["name"] for t in cu.select_in_progress(self.tasks, DAY)]
+        self.assertEqual(names, ["写周报"])
+
+    def test_overdue(self):
+        names = [t["name"] for t in cu.select_overdue(self.tasks, DAY)]
+        self.assertEqual(names, ["上周就该交"])
+
+    def test_cross_day_open(self):
+        names = [t["name"] for t in cu.select_cross_day_open(self.tasks, DAY)]
+        self.assertEqual(names, ["前天开的还挂着"])
+
+    def test_render_includes_new_sections(self):
+        groups = [{
+            "id": "L", "name": "日常事务", "role": "",
+            "done": [], "open": [],
+            "in_progress": [self.tasks[0]],
+            "overdue": [self.tasks[1]],
+            "cross_day": [self.tasks[2]],
+        }]
+        text = cu.render(DAY, groups, generated_at="T")
+        self.assertIn("进行中", text)
+        self.assertIn("逾期", text)
+        self.assertIn("跨天未闭合", text)
+        self.assertIn("写周报", text)
+        self.assertNotIn("- [x]", text)
 
 
 # --------------------------------------------------------------- 取数 / 翻页去重
@@ -223,7 +271,8 @@ class TestCollectRender(unittest.TestCase):
         self.assertIn("每日阅读（完成 23:04 · in progress）", self.text)
 
     def test_render_summary_table_counts(self):
-        self.assertIn("| 分组 | 当日完成 | 当日到期未完成 |", self.text)
+        self.assertIn("| 分组 | 当日完成 | 到期未完成 | 进行中 | 逾期 | 跨天未闭合 |",
+                      self.text)
         self.assertIn("| 日常事务 | 1 | 0 |", self.text)
         self.assertIn("**当日完成合计**：2 条", self.text)
 
