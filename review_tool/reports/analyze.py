@@ -3,8 +3,10 @@
 用法:
     python -m review_tool week            # 所有周汇总
     python -m review_tool week 32         # 指定 ISO 周
+    python -m review_tool week 41 --write # 落盘周总结 md（幂等，需 --force 覆盖）
     python -m review_tool month           # 当月 (最近一个月) 汇总
     python -m review_tool month 202608    # 指定月份 202608
+    python -m review_tool month 202609 --write [--force] [--check]
 
 口径说明（重要）
 ----------------
@@ -20,12 +22,18 @@ v1.3.1 引入折算后仍留「未记录」豁免；v1.3.2 用户拍板收口为
 另外，「运动时长_min」为空但「二、今日三件事」里提到俯卧撑等动作时，
 该值会由 bodyweight 模块**折算**补上（``exercise_src='derived'``）。
 报告里会把折算天数单独标出来，避免把估算值当成计时记录。
+
+v1.8.0 起 ``--write`` 把结构化骨架落盘到 ``每日复盘/复盘/YYYY-MM/``；
+关键发现 / 行动清单等叙事段**不自动生成**（默认不回填既有手写件）。
 """
 from __future__ import annotations
 
+import os
 import sys
+from datetime import datetime
 
-from ..config import DIMENSIONS
+from ..config import DIMENSIONS, GENERATED_DIR
+from ..core.util import minutes_to_clock
 from ..storage.db import COLUMNS, init_db
 
 DIM_LABEL = {
@@ -461,19 +469,414 @@ def report_month(conn, month: int | None = None, *, as_json: bool = False) -> di
     return None
 
 
+# ---------------------------------------------------------------------------
+# md 落盘（v1.8.0）：结构化骨架，对齐现行手写件的章节 / 表头
+# ---------------------------------------------------------------------------
+
+_WEEKDAY_CN = ("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")
+
+
+def _fmt_num(v, digits: int = 2) -> str:
+    if v is None:
+        return "—"
+    if isinstance(v, float):
+        return f"{v:.{digits}f}".rstrip("0").rstrip(".") if digits else str(v)
+    return str(v)
+
+
+def _fmt_bedtime(mins) -> str:
+    if mins is None:
+        return "—"
+    return minutes_to_clock(mins)
+
+
+def _md_bar(v: float | None, width: int = 10) -> str:
+    if v is None:
+        return "—"
+    filled = max(0, min(width, int(round(float(v) / 10 * width))))
+    return "█" * filled + "░" * (width - filled)
+
+
+def _week_date_span(conn, iso_week: int) -> tuple[str, str] | None:
+    row = conn.execute(
+        "SELECT MIN(date), MAX(date) FROM daily_reviews WHERE iso_week=?",
+        (iso_week,),
+    ).fetchone()
+    if not row or not row[0]:
+        return None
+    return row[0], row[1]
+
+
+def _daily_rows(conn, where: str, params: tuple) -> list[dict]:
+    cols = (
+        "date, weekday, training_day, health_score, work_score, learn_score, "
+        "life_score, system_score, sleep_h, sleep_quality, bedtime, phone_h, "
+        "deepwork_h, learn_h, life_h, diet_kcal"
+    )
+    return [dict(r) for r in conn.execute(
+        f"SELECT {cols} FROM daily_reviews WHERE {where} ORDER BY date", params
+    )]
+
+
+def render_week_md(conn, iso_week: int) -> str | None:
+    """渲染单周总结 markdown（结构化骨架）。无区间无数据返回 None。"""
+    s = collect(conn, "iso_week=?", (iso_week,), f"ISO 周 {iso_week}")
+    if s is None:
+        return None
+    span = _week_date_span(conn, iso_week)
+    assert span is not None
+    d0, d1 = span
+    start = datetime.strptime(d0, "%Y-%m-%d")
+    end = datetime.strptime(d1, "%Y-%m-%d")
+    title = (
+        f"# 周总结 · ISO 第 {iso_week} 周（{d0} {_WEEKDAY_CN[start.weekday()]} ~ "
+        f"{end.strftime('%m-%d')} {_WEEKDAY_CN[end.weekday()]}）"
+    )
+    st = s["training"]
+    train_txt = (
+        f"{st['done']}/{st['total']}（{_pct(st['done'] / st['total'] if st['total'] else None)}）"
+        if st["total"] else "无训练日"
+    )
+    adh = s.get("track_adherence") or {}
+    items = adh.get("items") or []
+    t_done = sum(i["done"] for i in items)
+    t_rec = sum(i["recorded"] for i in items)
+    track_txt = f"{t_done}/{t_rec}（{_pct(t_done / t_rec if t_rec else None)}）" if t_rec else "无记录"
+
+    L: list[str] = [
+        title, "",
+        f"> 由 DailyLumen 周分析脚本（`python -m review_tool week {iso_week} --write`）生成，"
+        "数据源为 SQLite 单一库 `review_tool/reviews.db`。",
+        f"> 本周共 **{s['days']} 天**记录；数据完整度 "
+        f"**{s['completeness']['rate_pct']}%**"
+        + (
+            "（核心字段缺失: "
+            + "、".join(f"{m['field']}×{m['days']}" for m in s['completeness']['missing'][:6])
+            + "）。"
+            if s["completeness"]["missing"] else "（核心字段无缺失）。"
+        ),
+        "> ⚠️ **口径提示**：分数取**库的现行口径**。本文件为 `--write` 结构化骨架；"
+        "关键发现 / 行动清单等叙事段不自动生成（默认不回填既有手写件）。",
+        "",
+        "## 一、四维总览",
+        "",
+        "| 维度 | 周均值 | 可视化 |",
+        "|------|--------|--------|",
+        f"| 系统 | **{_fmt_num(s['system_avg'])}** | {_md_bar(s['system_avg'])} |",
+    ]
+    for label, v in s["dims"].items():
+        L.append(f"| {label} | **{_fmt_num(v)}** | {_md_bar(v)} |")
+
+    fa = s["field_avgs"]
+    L += [
+        "",
+        "> 客观指标均值："
+        f"**睡眠 {_fmt_num(fa.get('睡眠'))}h** ｜ "
+        f"**屏幕 {_fmt_num(fa.get('屏幕'))}h** ｜ "
+        f"**深度工作 {_fmt_num(fa.get('深度工作'))}h** ｜ "
+        f"**饮食 {_fmt_num(fa.get('饮食'), 1)} kcal** ｜ "
+        f"早餐按时 **{_pct(s['breakfast_on_time_pct'])}** ｜ "
+        f"训练日运动达标 **{train_txt}** ｜ "
+        f"打卡完成率 **{track_txt}**",
+    ]
+    macros = s.get("macros")
+    if macros:
+        sp = macros["split_pct"]
+        L.append(
+            f"> 宏量日均（记录 {macros['days']} 天）："
+            f"**碳水 {macros['carbs_g']}g ｜ 脂肪 {macros['fat_g']}g ｜ "
+            f"蛋白质 {macros['protein_g']}g**"
+            f"（估算 {macros['kcal']} kcal，碳水 {sp['carbs']}%・脂肪 {sp['fat']}%・"
+            f"蛋白 {sp['protein']}%）"
+        )
+
+    L += [
+        "",
+        f"## 二、每日明细（{start.strftime('%m-%d')} ~ {end.strftime('%m-%d')}）",
+        "",
+        "| 日期 | 星期 | 训练日 | 健康 | 工作 | 学习 | 生活 | 系统 | "
+        "睡眠(h) | 质量 | 入睡 | 屏幕(h) | 深度(h) | 学习(h) | 生活(h) | 饮食(kcal) |",
+        "|------|------|--------|------|------|------|------|------|"
+        "---------|------|------|---------|---------|---------|---------|-----------|",
+    ]
+    for r in _daily_rows(conn, "iso_week=?", (iso_week,)):
+        d = datetime.strptime(r["date"], "%Y-%m-%d")
+        L.append(
+            f"| {d.strftime('%m-%d')} | {_WEEKDAY_CN[d.weekday()]} | "
+            f"{_fmt_num(r['training_day'], 0)} | "
+            f"{_fmt_num(r['health_score'], 0)} | {_fmt_num(r['work_score'], 0)} | "
+            f"{_fmt_num(r['learn_score'], 0)} | {_fmt_num(r['life_score'], 0)} | "
+            f"{_fmt_num(r['system_score'])} | {_fmt_num(r['sleep_h'])} | "
+            f"{_fmt_num(r['sleep_quality'], 0)} | {_fmt_bedtime(r['bedtime'])} | "
+            f"{_fmt_num(r['phone_h'])} | {_fmt_num(r['deepwork_h'])} | "
+            f"{_fmt_num(r['learn_h'])} | {_fmt_num(r['life_h'])} | "
+            f"{_fmt_num(r['diet_kcal'], 0)} |"
+        )
+
+    L += ["", "## 三、个人打卡依从率（不计入四维评分）", ""]
+    if not items:
+        L.append("> 本周无 `personal_tracks` 记录。")
+    else:
+        L += ["| 类别 | item_key | 完成率 | 次数 | 展示名 |",
+              "|------|----------|--------|------|--------|"]
+        for it in items:
+            L.append(
+                f"| {it['category']} | {it['item_key']} | {_pct(it['adherence'])} | "
+                f"{it['done']}/{it['recorded']} | {it['item']} |"
+            )
+
+    L += [
+        "",
+        "## 四、自动生成说明",
+        "",
+        "> 本文件由 CLI `--write` 落盘。关键发现 / 与上周对比 / 行动清单等叙事段"
+        "请人工补写，或继续沿用既有手写周总结（默认**不**用本渲染器回填历史件）。",
+        "",
+        "---",
+        "",
+        f"*生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')} ｜ "
+        f"数据来源：review_tool/reviews.db（ISO 周 {iso_week}）｜ "
+        f"脚本：`python -m review_tool week {iso_week} --write`*",
+        "",
+    ]
+    return "\n".join(L)
+
+
+def render_month_md(conn, month: int) -> str | None:
+    """渲染单月总结 markdown（结构化骨架）。"""
+    s = collect(conn, "month=?", (month,), f"月份 {month}")
+    if s is None:
+        return None
+    year, mon = divmod(month, 100)
+    span = conn.execute(
+        "SELECT MIN(date), MAX(date) FROM daily_reviews WHERE month=?", (month,)
+    ).fetchone()
+    d0, d1 = span[0], span[1]
+    st = s["training"]
+    train_txt = (
+        f"{st['done']}/{st['total']} = {_pct(st['done'] / st['total'] if st['total'] else None)}"
+        if st["total"] else "无训练日"
+    )
+    adh = s.get("track_adherence") or {}
+    items = adh.get("items") or []
+    t_done = sum(i["done"] for i in items)
+    t_rec = sum(i["recorded"] for i in items)
+    miss_bits = "、".join(
+        f"{it['field']} × {it['days']}" for it in s["completeness"]["missing"][:6]
+    )
+
+    L: list[str] = [
+        f"# 月总结 · {year} 年 {mon} 月",
+        "",
+        f"> 由 DailyLumen 月分析脚本（`python -m review_tool month {month} --write`）生成。",
+        f"> 统计窗口：**{d0} ~ {d1}**，共 **{s['days']} 个有效记录日**。",
+        f"> 数据完整度 **{s['completeness']['rate_pct']}%**"
+        + (f"（核心字段缺失：{miss_bits}）。" if miss_bits else "。"),
+        "> ⚠️ **口径提示**：分数取**库的现行口径**。本文件为 `--write` 结构化骨架；"
+        "诊断 / 行动清单等叙事段不自动生成。",
+        "",
+        "## 一、月度核心数字",
+        "",
+        "| 指标 | 本月 |",
+        "|------|------|",
+        f"| **系统分** | **{_fmt_num(s['system_avg'])}** |",
+    ]
+    for label, v in s["dims"].items():
+        L.append(f"| {label}分 | {_fmt_num(v)} |")
+    fa = s["field_avgs"]
+    for key, unit in (("睡眠", "h"), ("睡眠质量", ""), ("屏幕", "h"),
+                      ("深度工作", "h"), ("饮食", "kcal")):
+        if key in fa:
+            cell = f"{_fmt_num(fa[key])} {unit}".strip()
+            L.append(f"| {key}均值 | {cell} |")
+    track_cell = (
+        f"{_pct(t_done / t_rec)} ({t_done}/{t_rec})" if t_rec else "无记录"
+    )
+    L += [
+        f"| 早餐按时 | {_pct(s['breakfast_on_time_pct'])} |",
+        f"| 训练日运动达标 | **{train_txt}** |",
+        f"| 打卡完成率 | {track_cell} |",
+        "",
+        "## 二、周趋势（ISO 周）",
+        "",
+        "| 周 | 日期 | 天数 | 系统 | 健康 | 工作 | 学习 | 生活 |",
+        "|----|------|------|------|------|------|------|------|",
+    ]
+
+    week_rows = conn.execute(
+        "SELECT iso_week, MIN(date), MAX(date), COUNT(*), "
+        "AVG(system_score), AVG(health_score), AVG(work_score), "
+        "AVG(learn_score), AVG(life_score) "
+        "FROM daily_reviews WHERE month=? GROUP BY iso_week ORDER BY iso_week",
+        (month,),
+    ).fetchall()
+    for wr in week_rows:
+        wk, a, b, n, sys_v, h, w, le, li = wr
+        da = datetime.strptime(a, "%Y-%m-%d").strftime("%m-%d")
+        db = datetime.strptime(b, "%Y-%m-%d").strftime("%m-%d")
+        L.append(
+            f"| W{wk} | {da} ~ {db} | {n} | {_fmt_num(sys_v)} | {_fmt_num(h)} | "
+            f"{_fmt_num(w)} | {_fmt_num(le)} | {_fmt_num(li)} |"
+        )
+
+    L += ["", "## 三、个人打卡依从率（不计入四维评分）", ""]
+    if not items:
+        L.append("> 本月无 `personal_tracks` 记录。")
+    else:
+        L += ["| 类别 | item_key | 完成率 | 次数 |",
+              "|------|----------|--------|------|"]
+        for it in items:
+            L.append(
+                f"| {it['category']} | {it['item_key']} | {_pct(it['adherence'])} | "
+                f"{it['done']}/{it['recorded']} |"
+            )
+        weeks = adh.get("by_week") or []
+        if len(weeks) >= 2:
+            bits = " → ".join(f"W{w['iso_week']} {_pct(w['adherence'])}" for w in weeks)
+            L += ["", f"> 周趋势：{bits}"]
+
+    L += [
+        "",
+        "## 四、自动生成说明",
+        "",
+        "> 本文件由 CLI `--write` 落盘。上下半月 / 工作日周末 / 熔断诊断等叙事段"
+        "请人工补写（默认**不**回填既有手写月总结）。",
+        "",
+        "---",
+        "",
+        f"*生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')} ｜ "
+        f"数据来源：review_tool/reviews.db（月份 {month}）｜ "
+        f"脚本：`python -m review_tool month {month} --write`*",
+        "",
+    ]
+    return "\n".join(L)
+
+
+def resolve_week_md_path(conn, iso_week: int, *, root: str | None = None) -> str | None:
+    span = _week_date_span(conn, iso_week)
+    if not span:
+        return None
+    root = root or GENERATED_DIR
+    d0, d1 = span
+    start = datetime.strptime(d0, "%Y-%m-%d")
+    end = datetime.strptime(d1, "%Y-%m-%d")
+    name = (
+        f"周总结-W{iso_week}-"
+        f"{start.strftime('%Y-%m-%d')}_{end.strftime('%m-%d')}.md"
+    )
+    return os.path.join(root, d0[:7], name)
+
+
+def resolve_month_md_path(month: int, *, root: str | None = None) -> str:
+    root = root or GENERATED_DIR
+    y, m = divmod(month, 100)
+    return os.path.join(root, f"{y:04d}-{m:02d}", f"月总结-{month}.md")
+
+
+def _write_text(path: str, text: str) -> None:
+    """写盘并用回读校验（Windows 写盘不可信）。"""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    data = text.replace("\r\n", "\n").encode("utf-8")
+    with open(path, "wb") as f:
+        f.write(data)
+    back = open(path, "rb").read()
+    if back != data:
+        raise OSError(f"写盘回读失败: {path}")
+
+
+def write_week_md(conn, iso_week: int, *, root: str | None = None,
+                  force: bool = False, check_only: bool = False) -> tuple[str, str]:
+    """生成并落盘周总结。返回 ``(path, status)``，status ∈ written/skipped/diff/missing。"""
+    text = render_week_md(conn, iso_week)
+    if text is None:
+        return "", "missing"
+    path = resolve_week_md_path(conn, iso_week, root=root)
+    assert path
+    if check_only:
+        if not os.path.isfile(path):
+            return path, "missing"
+        old = open(path, "rb").read().replace(b"\r\n", b"\n").decode("utf-8")
+        # 忽略生成时间行再比
+        def _strip_gen(t: str) -> str:
+            return "\n".join(
+                ln for ln in t.splitlines() if not ln.startswith("*生成时间：")
+            )
+        return path, ("ok" if _strip_gen(old) == _strip_gen(text) else "diff")
+    if os.path.isfile(path) and not force:
+        return path, "skipped"
+    _write_text(path, text)
+    return path, "written"
+
+
+def write_month_md(conn, month: int, *, root: str | None = None,
+                   force: bool = False, check_only: bool = False) -> tuple[str, str]:
+    text = render_month_md(conn, month)
+    if text is None:
+        return "", "missing"
+    path = resolve_month_md_path(month, root=root)
+    if check_only:
+        if not os.path.isfile(path):
+            return path, "missing"
+        old = open(path, "rb").read().replace(b"\r\n", b"\n").decode("utf-8")
+
+        def _strip_gen(t: str) -> str:
+            return "\n".join(
+                ln for ln in t.splitlines() if not ln.startswith("*生成时间：")
+            )
+        return path, ("ok" if _strip_gen(old) == _strip_gen(text) else "diff")
+    if os.path.isfile(path) and not force:
+        return path, "skipped"
+    _write_text(path, text)
+    return path, "written"
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     as_json = "--json" in argv
+    do_write = "--write" in argv
+    do_force = "--force" in argv
+    do_check = "--check" in argv
     pos = [a for a in argv if not a.startswith("-")]
     conn = init_db()
     try:
         mode = pos[0] if pos else "month"
         if mode == "week":
-            report_week(conn, int(pos[1]) if len(pos) > 1 else None, as_json=as_json)
+            wk = int(pos[1]) if len(pos) > 1 else None
+            if do_write or do_check:
+                if wk is None:
+                    print("用法: week <ISO周> --write|--check [--force]")
+                    return 2
+                path, status = write_week_md(
+                    conn, wk, force=do_force, check_only=do_check)
+                if status == "missing" and not path:
+                    print(f"ISO 周 {wk} 暂无数据。")
+                    return 1
+                print(f"[{status}] {path}")
+                if not do_check:
+                    report_week(conn, wk, as_json=False)
+                return 0 if status in ("written", "skipped", "ok") else (1 if status == "diff" else 1)
+            report_week(conn, wk, as_json=as_json)
         elif mode == "month":
-            report_month(conn, int(pos[1]) if len(pos) > 1 else None, as_json=as_json)
+            mon = int(pos[1]) if len(pos) > 1 else None
+            if do_write or do_check:
+                if mon is None:
+                    mon = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
+                if mon is None:
+                    print("无任何数据。")
+                    return 1
+                path, status = write_month_md(
+                    conn, mon, force=do_force, check_only=do_check)
+                if status == "missing" and not path:
+                    print(f"月份 {mon} 暂无数据。")
+                    return 1
+                print(f"[{status}] {path}")
+                if not do_check:
+                    report_month(conn, mon, as_json=False)
+                return 0 if status in ("written", "skipped", "ok") else 1
+            report_month(conn, mon, as_json=as_json)
         else:
-            print("用法: python -m review_tool [week|month] [周号|月份] [--json]")
+            print("用法: python -m review_tool [week|month] [周号|月份] "
+                  "[--json] [--write] [--force] [--check]")
             return 2
     finally:
         conn.close()

@@ -3,8 +3,8 @@
 用法:
     python -m review_tool new-day    [YYYY-MM-DD] [--force]
     python -m review_tool ingest     [路径.md] [--overwrite]
-    python -m review_tool week       [ISO周] [--json]
-    python -m review_tool month      [YYYYMM] [--json]
+    python -m review_tool week       [ISO周] [--json] [--write] [--force] [--check]
+    python -m review_tool month      [YYYYMM] [--json] [--write] [--force] [--check]
     python -m review_tool ai-context [YYYY-MM-DD]
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID]
@@ -70,8 +70,8 @@ def _version(_rest: list[str]) -> int:
 ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "new-day": (new_day_main, "new-day [YYYY-MM-DD] [--force]"),
     "ingest": (ingest_main, "ingest [路径.md] [--overwrite]"),
-    "week": (_week, "week [ISO周] [--json]"),
-    "month": (_month, "month [YYYYMM] [--json]"),
+    "week": (_week, "week [ISO周] [--json] [--write] [--force] [--check]"),
+    "month": (_month, "month [YYYYMM] [--json] [--write] [--force] [--check]"),
     "ai-context": (ai_context_main, "ai-context [YYYY-MM-DD]"),
     "import-history": (
         import_history_main, "import-history [--check] [--src DIR]"),
