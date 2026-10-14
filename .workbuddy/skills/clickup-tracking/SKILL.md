@@ -8,7 +8,8 @@ agent_created: true
 
 > **分工先记死**：**ClickUp = 执行层**（我今天干了什么、有哪些待办）；
 > **DailyLumen = 评价层**（这一天值几分、要不要熔断）。
-> 两者之间只做**单向的素材供给**（ClickUp → 复盘）；ClickUp **不直接决定任何分数**。
+> 素材供给仍是 ClickUp → 复盘；另有一条**受控回写**（复盘库 → 勾「每日复盘总结」）。
+> ClickUp **不直接决定任何分数**。
 
 ## 0. 三条边界（先看这个）
 
@@ -85,9 +86,24 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 | 工作 / 项目孵化 | 工作产出 | `深度工作_h` 的证据 | 只读 |
 | 2026 年度目标 | 长期方向 | 「四、明日 Top 3」的对照锚点 | 只读 |
 
-**唯一允许的写方向**：用户明确要求时（「帮我把这条记进 ClickUp」），
-用 `add` / `done` 写 ClickUp —— 但**不等于**改动复盘系统，两者仍各自记账。
-写操作后一律 `GET` 回读确认（ClickUp 有「返回 200 但静默忽略」的已知行为）。
+**唯一允许的系统写方向（v1.7.0 起 · 正式命令）**：复盘已入库后，用项目命令把
+「习惯与打卡」里的**每日复盘总结**元任务标完成 —— **只写这一条**，不碰其它任务。
+
+```bash
+python -m review_tool clickup-push 2026-10-12            # 默认 dry-run，只打印
+python -m review_tool clickup-push 2026-10-12 --apply    # 真写 + GET 回读
+```
+
+| 冲突规则 | 内容 |
+| --- | --- |
+| 权威方向 | **复盘（库）为权威 → ClickUp 为下游**。永远不由 ClickUp 反推复盘 |
+| 写谁 | 只写 `config.CLICKUP_REVIEW_TASK`（默认 list `901422213139` + 名「每日复盘总结」） |
+| 幂等 | 已 complete / closed → 跳过 |
+| 默认安全 | 默认 dry-run；显式 `--apply` 才真写 |
+| 失败保守 | PUT 后 GET 回读；不符重试一次，仍失败则非 0 退出（不信状态码） |
+
+临时手工写其它任务（「帮我把这条记进 ClickUp」）仍可用本机 `cu.bat` 的 `add` / `done`，
+但**不等于**改动复盘系统，两者仍各自记账。写操作后一律 `GET` 回读确认。
 
 ---
 
@@ -146,7 +162,11 @@ for lid in ['901422213138', '901422213139']:        # 日常事务 / 习惯与�
 cd <仓库根> && python -m review_tool clickup 2026-10-13          # → 收件箱/clickup-素材-<日期>.md
 python -m review_tool clickup --stdout                           # 只看不落文件（默认今天）
 
-# ② 直接问 ClickUp（临时查 / 写操作）
+# ② 复盘完成后回写元任务（默认 dry-run；--apply 才真写）
+python -m review_tool clickup-push 2026-10-12                    # 预览
+python -m review_tool clickup-push 2026-10-12 --apply            # 勾「每日复盘总结」
+
+# ③ 直接问 ClickUp（临时查 / 写其它任务）
 PY=$(cat ~/.workbuddy/clickup-tools/python_path.txt)
 CLI=~/.workbuddy/clickup-tools/clickup_client.py
 $PY $CLI whoami                      # 确认连得上（认证失败 = token 失效/已轮换）

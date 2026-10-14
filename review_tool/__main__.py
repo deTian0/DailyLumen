@@ -8,6 +8,7 @@
     python -m review_tool ai-context [YYYY-MM-DD]
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID]
+    python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
     python -m review_tool doctor
     python -m review_tool fuse
     python -m review_tool sync-docs  [--check]
@@ -38,6 +39,7 @@ from collections.abc import Callable
 
 from . import __version__
 from .pipeline.clickup import main as clickup_main
+from .pipeline.clickup_sync import main as clickup_push_main
 from .pipeline.export import main as export_main
 from .pipeline.import_history import main as import_history_main
 from .pipeline.ingest import main as ingest_main
@@ -74,6 +76,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "import-history": (
         import_history_main, "import-history [--check] [--src DIR]"),
     "clickup": (clickup_main, "clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID]"),
+    "clickup-push": (
+        clickup_push_main,
+        "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]"),
     "doctor": (doctor_main, "doctor"),
     "fuse": (fuse_main, "fuse"),
     "sync-docs": (sync_docs_main, "sync-docs [--check]"),

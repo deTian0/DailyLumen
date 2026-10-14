@@ -9,6 +9,7 @@
 - ``SCORE_THRESHOLDS`` 四维评分阈值与权重（同时驱动「AI 评价与建议」的关注点规则）
 - ``FEATURES``     功能开关：默认关闭你用不到的子命令（当前只有 ``new_day``）
 - ``CLICKUP_LISTS`` 外部素材源（可选）：ClickUp list → 中文名 / 用途的一处定义
+- ``CLICKUP_REVIEW_TASK`` 回写通道（可选）：「每日复盘总结」元任务的定位信息
 
 改这几处即可，无需改动模板与其余代码。
 """
@@ -291,3 +292,12 @@ CLICKUP_LIST_META = {item["id"]: item for item in CLICKUP_LISTS}
 
 # 素材简报文件名前缀（落 ``每日复盘/收件箱/``；该目录不参与 ingest 扫描）
 CLICKUP_INBOX_PREFIX = "clickup-素材"
+
+# 回写通道定位（``clickup-push``）：只写这一条元任务，绝不碰其它任务。
+# ``task_id`` 留空则按 list + 名字**唯一定位**；名字不唯一时再把 id 写死。
+# 权威方向：复盘库 → ClickUp 下游；默认 dry-run，显式 ``--apply`` 才真写。
+CLICKUP_REVIEW_TASK = {
+    "list_id": "901422213139",   # 习惯与打卡
+    "name": "每日复盘总结",
+    "task_id": None,
+}
