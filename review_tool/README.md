@@ -54,6 +54,8 @@ reports   ->  pipeline  ->  storage  ->  core
 | `clickup.py` | **ClickUp → 素材简报**（只读：按 `date_closed` 取当日完成项，落 `收件箱/`，不落库、不参与评分） |
 | `clickup_sync.py` | **复盘入库 → 勾「每日复盘总结」**（默认 dry-run；`--apply` 真写 + GET 回读；不落库、不参与评分） |
 | `export.py` | 导出 CSV / JSON（含依从率表） |
+| `chart.py`（reports） | 离线趋势 SVG（`chart` 子命令 → `exports/trends.svg`） |
+| `streak.py`（reports） | 正向连续：复盘 / 训练 / 打卡 |
 
 ### reports/ —— 产出层
 | 模块 | 职责 |
@@ -81,6 +83,7 @@ python -m review_tool fuse                             # 熔断检测（有绝�
 python -m review_tool sync-docs [--check]              # 库中分数回写到 md（--check 仅报告）
 python -m review_tool recompute-scores [--apply]       # 按规则重算四维/系统分（默认试算）
 python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
+python -m review_tool chart [--out 目录] [--stdout]   # 趋势 SVG
 ```
 
 ## 目录约定
@@ -109,6 +112,6 @@ python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 ## 测试与代码风格
 
 ```bash
-python -m unittest discover -s tests -t .   # 391 项，标准库零依赖
+python -m unittest discover -s tests -t .   # 394 项，标准库零依赖
 ruff check .                                # 静态检查（CI 同款）
 ```

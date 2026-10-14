@@ -14,6 +14,7 @@
     python -m review_tool sync-docs  [--check]
     python -m review_tool recompute-scores [--apply] [--db PATH]
     python -m review_tool export     [--format csv|json] [--out DIR] [--stdout]
+    python -m review_tool chart      [--out DIR] [--stdout]
     python -m review_tool version
 
 任意子命令加 ``-h`` 可查看该项用法。
@@ -48,6 +49,7 @@ from .pipeline.new_day import main as new_day_main
 from .pipeline.sync_docs import main as sync_docs_main
 from .reports.ai_review import main as ai_context_main
 from .reports.analyze import main as analyze_main
+from .reports.chart import main as chart_main
 from .reports.doctor import main as doctor_main
 from .reports.fuse import main as fuse_main
 from .reports.recompute import main as recompute_main
@@ -85,6 +87,7 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "recompute-scores": (
         recompute_main, "recompute-scores [--apply] [--db PATH]"),
     "export": (export_main, "export [--format csv|json] [--out DIR] [--stdout]"),
+    "chart": (chart_main, "chart [--out DIR] [--stdout]"),
     "version": (_version, "version"),
 }
 
