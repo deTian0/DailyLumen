@@ -201,6 +201,110 @@ def completeness(conn, where: str, params: tuple) -> tuple[float, list[tuple[str
     return filled / (n * len(_CORE_FIELDS)), missing
 
 
+def track_adherence(conn, where: str, params: tuple) -> dict:
+    """周期内个人打卡依从率（按 ``item_key`` 聚合，按 ``category`` 分组）。
+
+    口径与 ``pipeline/export._adherence`` 一致：完成率 = done 次数 / 有记录次数。
+    键来自入库时 ``core/tracks`` 归一化结果 —— **不重造 ID 规则**。
+    打卡**不参与四维评分**；与 ClickUp「习惯与打卡」永久分离。
+
+    返回 ``{"items": [...], "categories": [...], "by_week": [...]}``；
+    无打卡行时三项皆空列表。
+    """
+    rows = conn.execute(
+        "SELECT pt.category, pt.item_key, MAX(pt.item) AS item, "
+        "       COUNT(*) AS recorded, "
+        "       SUM(CASE WHEN pt.done=1 THEN 1 ELSE 0 END) AS done "
+        "FROM personal_tracks pt "
+        "JOIN daily_reviews dr ON dr.date = pt.date "
+        f"WHERE {where} "
+        "GROUP BY pt.category, pt.item_key "
+        "ORDER BY pt.category, pt.item_key",
+        params,
+    ).fetchall()
+    items: list[dict] = []
+    cat_acc: dict[str, dict] = {}
+    for r in rows:
+        recorded = int(r["recorded"] or 0)
+        done = int(r["done"] or 0)
+        rate = round(done / recorded, 4) if recorded else None
+        cat = r["category"]
+        items.append({
+            "category": cat,
+            "item_key": r["item_key"],
+            "item": r["item"],
+            "recorded": recorded,
+            "done": done,
+            "adherence": rate,
+        })
+        bucket = cat_acc.setdefault(cat, {"recorded": 0, "done": 0})
+        bucket["recorded"] += recorded
+        bucket["done"] += done
+
+    categories = []
+    for cat in sorted(cat_acc):
+        b = cat_acc[cat]
+        categories.append({
+            "category": cat,
+            "recorded": b["recorded"],
+            "done": b["done"],
+            "adherence": round(b["done"] / b["recorded"], 4) if b["recorded"] else None,
+        })
+
+    # 周期内按 ISO 周的总体依从率（可选趋势；单周时通常只有一行）
+    week_rows = conn.execute(
+        "SELECT dr.iso_week AS iso_week, "
+        "       COUNT(*) AS recorded, "
+        "       SUM(CASE WHEN pt.done=1 THEN 1 ELSE 0 END) AS done "
+        "FROM personal_tracks pt "
+        "JOIN daily_reviews dr ON dr.date = pt.date "
+        f"WHERE {where} "
+        "GROUP BY dr.iso_week "
+        "ORDER BY dr.iso_week",
+        params,
+    ).fetchall()
+    by_week = []
+    for r in week_rows:
+        recorded = int(r["recorded"] or 0)
+        done = int(r["done"] or 0)
+        by_week.append({
+            "iso_week": r["iso_week"],
+            "recorded": recorded,
+            "done": done,
+            "adherence": round(done / recorded, 4) if recorded else None,
+        })
+
+    return {"items": items, "categories": categories, "by_week": by_week}
+
+
+def _track_adherence_lines(adh: dict | None) -> list[str]:
+    """渲染「个人打卡依从率」段落；无数据时给一行说明。"""
+    L: list[str] = []
+    L.append("")
+    L.append("  ---- 个人打卡依从率（不计入四维评分）----")
+    if not adh or not adh.get("items"):
+        L.append(_line("打卡", "本周期无 personal_tracks 记录"))
+        return L
+    for it in adh["items"]:
+        rate = _pct(it["adherence"])
+        L.append(_line(
+            f"{it['category']}/{it['item_key']}",
+            f"{rate}（{it['done']}/{it['recorded']}）· {it['item']}",
+        ))
+    if adh.get("categories"):
+        L.append(_line("类别小计", ""))
+        for c in adh["categories"]:
+            L.append(_line(
+                f"  · {c['category']}",
+                f"{_pct(c['adherence'])}（{c['done']}/{c['recorded']}）",
+            ))
+    weeks = adh.get("by_week") or []
+    if len(weeks) >= 2:
+        bits = [f"W{w['iso_week']} {_pct(w['adherence'])}" for w in weeks]
+        L.append(_line("周趋势", " → ".join(bits)))
+    return L
+
+
 def collect(conn, where: str, params: tuple, title: str) -> dict | None:
     """把周 / 月报告涉及的全部数字收集成结构化 dict（渲染与 JSON 共用同一份数据）。
 
@@ -242,6 +346,7 @@ def collect(conn, where: str, params: tuple, title: str) -> dict | None:
             "missing": [{"field": c, "days": m} for c, m in missing],
         },
         "worst_dim": {"name": worst[0], "value": worst[1]},
+        "track_adherence": track_adherence(conn, where, params),
     }
 
 
@@ -272,6 +377,7 @@ def render_summary(s: dict) -> str:
     L.append(_line("数据完整度",
                    f"{s['completeness']['rate_pct']}%（核心字段缺失: {detail}）"))
     L.append(f"  >> 最差维度: {s['worst_dim']['name']} ({s['worst_dim']['value']})")
+    L.extend(_track_adherence_lines(s.get("track_adherence")))
     return "\n".join(L)
 
 
