@@ -117,6 +117,9 @@ python -m review_tool clickup 2026-10-13 --stdout   # 只看不落文件
 python -m review_tool clickup --list 901422213142   # 换一批 list（可重复，也可逗号分隔）
 ```
 
+v1.8.1 起素材简报除「当日完成 / 当日到期未完成」外，还带 **进行中 / 逾期 /
+跨天未闭合**（便于写明日 Top 3）。仍只读、不落库、不参与评分。
+
 - 默认采 `config.CLICKUP_DAILY_IDS`（日常事务 + 习惯与打卡）；改范围改 `config.CLICKUP_LISTS`。
 - 它**已经替你处理**了三个坑：按 `date_closed` 归日（东八区）、带 `include_closed=true`、
   按 id 去重 **+ 翻页**（单页 100，不翻页会静默漏）。

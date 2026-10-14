@@ -143,6 +143,22 @@ def fetch_tasks(list_id: str, key: str, *, fetch=None, timeout: int = 60) -> lis
 
 
 # --------------------------------------------------------------------- 选数
+def _name(t: dict) -> str:
+    return (t.get("name") or "(未命名)").strip()
+
+
+def _status(t: dict) -> str:
+    st = t.get("status")
+    return (st or {}).get("status", "") if isinstance(st, dict) else str(st or "")
+
+
+def _status_type(t: dict) -> str:
+    st = t.get("status")
+    if isinstance(st, dict):
+        return str(st.get("type") or "").lower()
+    return ""
+
+
 def select_completed(tasks: list[dict], day: str, *, tz_hours: int | None = None) -> list[dict]:
     """当日完成：``date_closed`` 落在 ``day``（东八区），按完成时刻升序。"""
     hit = [t for t in tasks
@@ -165,11 +181,50 @@ def select_due_open(tasks: list[dict], day: str, *, tz_hours: int | None = None)
     return sorted(hit, key=lambda t: int(t["due_date"]))
 
 
+_IN_PROGRESS_NAMES = ("进行中", "in progress", "in_progress", "doing", "wip")
+
+
+def select_in_progress(tasks: list[dict], day: str = "", *, tz_hours: int | None = None) -> list[dict]:
+    """进行中：未关闭，且状态名为进行中类，或 ClickUp ``status.type == custom``。"""
+    _ = (day, tz_hours)  # 签名与其它选取器对齐；进行中看状态不看归日
+    hit = []
+    for t in tasks:
+        if t.get("date_closed"):
+            continue
+        name = _status(t).lower()
+        if _status_type(t) == "custom" or any(k in name for k in _IN_PROGRESS_NAMES):
+            hit.append(t)
+    return sorted(hit, key=lambda t: (t.get("name") or ""))
+
+def select_overdue(tasks: list[dict], day: str, *, tz_hours: int | None = None) -> list[dict]:
+    """逾期：未关闭，且 ``due_date`` 归日 **早于** ``day``。"""
+    hit = []
+    for t in tasks:
+        if t.get("date_closed"):
+            continue
+        due = t.get("due_date")
+        if due and day_of(due, tz_hours=tz_hours) < day:
+            hit.append(t)
+    return sorted(hit, key=lambda t: int(t["due_date"]))
+
+
+def select_cross_day_open(tasks: list[dict], day: str, *, tz_hours: int | None = None) -> list[dict]:
+    """跨天未闭合：未关闭，且创建日早于 ``day``（拖了多天仍挂着）。"""
+    hit = []
+    for t in tasks:
+        if t.get("date_closed"):
+            continue
+        created = t.get("date_created")
+        if created and day_of(created, tz_hours=tz_hours) < day:
+            hit.append(t)
+    return sorted(hit, key=lambda t: int(t.get("date_created") or 0))
+
+
 def collect(day: str, list_ids=None, *, key: str = "", fetch=None,
             meta: dict | None = None, timeout: int = 60) -> list[dict]:
     """按 list 汇总某天的素材。
 
-    返回 ``[{id, name, role, done: [...], open: [...]}]``，顺序与 ``list_ids`` 一致。
+    返回 ``[{id, name, role, done, open, in_progress, overdue, cross_day}]``。
     """
     ids = CLICKUP_DAILY_IDS if list_ids is None else tuple(list_ids)
     meta = CLICKUP_LIST_META if meta is None else meta
@@ -183,20 +238,14 @@ def collect(day: str, list_ids=None, *, key: str = "", fetch=None,
             "role": info.get("role") or "",
             "done": select_completed(tasks, day),
             "open": select_due_open(tasks, day),
+            "in_progress": select_in_progress(tasks, day),
+            "overdue": select_overdue(tasks, day),
+            "cross_day": select_cross_day_open(tasks, day),
         })
     return groups
 
 
 # --------------------------------------------------------------------- 渲染
-def _name(t: dict) -> str:
-    return (t.get("name") or "(未命名)").strip()
-
-
-def _status(t: dict) -> str:
-    st = t.get("status")
-    return (st or {}).get("status", "") if isinstance(st, dict) else str(st or "")
-
-
 def bulk_hint(groups: list[dict], *, min_count: int = BULK_HINT_MIN) -> str | None:
     """同一分钟内大量「完成」→ 提示疑似批量改状态；无异常返回 None。
 
@@ -245,9 +294,16 @@ def render(day: str, groups: list[dict], *, generated_at: str | None = None,
     src = "ClickUp" + (f" · 工作区 {workspace}" if workspace else "")
     lines += [f"- 数据来源：{src}", ""]
 
-    lines += ["| 分组 | 当日完成 | 当日到期未完成 |", "| --- | --- | --- |"]
+    lines += [
+        "| 分组 | 当日完成 | 到期未完成 | 进行中 | 逾期 | 跨天未闭合 |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
     for g in groups:
-        lines.append(f"| {g['name']} | {len(g['done'])} | {len(g['open'])} |")
+        lines.append(
+            f"| {g['name']} | {len(g['done'])} | {len(g['open'])} | "
+            f"{len(g.get('in_progress') or [])} | {len(g.get('overdue') or [])} | "
+            f"{len(g.get('cross_day') or [])} |"
+        )
     lines += [
         "",
         f"- **当日完成合计**：{sum(len(g['done']) for g in groups)} 条",
@@ -257,6 +313,17 @@ def render(day: str, groups: list[dict], *, generated_at: str | None = None,
     hint = bulk_hint(groups)
     if hint:
         lines += [f"> {hint}", ""]
+
+    def _section(title: str, items: list[dict], *, note: str = "") -> None:
+        if not items:
+            return
+        lines.append(f"**{title} {len(items)} 条**" + (f"（{note}）" if note else ""))
+        lines.append("")
+        for t in items:
+            due = t.get("due_date")
+            due_s = f" · 到期 {day_of(due)}" if due else ""
+            lines.append(f"- {_name(t)}（状态 {_status(t) or '未知'}{due_s}）")
+        lines.append("")
 
     for g in groups:
         role = f" · {g['role']}" if g["role"] else ""
@@ -278,6 +345,10 @@ def render(day: str, groups: list[dict], *, generated_at: str | None = None,
             for t in g["open"]:
                 lines.append(f"- {_name(t)}（状态 {_status(t) or '未知'}）")
             lines += [""]
+
+        _section("进行中", g.get("in_progress") or [], note="便于写明日 Top 3")
+        _section("逾期", g.get("overdue") or [], note="due 早于当日且未关")
+        _section("跨天未闭合", g.get("cross_day") or [], note="创建日早于当日仍未关")
 
     lines += [
         "---",

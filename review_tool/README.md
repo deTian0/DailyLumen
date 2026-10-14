@@ -109,6 +109,6 @@ python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 ## 测试与代码风格
 
 ```bash
-python -m unittest discover -s tests -t .   # 379 项，标准库零依赖
+python -m unittest discover -s tests -t .   # 383 项，标准库零依赖
 ruff check .                                # 静态检查（CI 同款）
 ```
