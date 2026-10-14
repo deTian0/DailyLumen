@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.4.6**（取消定时任务，素材改为手动投递 → 按需生成复盘）
+> 当前版本 **1.5.1**（ClickUp 行为跟踪接入：新增 `clickup-tracking` 项目级 skill）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -23,13 +23,14 @@
 │   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md（评分/口径/字段/日志）+ 迁移指南.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，293 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，297 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
 │   │   ├── dailylumen-conventions/   # 项目总纲：口径 / 权威归属 / 规约 / 工程约定 ★
 │   │   ├── daily-review-intake/      # 素材 → 成品复盘（发截图 / 发文档 / 总结对话）★
-│   │   └── doc-corpus-normalize/     # 文档批量标准化 SOP（可证明无损）
+│   │   ├── doc-corpus-normalize/     # 文档批量标准化 SOP（可证明无损）
+│   │   └── clickup-tracking/         # ClickUp 行为跟踪 ↔ 复盘衔接（结构 / 映射 / 口径）
 │   ├── memory/                       # 本机日志 + 环境坑（不入 git，换机不迁移）
 │   └── backup/                       # 迁移备份与一次性脚本（不入 git，换机不迁移）
 └── review_tool/                      # 数据管道（标准 Python 包，四层架构：依赖只能自上而下）
@@ -108,7 +109,7 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 293 项，零依赖
+python -m unittest discover -s tests -t .      # 297 项，零依赖
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  
@@ -303,7 +304,7 @@ python -m review_tool ai-context 2026-09-15
 `.workbuddy/` 存放工作区级配置与记忆，**不参与程序运行**：
 
 - **`skills/`**（**已入 git**）：项目级 skill，属**方法资产** —— 跟代码一起版本化、打 tag。
-  当前含两个：
+  当前含四个：
   - `dailylumen-conventions` —— **项目口径总纲**（范围边界 / 权威归属 / 评分与熔断 /
     文档与库规约 / 工程约定 / 交付流程）。**跨会话要一直遵守的约定写在这里，而不写在
     `memory/`** —— 因为它随 `clone` 走，换机不丢。
@@ -311,6 +312,9 @@ python -m review_tool ai-context 2026-09-15
     日期归属、字段顺序、评价与建议规格、格式规范）。**本项目已无定时任务**：
     素材由用户手动投递，靠这个 skill 按需生成复盘。
   - `doc-corpus-normalize` —— 批量文档标准化 SOP（保证解析 / 入库可证明无损）。
+  - `clickup-tracking` —— **ClickUp 行为跟踪 ↔ 复盘衔接**（空间结构 / list ID / 映射口径 /
+    按 `date_closed` 取当日完成项 / 「两套打卡体系不许混」的边界）。**零代码改动**：
+    ClickUp 是行为跟踪的执行层，只向复盘**单向供给素材**，不参与评分。
   `.gitignore` 用 `.workbuddy/*` + `!.workbuddy/skills/` 开白名单；**注意必须写成
   `.workbuddy/*`**，写成 `.workbuddy/` 会连目录一起排除，白名单会静默失效。
 - **`memory/`**（不入 git，**换机不迁移**）：本机会话执行日志（按日期）+ `MEMORY.md`。
