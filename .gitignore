@@ -17,3 +17,11 @@ review_tool/reviews.db
 
 # 导出的数据文件（含个人数据，由 python -m review_tool export 生成）
 exports/
+
+# 密钥 / 凭据（严禁入库）
+#   ClickUp token 一律放本机 ~/.workbuddy/mcp.json（该目录不在任何 git 仓库内），
+#   仓库里只允许出现变量名（如 CLICKUP_API_KEY），不允许出现 pk_ 明文值。
+.env
+.env.*
+*.env
+mcp.json
