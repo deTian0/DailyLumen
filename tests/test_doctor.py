@@ -379,9 +379,102 @@ class TestHealthConsistency(_Fixture):
         self.conn.commit()
         self._md("复盘/2026-09/2026-09-21.md")
         r = self._run(today="2026-09-22")
-        text = doctor.render(r)
+        text = doctor.render(r, encoding="utf-8")
         self.assertTrue(doctor.is_healthy(r))
         self.assertIn("结论: ✓ 数据健康", text)
+
+
+class TestHistoryGaps(_Fixture):
+    """历史断更：相邻入库日间隔 > 1 天（v1.7.1）。"""
+
+    def test_detects_gaps_matching_sql(self):
+        # 四处空洞：缺 1 + 1 + 6 + 11 = 19（对齐路线图证据形状）
+        dates = [
+            "2026-07-16",
+            "2026-07-18",  # 缺 07-17 → 1
+            "2026-07-19", "2026-07-20", "2026-07-21",
+            "2026-07-22", "2026-07-23",
+            "2026-07-25",  # 缺 07-24 → 1
+            "2026-07-26", "2026-07-27", "2026-07-28",
+            "2026-08-04",  # 缺 07-29..08-03 → 6
+            "2026-08-05",
+            "2026-08-17",  # 缺 08-06..08-16 → 11
+        ]
+        for d in dates:
+            upsert(self.conn, {"date": d})
+            ym = d[:7]
+            self._md(f"复盘/{ym}/{d}.md")
+        self.conn.commit()
+        r = self._run(today="2026-09-22")
+        gaps = r["history_gaps"]
+        self.assertEqual(len(gaps), 4)
+        self.assertEqual([g["missing"] for g in gaps], [1, 1, 6, 11])
+        self.assertEqual(sum(g["missing"] for g in gaps), 19)
+        self.assertEqual(
+            gaps[0],
+            {"prev": "2026-07-16", "next": "2026-07-18", "missing": 1},
+        )
+        self.assertTrue(doctor.is_healthy(r))
+        text = doctor.render(r, encoding="utf-8")
+        self.assertIn("[历史断更]", text)
+        self.assertIn("共 4 处断更 / 共缺 19 天", text)
+
+    def test_no_gaps_when_contiguous(self):
+        for d in ("2026-09-20", "2026-09-21", "2026-09-22"):
+            upsert(self.conn, {"date": d})
+            self._md(f"复盘/2026-09/{d}.md")
+        self.conn.commit()
+        r = self._run(today="2026-09-22")
+        self.assertEqual(r["history_gaps"], [])
+        self.assertIn("无历史空洞", doctor.render(r, encoding="utf-8"))
+
+    def test_history_gaps_pure_helper(self):
+        gaps = doctor.history_gaps(["2026-08-05", "2026-08-17", "2026-08-04"])
+        # 排序后 08-04→08-05 连续，只剩 08-05→08-17
+        self.assertEqual(gaps, [
+            {"prev": "2026-08-05", "next": "2026-08-17", "missing": 11},
+        ])
+        gaps2 = doctor.history_gaps(["2026-08-04", "2026-08-05", "2026-08-17"])
+        self.assertEqual(len(gaps2), 1)
+        self.assertEqual(gaps2[0]["missing"], 11)
+
+
+class TestConsoleEncoding(_Fixture):
+    """非 UTF-8 stdout 不得因 ✓/⚠️ 崩溃（v1.7.1）。"""
+
+    def _sample_result(self):
+        upsert(self.conn, {"date": "2026-09-21", "training_day": 1})
+        self.conn.commit()
+        self._md("复盘/2026-09/2026-09-21.md")
+        return self._run(today="2026-09-22")
+
+    def test_gbk_render_encodes(self):
+        text = doctor.render(self._sample_result(), encoding="gbk")
+        self.assertIn("[历史断更]", text)
+        self.assertIn("[OK]", text)
+        # 必需标记不得残留 Unicode 专用符
+        for ch in ("✓", "⚠", "🔴", "▲", "▼"):
+            self.assertNotIn(ch, text)
+        text.encode("gbk")  # 整段必须可 encode
+
+    def test_ascii_marks_safe(self):
+        """ascii 控台：标记降级为 ASCII；正文中文仍按原样（GBK 场景才要求整段可 encode）。"""
+        text = doctor.render(self._sample_result(), encoding="ascii")
+        self.assertIn("[OK]", text)
+        for ch in ("✓", "⚠", "🔴", "▲", "▼"):
+            self.assertNotIn(ch, text)
+        for v in doctor.marks_for_encoding("ascii").values():
+            v.encode("ascii")
+
+    def test_utf8_keeps_unicode_marks(self):
+        text = doctor.render(self._sample_result(), encoding="utf-8")
+        self.assertIn("✓", text)
+        self.assertNotIn("[OK]", text)
+
+    def test_marks_for_encoding_helper(self):
+        self.assertEqual(doctor.marks_for_encoding("utf-8")["ok"], "✓")
+        self.assertEqual(doctor.marks_for_encoding("gbk")["ok"], "[OK]")
+        self.assertEqual(doctor.marks_for_encoding("ascii")["warn"], "[!]")
 
 
 class TestRender(_Fixture):
@@ -392,9 +485,9 @@ class TestRender(_Fixture):
                            "deepwork_h": 4.0, "learn_h": 1.0, "life_h": 1.0})
         self.conn.commit()
         self._md("复盘/2026-09/2026-09-21.md")
-        text = doctor.render(self._run(today="2026-09-22"))
-        for token in ("DailyLumen 体检报告", "[数据库]", "[新鲜度]",
-                      "[文件 ↔ 数据库对账]", "[数据完整度]", "[打卡归一化]",
+        text = doctor.render(self._run(today="2026-09-22"), encoding="utf-8")
+        for token in ("DailyLumen 体检报告", "[数据库]", "[新鲜度]", "[历史断更]",
+                      "[文件 <-> 数据库对账]", "[数据完整度]", "[打卡归一化]",
                       "[运动时长来源]", "[训练日口径]", "结论:"):
             self.assertIn(token, text)
 

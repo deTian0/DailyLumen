@@ -59,7 +59,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | 模块 | 职责 |
 | --- | --- |
 | `analyze.py` | 周 / 月聚合报告（`collect()` 取数 + `render_summary()` 排版，`--json` 复用同一份数据） |
-| `doctor.py` | 数据体检：schema / 完整性 / 新鲜度 / md↔DB 对账 / 分数一致性 / 打卡对账 / 归一化 / 来源分布 / 熔断 |
+| `doctor.py` | 数据体检：schema / 完整性 / 新鲜度 / 历史断更 / md↔DB 对账 / 分数一致性 / 打卡对账 / 归一化 / 来源分布 / 熔断 |
 | `fuse.py` | 熔断检测：单维度连续走低（绝对）+ 近 7 日 vs 前 28 日均值漂移（相对） |
 | `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则） |
 | `recompute.py` | 按当前规则重算库中四维 / 系统分（默认只试算，`--apply` 落库） |
@@ -109,6 +109,6 @@ python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 ## 测试与代码风格
 
 ```bash
-python -m unittest discover -s tests -t .   # 366 项，标准库零依赖
+python -m unittest discover -s tests -t .   # 373 项，标准库零依赖
 ruff check .                                # 静态检查（CI 同款）
 ```

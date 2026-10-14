@@ -6,20 +6,22 @@
 ------
 1. 数据库：schema 版本 / 行数 / 完整性
 2. 新鲜度：最新复盘距今多少天，是否该补录
-3. 对账：md 文件与数据库的日期集合双向差集（谁多谁少）
-4. 归档来源：哪些记录只存在于「历史源复盘」，建议跑 import-history 升级
-5. 完整度：核心字段缺失统计
-6. 打卡归一化：是否还有未收敛到规范项的 other:* 记录
-7. 训练日口径：training_day 与「按星期推算」不一致的天数
-8. 运动时长来源：填报 / 描述折算 / 训练日未记录按 0 计 / 未记录 四者的天数分布
-9. 分数一致性：库中四维/系统分与「按字段重算」的结果是否相符
-10. 打卡对账：库里每条打卡能否在源 md 找到对应勾选（陈旧/重复条目）
-11. 熔断检测：单维度连续低分 + 相对基线漂移
+3. 历史断更：相邻入库日间隔 > 1 天的空洞（建议性，不影响 is_healthy）
+4. 对账：md 文件与数据库的日期集合双向差集（谁多谁少）
+5. 归档来源：哪些记录只存在于「历史源复盘」，建议跑 import-history 升级
+6. 完整度：核心字段缺失统计
+7. 打卡归一化：是否还有未收敛到规范项的 other:* 记录
+8. 训练日口径：training_day 与「按星期推算」不一致的天数
+9. 运动时长来源：填报 / 描述折算 / 训练日未记录按 0 计 / 未记录 四者的天数分布
+10. 分数一致性：库中四维/系统分与「按字段重算」的结果是否相符
+11. 打卡对账：库里每条打卡能否在源 md 找到对应勾选（陈旧/重复条目）
+12. 熔断检测：单维度连续低分 + 相对基线漂移
 """
 from __future__ import annotations
 
 import os
 import re
+import sys
 from datetime import date as _date
 from datetime import datetime
 
@@ -145,6 +147,60 @@ def _expected_training_day(date_str: str) -> int:
     return 1 if wd in PROFILE["training_weekdays"] else 0
 
 
+def history_gaps(dates: list[str] | set[str]) -> list[dict]:
+    """相邻入库日间隔 > 1 天的空洞清单。
+
+    每项：``{"prev": 起日, "next": 止日, "missing": 缺失天数}``，
+    其中缺失天数 = (止日 - 起日).days - 1。建议性提示，不参与 ``is_healthy``。
+    """
+    ordered = sorted(dates)
+    out: list[dict] = []
+    for a, b in zip(ordered, ordered[1:], strict=False):
+        da = datetime.strptime(a, "%Y-%m-%d").date()
+        db = datetime.strptime(b, "%Y-%m-%d").date()
+        missing = (db - da).days - 1
+        if missing > 0:
+            out.append({"prev": a, "next": b, "missing": missing})
+    return out
+
+
+# 控台标记：UTF-8 可用时用符号；GBK/ascii 等降级为 ASCII，避免 UnicodeEncodeError
+_MARK_UNICODE = {
+    "ok": "✓",
+    "warn": "⚠️",
+    "crit": "🔴",
+    "up": "▲",
+    "down": "▼",
+}
+_MARK_ASCII = {
+    "ok": "[OK]",
+    "warn": "[!]",
+    "crit": "[x]",
+    "up": "^",
+    "down": "v",
+}
+
+
+def _encoding_supports(encoding: str | None, sample: str) -> bool:
+    """``encoding`` 能否安全 encode ``sample``（None / 未知视为不安全）。"""
+    if not encoding:
+        return False
+    try:
+        sample.encode(encoding)
+        return True
+    except (LookupError, UnicodeEncodeError):
+        return False
+
+
+def marks_for_encoding(encoding: str | None = None) -> dict[str, str]:
+    """按编码选择 OK/警告等标记；默认读 ``sys.stdout.encoding``。"""
+    enc = encoding if encoding is not None else getattr(sys.stdout, "encoding", None)
+    # 任一必需符号不可编码 → 整套降级（避免混用半套 Unicode）
+    if all(_encoding_supports(enc, ch) for ch in _MARK_UNICODE.values()):
+        return dict(_MARK_UNICODE)
+    return dict(_MARK_ASCII)
+
+
 def diagnose(db_path: str | None = None, input_dir: str | None = None,
              *, today: str | None = None) -> dict:
     """执行体检并返回结构化结果（不打印），便于测试与复用。"""
@@ -169,6 +225,8 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
 
         # 对账
         db_dates = {r[0] for r in conn.execute("SELECT date FROM daily_reviews")}
+        # 历史断更（相邻入库日空洞；建议性，不拦 is_healthy）
+        result["history_gaps"] = history_gaps(db_dates)
         std_dates: set[str] = set()
         for root, _dirs, files in os.walk(input_dir):
             rel = os.path.relpath(root, input_dir)
@@ -246,8 +304,14 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
     return result
 
 
-def render(result: dict) -> str:
-    """把体检结果渲染成可读文本。"""
+def render(result: dict, *, encoding: str | None = None) -> str:
+    """把体检结果渲染成可读文本。
+
+    ``encoding``：控台编码；默认读 ``sys.stdout.encoding``。若无法安全输出
+    ✓ / ⚠️ 等符号，整套降级为 ``[OK]`` / ``[!]`` / ``[x]``（Windows GBK 控台）。
+    """
+    m = marks_for_encoding(encoding)
+    ok, warn, crit = m["ok"], m["warn"], m["crit"]
     L: list[str] = []
 
     L.append("=" * 52)
@@ -258,10 +322,10 @@ def render(result: dict) -> str:
     L.append("[数据库]")
     v_ok = result["schema_version"] == result["schema_expected"]
     if v_ok:
-        L.append(f"  schema 版本 : {result['schema_version']} ✓")
+        L.append(f"  schema 版本 : {result['schema_version']} {ok}")
     else:
         L.append(f"  schema 版本 : {result['schema_version']}"
-                 f" ⚠️ 期望 {result['schema_expected']}")
+                 f" {warn} 期望 {result['schema_expected']}")
     L.append(f"  完整性检查  : {result['integrity']}")
     L.append(f"  复盘记录    : {result['rows']} 条")
     L.append(f"  打卡记录    : {result['tracks']} 条")
@@ -270,24 +334,36 @@ def render(result: dict) -> str:
     L.append("[新鲜度]")
     stale = result["stale_days"]
     if stale is None:
-        L.append("  ⚠️ 库中没有任何记录")
+        L.append(f"  {warn} 库中没有任何记录")
     else:
-        flag = "✓" if stale <= 1 else f"⚠️ 已有 {stale} 天未补录"
+        flag = ok if stale <= 1 else f"{warn} 已有 {stale} 天未补录"
         L.append(f"  最新复盘    : {result['latest_date']}（距今 {stale} 天）{flag}")
         # 新鲜度是**建议性**的：CI 里历史库必然「过期」，但数据本身没问题，
         # 故不让它影响结论/退出码（与 is_healthy 保持一致）。
 
     L.append("")
-    L.append("[文件 ↔ 数据库对账]")
+    L.append("[历史断更]")
+    gaps = result.get("history_gaps") or []
+    if gaps:
+        total_missing = sum(g["missing"] for g in gaps)
+        L.append(f"  {warn} 共 {len(gaps)} 处断更 / 共缺 {total_missing} 天"
+                 "（建议性，不影响数据健康）:")
+        for g in gaps:
+            L.append(f"    - {g['prev']} → {g['next']}（缺 {g['missing']} 天）")
+    else:
+        L.append(f"  {ok} 相邻入库日连续，无历史空洞")
+
+    L.append("")
+    L.append("[文件 <-> 数据库对账]")
     if result["not_ingested"]:
-        L.append(f"  ⚠️ 有 md 但未入库 ({len(result['not_ingested'])} 天): "
+        L.append(f"  {warn} 有 md 但未入库 ({len(result['not_ingested'])} 天): "
                  + ", ".join(result["not_ingested"][:8]))
         L.append("     → 运行 python -m review_tool ingest")
     if result["orphan_in_db"]:
-        L.append(f"  ⚠️ 库中有记录但找不到源文件 ({len(result['orphan_in_db'])} 天): "
+        L.append(f"  {warn} 库中有记录但找不到源文件 ({len(result['orphan_in_db'])} 天): "
                  + ", ".join(result["orphan_in_db"][:8]))
     if not result["not_ingested"] and not result["orphan_in_db"]:
-        L.append("  ✓ md 与数据库日期集合完全一致")
+        L.append(f"  {ok} md 与数据库日期集合完全一致")
 
     if result["archive_only"]:
         L.append("")
@@ -306,17 +382,17 @@ def render(result: dict) -> str:
         for col, n in result["missing_fields"][:8]:
             L.append(f"    - {col:16s} {n} 天")
     else:
-        L.append("  ✓ 无缺失")
+        L.append(f"  {ok} 无缺失")
 
     L.append("")
     L.append("[打卡归一化]")
     if result["unnormalized_tracks"]:
-        L.append(f"  ⚠️ 有 {len(result['unnormalized_tracks'])} 类未收敛到规范项:")
+        L.append(f"  {warn} 有 {len(result['unnormalized_tracks'])} 类未收敛到规范项:")
         for key, n in result["unnormalized_tracks"][:8]:
             L.append(f"    - {key} × {n}")
         L.append("     → 在 config.PERSONAL_ITEMS 中补 alias 后重跑 ingest")
     else:
-        L.append("  ✓ 全部打卡已归一化到规范项")
+        L.append(f"  {ok} 全部打卡已归一化到规范项")
 
     L.append("")
     L.append("[运动时长来源]")
@@ -337,13 +413,13 @@ def render(result: dict) -> str:
         for d, why in result["training_day_drift"][:8]:
             L.append(f"    - {d}: {why}")
     else:
-        L.append("  ✓ training_day 与星期推算一致")
+        L.append(f"  {ok} training_day 与星期推算一致")
 
     L.append("")
     L.append("[分数一致性]")
     drift = result.get("score_drift") or []
     if drift:
-        L.append(f"  ⚠️ {len(drift)} 处库值与「按字段重算」不符"
+        L.append(f"  {warn} {len(drift)} 处库值与「按字段重算」不符"
                  "（手填覆盖 / 规则变更后未重算）:")
         for it in drift[:8]:
             L.append(f"    - {it['date']} {it['dim']}: "
@@ -353,7 +429,7 @@ def render(result: dict) -> str:
         L.append("     → 以字段为准时重算后回写：")
         L.append("       python -m review_tool recompute-scores && python -m review_tool sync-docs")
     else:
-        L.append("  ✓ 库中四维 / 系统分与字段重算完全一致")
+        L.append(f"  {ok} 库中四维 / 系统分与字段重算完全一致")
 
     L.append("")
     L.append("[打卡对账]")
@@ -364,11 +440,11 @@ def render(result: dict) -> str:
             by_key[it["track_key"]] = by_key.get(it["track_key"], 0) + 1
         detail = "、".join(f"{k}×{n}" for k, n in
                            sorted(by_key.items(), key=lambda x: -x[1])[:6])
-        L.append(f"  ⚠️ {len(stale)} 条打卡在源 md 中找不到对应文本（陈旧/重复）: {detail}")
+        L.append(f"  {warn} {len(stale)} 条打卡在源 md 中找不到对应文本（陈旧/重复）: {detail}")
         L.append("     · 会让同一剂量被重复计入依从率")
         L.append("     → 以源 md 为准清理: python -m review_tool ingest --prune-tracks")
     else:
-        L.append("  ✓ 每条打卡都能在源 md 找到对应勾选")
+        L.append(f"  {ok} 每条打卡都能在源 md 找到对应勾选")
 
     if result["inbox_files"]:
         L.append("")
@@ -380,7 +456,7 @@ def render(result: dict) -> str:
         L.append("[熔断检测]")
         if fuse["absolute"]:
             for it in fuse["absolute"]:
-                flag = "🔴" if not it["long_run"] else "⚠️"
+                flag = crit if not it["long_run"] else warn
                 L.append(f"  {flag} {it['label']}：连续 {it['run']} 天 < {fuse['threshold']}"
                          f"（自 {it['since']} 起）")
             long_runs = [it["label"] for it in fuse["absolute"] if it["long_run"]]
@@ -389,13 +465,13 @@ def render(result: dict) -> str:
                          f"{FUSE_RULES['long_run_days']} 天，绝对阈值失去分辨力"
                          " → 看下面的相对基线")
         else:
-            L.append("  ✓ 无维度触发熔断")
+            L.append(f"  {ok} 无维度触发熔断")
         moved = [d for d in fuse.get("drift", []) if d["moved"]]
         if moved:
             L.append(f"  [相对基线] 近 {FUSE_RULES['recent_days']} 日 vs 之前 "
                      f"{FUSE_RULES['baseline_days']} 日，变化明显的维度:")
             for d in moved:
-                arrow = "▲" if d["delta"] > 0 else "▼"
+                arrow = m["up"] if d["delta"] > 0 else m["down"]
                 L.append(f"     {d['label']} {d['baseline']} → {d['recent']}  "
                          f"{arrow} {d['delta']:+.2f}")
         elif fuse.get("drift"):
@@ -405,8 +481,8 @@ def render(result: dict) -> str:
     L.append("")
     L.append("-" * 52)
     # 结论与退出码共用 is_healthy —— 只有一套口径，不会出现「结论说有问题、退出码说没问题」
-    L.append("结论: " + ("✓ 数据健康" if is_healthy(result)
-                        else "⚠️ 存在待处理项，见上方标记"))
+    L.append("结论: " + (f"{ok} 数据健康" if is_healthy(result)
+                        else f"{warn} 存在待处理项，见上方标记"))
     return "\n".join(L)
 
 
@@ -417,6 +493,7 @@ def is_healthy(result: dict) -> bool:
 
     - ``training_day`` 与星期约定不符：可能只是临时调整训练日，属合理的个人差异；
     - 新鲜度（距上次复盘超过 1 天）：属「该补录了」的建议，CI 里历史库必然过期；
+    - 历史断更（相邻入库日空洞）：属可见性提示，不代表库坏了；
     - 分数一致性 / 打卡对账 / 熔断：手填覆盖合法、陈旧打卡由 `--prune-tracks` 处理、
       熔断属「人生指标」告警，都不代表数据本身坏了。
 
