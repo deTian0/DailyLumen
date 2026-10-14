@@ -152,5 +152,26 @@ class TestBedtimeEdge(unittest.TestCase):
         self.assertEqual(row["bedtime"], 1390)
 
 
+class TestEnergyMoodCommute(unittest.TestCase):
+    """v1.9.0：保留字段并用起来 —— 模板默认通勤「是」+ 精力/心情可解析。"""
+
+    def test_parses_kept_fields(self):
+        text = (
+            "```data\n日期: 2026-10-14\n通勤完成: 是\n精力: 中\n心情: 平稳\n```"
+        )
+        row = parse_text(text)
+        self.assertEqual(row["commute_done"], 1)
+        self.assertEqual(row["energy"], "中")
+        self.assertEqual(row["mood"], "平稳")
+
+    def test_template_defaults_commute_yes(self):
+        from pathlib import Path
+        from review_tool.config import TEMPLATE_PATH
+        body = Path(TEMPLATE_PATH).read_text(encoding="utf-8")
+        self.assertIn("通勤完成: 是", body)
+        self.assertIn("精力:", body)
+        self.assertIn("心情:", body)
+
+
 if __name__ == "__main__":
     unittest.main()

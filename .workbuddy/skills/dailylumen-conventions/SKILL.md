@@ -136,6 +136,8 @@ agent_created: true
 ## 5. 数据库规约
 
 - **SQLite `reviews.db` 是唯一数据源**；schema 走 `PRAGMA user_version` 幂等迁移（当前 **v4**）。
+  v1.9.0 决断：`energy` / `mood` / `commute_done` **保留**（模板提醒 / 通勤默认「是」），
+  不做破坏性删列；三者**不参与四维评分**。
 - **改 CHECK 只能重建表**，重建必须走全覆盖流程：
   备份 → 副本验证 → 显式事务 → 逐列 diff → 落真库（详见用户级 skill `sqlite-safe-migration`）。
 - **`reviews.example.db` 必须与当前 schema 同版**（`tests/test_example_db.py` 守卫），
