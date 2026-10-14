@@ -7,21 +7,16 @@
     from review_tool import parse_text, compute_scores, init_db, upsert
     from review_tool import ingest_all, report_month
 
-命令行入口:
-    python -m review_tool new-day    [YYYY-MM-DD]
-    python -m review_tool ingest     [路径.md]
-    python -m review_tool week       [ISO周]
-    python -m review_tool month      [YYYYMM]
-    python -m review_tool ai-context [YYYY-MM-DD]
-    python -m review_tool import-history [--check] [--src DIR]
-    python -m review_tool doctor
-    python -m review_tool export     [--format csv|json] [--out DIR] [--stdout]
+命令行入口（15 子命令，详见 ``python -m review_tool -h``）:
+    new-day / ingest / week / month / ai-context / import-history /
+    clickup / clickup-push / doctor / fuse / sync-docs / recompute-scores /
+    export / chart / version
 
 分层（依赖只能自上而下，由 tests/test_architecture.py 强制）:
     core      领域层（零 I/O）：tracks 归一化 / bodyweight 折算 / score 评分 / util 转换
     storage   持久化层：SQLite 唯一出入口 —— db（连接 / 迁移 / 读写 / 打卡对账）
-    pipeline  数据流转层（md <-> 库）：parse / ingest / sync_docs / import_history / new_day / export
-    reports   产出层（读库面向人）：analyze / doctor / fuse / ai_review / recompute
+    pipeline  数据流转层（md <-> 库）：parse / ingest / sync_docs / import_history / new_day / export / clickup*
+    reports   产出层（读库面向人）：analyze / doctor / fuse / ai_review / recompute / streak / chart
     config    包根可配置层（唯一要改的文件）；__main__ 纯路由
 
 """
@@ -88,7 +83,7 @@ from .storage.db import (
     upsert_personal_track,
 )
 
-__version__ = "1.10.0"
+__version__ = "1.10.1"
 
 __all__ = [
     # config

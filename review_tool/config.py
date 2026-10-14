@@ -250,6 +250,15 @@ FUSE_RULES = {
     "drift": 1.0,          # 均值偏离达到此值才算「真的在变」
 }
 
+# 个人打卡依从率骤降告警（doctor 建议性，不影响 is_healthy）
+# 近 recent_days 日完成率相对此前 baseline_days 日完成率，绝对降幅 ≥ drop 则提示。
+# drop 为 0–1 比例（0.3 = 30 个百分点）。
+TRACK_ADHERENCE_ALERT = {
+    "recent_days": 7,
+    "baseline_days": 28,
+    "drop": 0.3,
+}
+
 
 # ---------------------------------------------------------------------------
 # 外部素材源：ClickUp（可选，v1.6.0）

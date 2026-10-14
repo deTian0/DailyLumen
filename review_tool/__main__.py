@@ -55,6 +55,22 @@ from .reports.fuse import main as fuse_main
 from .reports.recompute import main as recompute_main
 
 
+def ensure_utf8_stdio() -> None:
+    """尽量把 stdout/stderr 固定为 UTF-8（Windows GBK 控台防炸）。
+
+    对已关闭 / 非 TTY / 不支持 ``reconfigure`` 的流静默跳过，不改变行为。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconf = getattr(stream, "reconfigure", None)
+        if not callable(reconf):
+            continue
+        try:
+            reconf(encoding="utf-8", errors="replace")
+        except (OSError, ValueError, AttributeError):
+            # 管道重定向 / 冻结流等场景：保持原编码，靠渲染层 ASCII 降级兜底
+            pass
+
+
 def _week(rest: list[str]) -> int:
     return analyze_main(["week", *rest])
 
@@ -119,6 +135,7 @@ def usage() -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    ensure_utf8_stdio()
     argv = list(sys.argv[1:]) if argv is None else list(argv)
 
     if not argv:

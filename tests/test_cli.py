@@ -123,5 +123,27 @@ class TestPassthrough(_PatchedRoute):
         self.assertIn("用法", out)
 
 
+class TestUtf8Stdio(unittest.TestCase):
+    """入口统一 UTF-8 reconfigure；非 TTY / 不支持时不得抛（v1.10.1）。"""
+
+    def test_ensure_utf8_stdio_tolerates_closed_stream(self):
+        class _NoReconf:
+            pass
+
+        class _Boom:
+            def reconfigure(self, **_kw):
+                raise OSError("frozen")
+
+        with mock.patch.object(cli.sys, "stdout", _NoReconf()), \
+             mock.patch.object(cli.sys, "stderr", _Boom()):
+            cli.ensure_utf8_stdio()  # 不得抛
+
+    def test_main_calls_ensure_utf8(self):
+        with mock.patch.object(cli, "ensure_utf8_stdio") as ens:
+            rc, _out = _capture(cli.main, ["-h"])
+        self.assertEqual(rc, 0)
+        ens.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

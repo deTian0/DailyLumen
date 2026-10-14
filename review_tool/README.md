@@ -112,6 +112,6 @@ python -m review_tool chart [--out 目录] [--stdout]   # 趋势 SVG
 ## 测试与代码风格
 
 ```bash
-python -m unittest discover -s tests -t .   # 394 项，标准库零依赖
+python -m unittest discover -s tests -t .   # 400 项，标准库零依赖
 ruff check .                                # 静态检查（CI 同款）
 ```
