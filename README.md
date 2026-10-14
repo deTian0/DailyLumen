@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.6.0**（ClickUp 接入为**只读素材源**：新增 `clickup` 子命令 + `pipeline/clickup.py`）
+> 当前版本 **1.6.1**（`new-day` 收进功能开关 `config.FEATURES`，默认关闭；支持手动复制模板流程）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -23,7 +23,7 @@
 │   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md（评分/口径/字段/日志）+ 迁移指南.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，337 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，347 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
@@ -52,7 +52,7 @@
     │   ├── ingest.py                 #   入库（按 date 主键 upsert，默认不擦数据）
     │   ├── sync_docs.py              #   库中分数回写复盘 md（数据块 + 六章）★
     │   ├── import_history.py         #   语雀历史文件转换导入
-    │   ├── new_day.py                #   一键生成当天复盘文件
+    │   ├── new_day.py                #   生成当天文件（默认关闭，见 FEATURES）
     │   ├── clickup.py                #   ClickUp → 素材简报（只读，不落库）★
     │   └── export.py                 #   CSV / JSON 导出
     └── reports/                      # 产出层：读库生成面向人的结果
@@ -73,7 +73,7 @@
 
 | 命令                                                   | 用途                                     |
 | ---------------------------------------------------- | -------------------------------------- |
-| `new-day [YYYY-MM-DD] [--force]`                     | 按模板生成当天文件 → `复盘/YYYY-MM/`              |
+| `new-day [YYYY-MM-DD] [--force]`                     | 按模板生成当天文件 → `复盘/YYYY-MM/`（**默认关闭**）   |
 | `ingest [路径.md] [--overwrite] [--prune-tracks]`      | 解析并入库（默认只补空值，不擦已有数据；`--prune-tracks` 顺带清陈旧打卡） |
 | `week [ISO周] [--json]` / `month [YYYYMM] [--json]`   | 周 / 月分析（`--json` 输出结构化结果，便于接自动化）      |
 | `ai-context [YYYY-MM-DD]`                            | 输出「七、AI 评价与建议」的确定性上下文                  |
@@ -89,13 +89,26 @@
 典型日常：
 
 ```bash
-python -m review_tool new-day            # 1. 生成当天文件
+# 1. 复制「每日复盘模板.md」→ 每日复盘/复盘/YYYY-MM/YYYY-MM-DD.md，改「日期」「星期」
                                          # 2. 打开填数值与勾选
 python -m review_tool ingest             # 3. 入库（自动补四维评分）
 python -m review_tool ai-context         # 4. 拿事实依据写「七、AI 评价与建议」
 python -m review_tool ingest             # 5. 再入库一次兜底
 python -m review_tool doctor             # 6. 体检：数据齐不齐、有没有该补的
 ```
+
+### 功能开关（`config.FEATURES`）
+
+`python -m review_tool new-day`（按模板生成当天文件）**默认关闭** —— 手动复制模板更顺手，
+故不参与日常流程。关闭状态下它会打印手动路径并返回退出码 2，**不写任何文件**；
+命令本身仍在（`-h` 可读、`ROUTES` 未摘），打开只需改一处：
+
+```python
+# review_tool/config.py
+FEATURES = {"new_day": True}   # 默认 False
+```
+
+`python -m review_tool`（无参数）会在被关闭的命令后标注「（已关闭）」。
 
 ### ⚠️ 入库的两种模式
 
@@ -111,7 +124,7 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 337 项，零依赖
+python -m unittest discover -s tests -t .      # 347 项，零依赖
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  

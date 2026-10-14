@@ -3,6 +3,8 @@
 重点回归：旧版靠硬编码正则清模板里的示例正文，模板一改就静默失效。
 新版改为「通用 data 块清空 + <!--clear--> 标记」，本测试锁死这两条。
 """
+import contextlib
+import io
 import os
 import shutil
 import tempfile
@@ -132,6 +134,79 @@ class TestGenerate(unittest.TestCase):
         _, text = self._gen()
         self.assertNotIn("示例值", text)
         self.assertIn("全新字段_xx:", text)
+
+
+class TestFeatureSwitch(unittest.TestCase):
+    """new-day 默认关闭（``config.FEATURES['new_day'] = False``，v1.6.1）。
+
+    关闭时闸门必须**零副作用**：直接报错能被看见，而静默生成一份空模板不会 ——
+    后者会让人以为「今天已经起了模板」，其实内容是空的。
+    """
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.tpl = os.path.join(self.dir, "模板.md")
+        with open(self.tpl, "w", encoding="utf-8") as f:
+            f.write(TEMPLATE)
+        self.out = os.path.join(self.dir, "out")
+        self._p1 = mock.patch.object(nd, "TEMPLATE_PATH", self.tpl)
+        self._p2 = mock.patch.object(nd, "GENERATED_DIR", self.out)
+        self._p1.start()
+        self._p2.start()
+
+    def tearDown(self):
+        self._p1.stop()
+        self._p2.stop()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _run(self, argv):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = nd.main(argv)
+        return rc, buf.getvalue()
+
+    def test_disabled_by_default(self):
+        """开关的默认态就是本次需求本身：默认关闭。"""
+        from review_tool.config import FEATURES
+        self.assertIs(FEATURES["new_day"], False)
+
+    def test_main_refuses_and_writes_nothing_when_disabled(self):
+        with mock.patch.dict(nd.FEATURES, {"new_day": False}):
+            rc, out = self._run(["2026-03-05"])
+        self.assertEqual(rc, 2, "关闭时应以非零退出码表明「没执行」")
+        self.assertIn("已关闭", out)
+        self.assertFalse(os.path.exists(self.out),
+                         "关闭状态下不得创建任何目录或文件")
+
+    def test_hint_points_at_manual_path_and_switch(self):
+        """提示要能自解释：既说清手动怎么做，也说清去哪打开。"""
+        self.assertIn("每日复盘模板.md", nd.DISABLED_HINT)
+        self.assertIn("FEATURES", nd.DISABLED_HINT)
+
+    def test_main_generates_when_enabled(self):
+        with mock.patch.dict(nd.FEATURES, {"new_day": True}):
+            rc, out = self._run(["2026-03-05"])
+        self.assertEqual(rc, 0)
+        self.assertIn("已生成", out)
+        self.assertTrue(os.path.isfile(
+            os.path.join(self.out, "2026-03", "2026-03-05.md")))
+
+    def test_is_enabled_follows_config(self):
+        with mock.patch.dict(nd.FEATURES, {"new_day": False}):
+            self.assertFalse(nd.is_enabled())
+        with mock.patch.dict(nd.FEATURES, {"new_day": True}):
+            self.assertTrue(nd.is_enabled())
+
+    def test_is_enabled_defaults_to_false_when_key_missing(self):
+        """配置项被误删时按「关闭」处理 —— 宁可跑不动，也不要静默跑通。"""
+        with mock.patch.dict(nd.FEATURES, {}, clear=True):
+            self.assertFalse(nd.is_enabled())
+
+    def test_generate_itself_is_not_gated(self):
+        """闸门只装在命令入口；generate() 是纯函数，测试与调用方仍可直接复用。"""
+        with mock.patch.dict(nd.FEATURES, {"new_day": False}):
+            path = nd.generate(date(2026, 3, 6))
+        self.assertTrue(os.path.isfile(path))
 
 
 if __name__ == "__main__":

@@ -2,8 +2,10 @@
 import contextlib
 import io
 import unittest
+from unittest import mock
 
 from review_tool import __main__ as cli
+from review_tool.pipeline import new_day as nd
 
 
 def _capture(fn, *a, **kw):
@@ -69,6 +71,34 @@ class TestTopLevel(unittest.TestCase):
             rc = cli.main(["nope"])
         self.assertEqual(rc, 2)
         self.assertIn("未知子命令", err.getvalue())
+
+
+class TestFeatureSwitches(unittest.TestCase):
+    """被 `config.FEATURES` 关掉的命令要在帮助里标注（v1.6.1）。
+
+    否则会出现「帮助里列着、一跑却拒绝执行」的困惑；标注与各模块闸门读的是
+    同一份配置，不会两处口径打架。
+    """
+
+    def test_disabled_command_is_marked(self):
+        with mock.patch.dict(nd.FEATURES, {"new_day": False}):
+            text = cli.usage()
+            off = cli.disabled_commands()
+        self.assertIn("new-day [YYYY-MM-DD] [--force]（已关闭）", text)
+        self.assertIn("config.FEATURES", text)
+        self.assertIn("new-day", off)
+
+    def test_no_marker_when_enabled(self):
+        with mock.patch.dict(nd.FEATURES, {"new_day": True}):
+            text = cli.usage()
+            off = cli.disabled_commands()
+        self.assertNotIn("（已关闭）", text)
+        self.assertEqual(off, set())
+
+    def test_all_commands_still_routed_while_disabled(self):
+        """关闭 ≠ 摘掉路由：命令仍可调用（由它自己决定拒不拒绝）。"""
+        with mock.patch.dict(nd.FEATURES, {"new_day": False}):
+            self.assertIn("new-day", cli.ROUTES)
 
 
 class TestPassthrough(_PatchedRoute):
