@@ -35,8 +35,8 @@ alwaysApply: true
 # 解释器（本机托管 Python 3.13）
 PY="C:/Users/63516/.workbuddy/binaries/python/versions/3.13.12/python.exe"
 
-$PY -m unittest discover -s tests -t .   # 全量测试（当前 347 项，零依赖，离线可跑）
-$PY -m review_tool                       # 列出所有子命令
+$PY -m unittest discover -s tests -t .   # 全量测试（当前 400 项，零依赖，离线可跑）
+$PY -m review_tool                       # 列出所有子命令（15 个）
 $PY -m review_tool doctor                # 数据体检（库是否健康、有无该补的）
 $PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
 

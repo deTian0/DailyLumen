@@ -439,6 +439,91 @@ class TestHistoryGaps(_Fixture):
         self.assertEqual(gaps2[0]["missing"], 11)
 
 
+class TestTrackAdherenceCliff(_Fixture):
+    """近周打卡完成率相对基线骤降（建议性，不影响 is_healthy）。"""
+
+    def _seed_tracks(self, date: str, *, done: int, total: int = 7):
+        """写入 total 条打卡，前 done 条完成。"""
+        upsert(self.conn, {"date": date})
+        ym = date[:7]
+        self._md(f"复盘/{ym}/{date}.md")
+        for i in range(total):
+            upsert_personal_track(
+                self.conn,
+                date,
+                track_key=f"t{i}",
+                item_key=f"item{i}",
+                item=f"项{i}",
+                category="服药",
+                done=1 if i < done else 0,
+            )
+
+    def test_triggered_when_recent_collapses(self):
+        from datetime import date, timedelta
+        # as_of=库最新 10-12 → recent 10-06..10-12；baseline 09-08..10-05
+        for i in range(28):
+            d = (date(2026, 9, 8) + timedelta(days=i)).isoformat()
+            self._seed_tracks(d, done=6, total=7)  # ~85.7%
+        for i in range(7):
+            d = (date(2026, 10, 6) + timedelta(days=i)).isoformat()
+            self._seed_tracks(d, done=0, total=7)  # 0%
+        self.conn.commit()
+        r = self._run(today="2026-10-14")
+        cliff = r["track_adherence_cliff"]
+        self.assertIsNotNone(cliff)
+        self.assertTrue(cliff["triggered"])
+        self.assertEqual(cliff["as_of"], "2026-10-12")  # 库最新日
+        self.assertAlmostEqual(cliff["recent_rate"], 0.0, places=3)
+        self.assertGreaterEqual(cliff["delta"], 0.3)
+        self.assertTrue(doctor.is_healthy(r))
+        text = doctor.render(r, encoding="utf-8")
+        self.assertIn("[打卡依从率]", text)
+        self.assertIn("骤降", text)
+
+    def test_not_triggered_when_stable(self):
+        from datetime import date, timedelta
+        for i in range(35):
+            d = (date(2026, 9, 8) + timedelta(days=i)).isoformat()
+            self._seed_tracks(d, done=5, total=7)
+        self.conn.commit()
+        r = self._run(today="2026-10-14")
+        cliff = r["track_adherence_cliff"]
+        self.assertIsNotNone(cliff)
+        self.assertFalse(cliff["triggered"])
+        self.assertTrue(doctor.is_healthy(r))
+        text = doctor.render(r, encoding="utf-8")
+        self.assertIn("未达阈值", text)
+
+    def test_none_when_no_tracks(self):
+        upsert(self.conn, {"date": "2026-09-21"})
+        self.conn.commit()
+        self._md("复盘/2026-09/2026-09-21.md")
+        r = self._run(today="2026-09-22")
+        self.assertIsNone(r["track_adherence_cliff"])
+        text = doctor.render(r, encoding="utf-8")
+        self.assertIn("跳过骤降检测", text)
+
+    def test_helper_window_math(self):
+        from datetime import date, timedelta
+        for i in range(5):
+            d = (date(2026, 9, 1) + timedelta(days=i)).isoformat()
+            self._seed_tracks(d, done=7, total=7)
+        for i in range(3):
+            d = (date(2026, 9, 6) + timedelta(days=i)).isoformat()
+            self._seed_tracks(d, done=0, total=7)
+        self.conn.commit()
+        cliff = doctor.track_adherence_cliff(
+            self.conn, as_of="2026-09-08",
+            recent_days=3, baseline_days=5, drop=0.3,
+        )
+        self.assertEqual(cliff["recent_start"], "2026-09-06")
+        self.assertEqual(cliff["baseline_start"], "2026-09-01")
+        self.assertEqual(cliff["baseline_end"], "2026-09-05")
+        self.assertTrue(cliff["triggered"])
+        self.assertEqual(cliff["recent_rate"], 0.0)
+        self.assertEqual(cliff["baseline_rate"], 1.0)
+
+
 class TestConsoleEncoding(_Fixture):
     """非 UTF-8 stdout 不得因 ✓/⚠️ 崩溃（v1.7.1）。"""
 
@@ -488,7 +573,7 @@ class TestRender(_Fixture):
         text = doctor.render(self._run(today="2026-09-22"), encoding="utf-8")
         for token in ("DailyLumen 体检报告", "[数据库]", "[新鲜度]", "[历史断更]",
                       "[文件 <-> 数据库对账]", "[数据完整度]", "[打卡归一化]",
-                      "[运动时长来源]", "[训练日口径]", "结论:"):
+                      "[运动时长来源]", "[训练日口径]", "[打卡依从率]", "结论:"):
             self.assertIn(token, text)
 
 

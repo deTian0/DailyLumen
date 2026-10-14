@@ -16,6 +16,7 @@
 10. 分数一致性：库中四维/系统分与「按字段重算」的结果是否相符
 11. 打卡对账：库里每条打卡能否在源 md 找到对应勾选（陈旧/重复条目）
 12. 熔断检测：单维度连续低分 + 相对基线漂移
+13. 打卡依从率骤降：近 N 日完成率相对此前基线骤降（建议性，不影响 is_healthy）
 """
 from __future__ import annotations
 
@@ -23,9 +24,15 @@ import os
 import re
 import sys
 from datetime import date as _date
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from ..config import ARCHIVE_SRC_DIR, FUSE_RULES, INPUT_DIR, PROFILE
+from ..config import (
+    ARCHIVE_SRC_DIR,
+    FUSE_RULES,
+    INPUT_DIR,
+    PROFILE,
+    TRACK_ADHERENCE_ALERT,
+)
 from ..core.score import (
     compute_health_score,
     compute_learn_score,
@@ -164,6 +171,76 @@ def history_gaps(dates: list[str] | set[str]) -> list[dict]:
     return out
 
 
+def _track_rate(conn, start: str, end: str) -> tuple[float | None, int, int]:
+    """闭区间 ``[start, end]`` 内 personal_tracks 完成率。
+
+    返回 ``(rate, done_n, total_n)``；无行时 rate 为 None。
+    """
+    row = conn.execute(
+        "SELECT COALESCE(SUM(done), 0), COUNT(*) FROM personal_tracks "
+        "WHERE date BETWEEN ? AND ?",
+        (start, end),
+    ).fetchone()
+    done_n, total_n = int(row[0]), int(row[1])
+    if total_n == 0:
+        return None, 0, 0
+    return done_n / total_n, done_n, total_n
+
+
+def track_adherence_cliff(
+    conn,
+    *,
+    as_of: str,
+    recent_days: int | None = None,
+    baseline_days: int | None = None,
+    drop: float | None = None,
+) -> dict | None:
+    """近周打卡完成率相对此前基线是否骤降。
+
+    窗口对齐 ``as_of``（含当日）：近 ``recent_days`` 日 vs 再往前 ``baseline_days`` 日。
+    两侧都有打卡行、且 ``baseline_rate - recent_rate >= drop`` 时 ``triggered=True``。
+    建议性检测，不参与 ``is_healthy``。无足够数据时返回 ``None``。
+    """
+    cfg = TRACK_ADHERENCE_ALERT
+    recent_days = recent_days if recent_days is not None else cfg["recent_days"]
+    baseline_days = baseline_days if baseline_days is not None else cfg["baseline_days"]
+    drop = drop if drop is not None else cfg["drop"]
+
+    end = datetime.strptime(as_of, "%Y-%m-%d").date()
+    recent_start = end - timedelta(days=recent_days - 1)
+    baseline_end = recent_start - timedelta(days=1)
+    baseline_start = baseline_end - timedelta(days=baseline_days - 1)
+
+    recent_rate, recent_done, recent_n = _track_rate(
+        conn, recent_start.isoformat(), end.isoformat()
+    )
+    baseline_rate, baseline_done, baseline_n = _track_rate(
+        conn, baseline_start.isoformat(), baseline_end.isoformat()
+    )
+    if recent_rate is None or baseline_rate is None:
+        return None
+
+    delta = baseline_rate - recent_rate
+    return {
+        "as_of": as_of,
+        "recent_days": recent_days,
+        "baseline_days": baseline_days,
+        "drop": drop,
+        "recent_start": recent_start.isoformat(),
+        "recent_end": end.isoformat(),
+        "baseline_start": baseline_start.isoformat(),
+        "baseline_end": baseline_end.isoformat(),
+        "recent_rate": round(recent_rate, 4),
+        "baseline_rate": round(baseline_rate, 4),
+        "recent_done": recent_done,
+        "recent_n": recent_n,
+        "baseline_done": baseline_done,
+        "baseline_n": baseline_n,
+        "delta": round(delta, 4),
+        "triggered": delta >= drop,
+    }
+
+
 # 控台标记：UTF-8 可用时用符号；GBK/ascii 等降级为 ASCII，避免 UnicodeEncodeError
 _MARK_UNICODE = {
     "ok": "✓",
@@ -299,6 +376,12 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
 
         # 打卡对账：库中打卡行在源 md 找不到对应文本（陈旧/重复条目）
         result["stale_tracks"] = stale_track_rows(conn)
+
+        # 打卡依从率骤降（建议性；锚点取库最新日，避免「今天」无入库时窗口空）
+        cliff_as_of = latest or today
+        result["track_adherence_cliff"] = (
+            track_adherence_cliff(conn, as_of=cliff_as_of) if cliff_as_of else None
+        )
     finally:
         conn.close()
     return result
@@ -446,6 +529,35 @@ def render(result: dict, *, encoding: str | None = None) -> str:
     else:
         L.append(f"  {ok} 每条打卡都能在源 md 找到对应勾选")
 
+    L.append("")
+    L.append("[打卡依从率]")
+    cliff = result.get("track_adherence_cliff")
+    if not cliff:
+        L.append(f"  {ok} 近周与基线窗口尚无足够打卡行，跳过骤降检测")
+    elif cliff["triggered"]:
+        L.append(
+            f"  {warn} 近 {cliff['recent_days']} 日完成率 "
+            f"{cliff['recent_rate'] * 100:.1f}% "
+            f"（{cliff['recent_done']}/{cliff['recent_n']}）"
+            f"相对此前 {cliff['baseline_days']} 日 "
+            f"{cliff['baseline_rate'] * 100:.1f}% "
+            f"（{cliff['baseline_done']}/{cliff['baseline_n']}）"
+            f"骤降 {cliff['delta'] * 100:.1f}pp"
+            f"（阈值 ≥{cliff['drop'] * 100:.0f}pp；建议性，不影响数据健康）"
+        )
+        L.append(
+            f"     · 窗口: {cliff['recent_start']}..{cliff['recent_end']}"
+            f" vs {cliff['baseline_start']}..{cliff['baseline_end']}"
+        )
+        L.append("     · 打卡权威在源 md「一、日常打卡」；未勾选勿批量改历史")
+    else:
+        L.append(
+            f"  {ok} 近 {cliff['recent_days']} 日完成率 "
+            f"{cliff['recent_rate'] * 100:.1f}% "
+            f"相对基线 {cliff['baseline_rate'] * 100:.1f}% "
+            f"（降幅 {cliff['delta'] * 100:.1f}pp，未达阈值）"
+        )
+
     if result["inbox_files"]:
         L.append("")
         L.append(f"[收件箱] {result['inbox_files']} 个待处理素材")
@@ -494,8 +606,8 @@ def is_healthy(result: dict) -> bool:
     - ``training_day`` 与星期约定不符：可能只是临时调整训练日，属合理的个人差异；
     - 新鲜度（距上次复盘超过 1 天）：属「该补录了」的建议，CI 里历史库必然过期；
     - 历史断更（相邻入库日空洞）：属可见性提示，不代表库坏了；
-    - 分数一致性 / 打卡对账 / 熔断：手填覆盖合法、陈旧打卡由 `--prune-tracks` 处理、
-      熔断属「人生指标」告警，都不代表数据本身坏了。
+    - 分数一致性 / 打卡对账 / 熔断 / 打卡依从率骤降：手填覆盖合法、陈旧打卡由
+      ``--prune-tracks`` 处理、熔断与依从率属「人生指标」告警，都不代表数据本身坏了。
 
     真正算故障的是：库损坏、schema 版本不符、md 与库的日期集合对不上、库里一条记录都没有。
     """
