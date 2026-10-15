@@ -24,6 +24,9 @@ from __future__ import annotations
 import re
 
 from ..config import (
+    BODY_FIELD_MAP,
+    BODY_FLOAT_FIELDS,
+    BODY_TEXT_FIELDS,
     BOOL_FIELDS,
     FLOAT_FIELDS,
     INT_FIELDS,
@@ -95,6 +98,25 @@ def _coerce(col: str, raw) -> object | None:
     return raw  # text
 
 
+def _coerce_body(col: str, raw) -> object | None:
+    """体征侧车字段类型转换（独立于 daily_reviews 字段表）。"""
+    if raw is None or str(raw).strip() == "":
+        return None
+    raw = str(raw).strip()
+    if col in BODY_FLOAT_FIELDS:
+        return to_float(raw)
+    if col in BODY_TEXT_FIELDS:
+        if col == "src":
+            key = raw.lower()
+            if key in ("scale", "体脂秤", "秤"):
+                return "scale"
+            if key in ("manual", "手填", "手动"):
+                return "manual"
+            return None
+        return raw
+    return raw
+
+
 def _extract_block(text: str) -> str | None:
     """优先提取 ```data 代码块；其次 HTML 注释数据块；都没有返回 None。
 
@@ -113,15 +135,27 @@ def _extract_block(text: str) -> str | None:
 
 
 def _scan_kv(body: str, row: dict) -> None:
-    """扫描 body 中的 `key: value` 行并写入 row。"""
+    """扫描 body 中的 `key: value` 行并写入 row。
+
+    体征字段（体重_kg / 体脂率 / 腰围_cm）写入 ``row["_body_metrics"]`` 侧车，
+    **不**写入 daily_reviews 列（G3 / 一表一责）。
+    """
+    body_side: dict = {}
     for line in body.splitlines():
         mm = KV_RE.match(line.strip())
         if not mm:
             continue
         key, val = mm.group(1).strip(), mm.group(2).strip()
+        body_col = BODY_FIELD_MAP.get(key)
+        if body_col is not None:
+            if val != "":
+                body_side[body_col] = _coerce_body(body_col, val)
+            continue
         db_col = FIELD_MAP.get(key)
         if db_col and val != "":
             row[db_col] = _coerce(db_col, val)
+    if body_side:
+        row["_body_metrics"] = body_side
 
 
 def has_tracks_section(text: str) -> bool:

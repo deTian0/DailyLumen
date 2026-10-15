@@ -34,6 +34,7 @@ from ..storage.db import (
     init_db,
     prune_personal_tracks,
     upsert,
+    upsert_body_metrics,
     upsert_personal_track,
 )
 from .parse import parse_file
@@ -109,6 +110,19 @@ def ingest_path(conn, path: str, *, overwrite: bool = False,
             row["_pruned_tracks"] = stale
             print(f"  [打卡对账] {row['date']} 删除 {len(stale)} 条源 md 已无的陈旧打卡: "
                   + ", ".join(stale))
+    # 体征侧车 → body_metrics（不写 daily_reviews；独立指标区，不参与四维）
+    body = row.get("_body_metrics")
+    if body and any(body.get(k) is not None
+                    for k in ("weight_kg", "body_fat_pct", "waist_cm")):
+        payload = {
+            "date": row["date"],
+            "weight_kg": body.get("weight_kg"),
+            "body_fat_pct": body.get("body_fat_pct"),
+            "waist_cm": body.get("waist_cm"),
+            "src": body.get("src") or "manual",
+            "note": body.get("note"),
+        }
+        upsert_body_metrics(conn, payload, overwrite=overwrite)
     conn.commit()
     return row
 
