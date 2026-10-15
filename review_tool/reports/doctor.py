@@ -72,20 +72,28 @@ def habit_track_key_overlap(conn) -> list[str]:
 
 
 def habit_gap_status(conn, *, today: str) -> dict:
-    """习惯断更（建议性）。返回 ``{"as_of", "gaps", "count"}``。"""
+    """习惯断更（建议性）。返回 ``{"as_of", "gaps", "count", "empty"}``。
+
+    ⚠️ **空表 ≠ 全部断更**：``habit_logs`` 一条都没有时，``detect_gaps`` 会把每个习惯
+    的每一天都算作「未完成」→ 目录内所有习惯**全部**触发告警，读起来像「习惯全废了」，
+    而真相是「日志还没同步」。这里先短路（与 ``reports/habits.py`` 的空表处理对齐），
+    由渲染层提示同步动作。
+    """
     tables = {
         r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         )
     }
     if "habit_logs" not in tables:
-        return {"as_of": today, "gaps": [], "count": 0}
+        return {"as_of": today, "gaps": [], "count": 0, "empty": True}
     rows = [dict(r) for r in load_habit_logs(conn)]
+    if not rows:
+        return {"as_of": today, "gaps": [], "count": 0, "empty": True}
     as_of = max((r["date"] for r in rows), default=today)
     # 断更按「有日志的最近日」计更稳；若完全无日志则用 today
     check_as = as_of or today
     gaps = detect_gaps(rows, as_of=check_as, items=HABITS)
-    return {"as_of": check_as, "gaps": gaps, "count": len(gaps)}
+    return {"as_of": check_as, "gaps": gaps, "count": len(gaps), "empty": False}
 
 # 只认可「文件名主干 = 纯日期」的日复盘。历史上用 ``search`` 抓文件名里第一段日期，
 # 会把 ``周总结-W36-2026-08-31_09-06.md`` 误当成 08-31 的日复盘 —— 于是当 08-31
@@ -704,7 +712,10 @@ def render(result: dict, *, encoding: str | None = None) -> str:
     L.append("[习惯断更]")
     hg = result.get("habit_gaps") or {}
     gaps = hg.get("gaps") or []
-    if not gaps:
+    if hg.get("empty"):
+        L.append(f"  {ok} 尚无习惯日志（建议性；跑 `clickup --with-habits` "
+                 "或 `habits --sync` 同步后生效）")
+    elif not gaps:
         L.append(f"  {ok} 无触发 alert_days 的习惯断更"
                  f"（锚点 {hg.get('as_of') or '—'}；建议性）")
     else:

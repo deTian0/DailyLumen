@@ -140,6 +140,37 @@ class TestDoctorR3(unittest.TestCase):
         text = render_doctor(r)
         self.assertIn("无交集", text)
 
+    def test_empty_habit_logs_is_not_all_gaps(self):
+        """空 habit_logs ≠ 全部断更（回归 v1.19.0 的假告警）。
+
+        setUp 里只有 personal_tracks、没有 habit_logs —— 正是「日志尚未同步」的真实场景。
+        修复前 ``detect_gaps([], as_of=today)`` 会把目录内**全部**习惯判为连续未完成。
+        """
+        r = diagnose(db_path=self.db, input_dir=os.path.join(self.root, "每日复盘"),
+                     today="2026-10-15")
+        self.assertTrue(r["habit_gaps"]["empty"])
+        self.assertEqual(r["habit_gaps"]["gaps"], [])
+        self.assertEqual(r["habit_gaps"]["count"], 0)
+        self.assertTrue(is_healthy(r))
+        text = render_doctor(r)
+        self.assertIn("尚无习惯日志", text)
+        self.assertNotIn("项习惯断更", text)
+
+    # 目录内每个习惯都真的断更时，告警仍要照报（避免上面那条把告警一并关掉）
+    def test_all_gaps_still_reported_when_logs_exist(self):
+        """有日志且各项都断更 → 仍然报警（守住「不是把告警关掉」）。"""
+        upsert_habit_log(self.conn, {
+            "date": "2026-10-01", "habit_key": "reading_30",
+            "category": HABIT_CATEGORY, "item": "每日阅读 30 分钟",
+            "done": 0, "src": "clickup",
+        })
+        self.conn.commit()
+        r = diagnose(db_path=self.db, input_dir=os.path.join(self.root, "每日复盘"),
+                     today="2026-10-15")
+        self.assertFalse(r["habit_gaps"]["empty"])
+        self.assertTrue(any(g["habit_key"] == "reading_30"
+                            for g in r["habit_gaps"]["gaps"]))
+
     def test_isolation_violation(self):
         # 故意塞交集 key
         upsert_habit_log(self.conn, {
