@@ -33,7 +33,8 @@ ALLOWED = {
     "pipeline": {"core", "storage", "pipeline"},
     "reports": {"core", "storage", "pipeline", "reports"},
 }
-ROOT_LIKE = {"config", "__init__", "__main__"}
+# settings = 包根 Settings 层（M16）；与 config 同属可配置层，不做层间限制
+ROOT_LIKE = {"config", "settings", "__init__", "__main__"}
 
 # core 层禁止出现的 I/O 模块（"零 I/O"的机器可查版本）
 CORE_IO_FORBIDDEN = {"os", "os.path", "pathlib", "sqlite3", "shutil", "subprocess", "glob"}
@@ -157,6 +158,25 @@ class TestPublicApiIntact(unittest.TestCase):
 
         missing = [n for n in review_tool.__all__ if not hasattr(review_tool, n)]
         self.assertEqual(missing, [], f"公共 API 缺失: {missing}")
+
+
+class TestSettingsZeroDeps(unittest.TestCase):
+    """M16：settings.py 不得引入 pydantic / python-dotenv（零依赖硬规则）。"""
+
+    def test_settings_forbids_pydantic_and_dotenv(self):
+        path = os.path.join(PKG, "settings.py")
+        self.assertTrue(os.path.isfile(path), "settings.py 缺失")
+        with open(path, encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        tops: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for a in node.names:
+                    tops.add(a.name.split(".")[0])
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                tops.add(node.module.split(".")[0])
+        bad = tops & {"pydantic", "dotenv", "python_dotenv"}
+        self.assertEqual(bad, set(), f"settings.py 引入了禁止依赖: {sorted(bad)}")
 
 
 def _fn(path):

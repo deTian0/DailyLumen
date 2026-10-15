@@ -42,8 +42,14 @@ class TestGitignoreWhitelist(unittest.TestCase):
                 any(p.startswith(f"!.workbuddy/{private}") for p in negated),
                 f".workbuddy/{private}/ 不应被白名单放行",
             )
-        self.assertEqual(negated, ["!.workbuddy/skills/", "!.workbuddy/skills/**"],
-                         "白名单只应放行 skills/")
+        # skills 白名单 + 仓库根 .env.example（M16 模板；真实 .env 仍被忽略）
+        allowed = {
+            "!.workbuddy/skills/",
+            "!.workbuddy/skills/**",
+            "!.env.example",
+        }
+        self.assertEqual(set(negated), allowed,
+                         "白名单只应放行 skills/ 与 .env.example")
 
 
 class TestProjectSkills(unittest.TestCase):
