@@ -13,6 +13,7 @@
     python -m review_tool body       [--json]
     python -m review_tool coach      [YYYY-MM-DD] [--json]
     python -m review_tool habits     [--json] [--sync ...]
+    python -m review_tool nutrition  [YYYY-MM-DD] [--json]
     python -m review_tool fuse
     python -m review_tool sync-docs  [--check]
     python -m review_tool recompute-scores [--apply] [--db PATH]
@@ -58,6 +59,7 @@ from .reports.coach import main as coach_main
 from .reports.doctor import main as doctor_main
 from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
+from .reports.nutrition import main as nutrition_main
 from .reports.recompute import main as recompute_main
 
 
@@ -109,6 +111,7 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "body": (body_main, "body [--json]"),
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),
     "habits": (habits_main, "habits [--json] [--sync [YYYY-MM-DD] [--dry-run]]"),
+    "nutrition": (nutrition_main, "nutrition [YYYY-MM-DD] [--json]"),
     "fuse": (fuse_main, "fuse"),
     "sync-docs": (sync_docs_main, "sync-docs [--check]"),
     "recompute-scores": (

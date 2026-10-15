@@ -10,7 +10,9 @@ import unittest
 from review_tool import __version__
 from review_tool.config import (
     BODYWEIGHT_MOVES,
+    FOOD_LIB,
     HABITS,
+    NUTRITION_RULES,
     PERSONAL_ITEMS,
     PROFILE,
     SCORE_THRESHOLDS,
@@ -173,6 +175,30 @@ class TestHabitsCatalog(unittest.TestCase):
             pkeys & hkeys,
             f"HABITS key 与 PERSONAL_ITEMS key 冲突: {pkeys & hkeys}",
         )
+
+
+class TestFoodLibCatalog(unittest.TestCase):
+    """FOOD_LIB 目录守卫（M12）：结构 + key 唯一 + 宏量为非负。"""
+
+    def test_size_and_required_fields(self):
+        self.assertGreaterEqual(len(FOOD_LIB), 20)
+        self.assertLessEqual(len(FOOD_LIB), 30)
+        keys = [f["key"] for f in FOOD_LIB]
+        self.assertEqual(len(keys), len(set(keys)))
+        for f in FOOD_LIB:
+            for field in ("key", "name", "unit", "per", "kcal",
+                          "carbs", "protein", "fat", "aliases"):
+                self.assertIn(field, f, f"{f.get('key')} 缺 {field}")
+            self.assertGreater(f["per"], 0)
+            for m in ("kcal", "carbs", "protein", "fat"):
+                self.assertGreaterEqual(f[m], 0, f"{f['key']}.{m}")
+            self.assertTrue(f["aliases"])
+
+    def test_nutrition_rules_sane(self):
+        self.assertGreater(NUTRITION_RULES["extreme_kcal"], 0)
+        self.assertGreaterEqual(NUTRITION_RULES["extreme_streak_days"], 2)
+        self.assertGreaterEqual(NUTRITION_RULES["max_suggest_foods"], 1)
+        self.assertLessEqual(NUTRITION_RULES["max_suggest_foods"], 5)
 
 
 class TestTrainingMovesCatalog(unittest.TestCase):
