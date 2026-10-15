@@ -6,6 +6,7 @@
 
 - ``PROFILE``      个人作息 / 目标 / 训练日约定
 - ``PERSONAL_ITEMS`` 个人打卡项定义（补剂 / 护肤 / 自定义）——解析与归一化的单一来源
+- ``HABITS``       行为习惯目录（ClickUp「习惯与打卡」）——与 PERSONAL_ITEMS **永不合并**
 - ``SCORE_THRESHOLDS`` 四维评分阈值与权重（同时驱动「AI 评价与建议」的关注点规则）
 - ``FEATURES``     功能开关：默认关闭你用不到的子命令（当前只有 ``new_day``）
 - ``CLICKUP_LISTS`` 外部素材源（可选）：ClickUp list → 中文名 / 用途的一处定义
@@ -175,6 +176,74 @@ PERSONAL_ITEMS = [
 
 # 打卡行里出现这些词，才按「补剂」处理（去掉「补剂：」前缀后再拆项）
 SUPPLEMENT_MARKER = "补剂"
+
+
+# ---------------------------------------------------------------------------
+# 行为习惯（ClickUp「习惯与打卡」list 901422213139）
+#
+# 与 PERSONAL_ITEMS（补剂 / 护肤）是**两套体系**（R3）：
+#   · 本表 aliases 不得与 PERSONAL_ITEMS aliases 冲突（tests/test_config.py 守卫）
+#   · 落库进 habit_logs，绝不进 personal_tracks；不参与四维评分（G5）
+#   · 权威：ClickUp 执行层 → habit_logs 快照（唯一 ClickUp→库写方向）
+#
+#   key              规范 ID（habit_logs.habit_key）
+#   label            展示名
+#   aliases          ClickUp 任务名可能写法（最长优先匹配）
+#   target_per_week  周目标完成次数（报告用）
+#   alert_days       连续未完成达到此天数 → doctor 断更提示（建议性）
+# ---------------------------------------------------------------------------
+
+HABITS = [
+    {
+        "key": "reading_30",
+        "label": "每日阅读 30 分钟",
+        "aliases": ["每日阅读 30 分钟", "每日阅读30分钟", "每日阅读"],
+        "target_per_week": 7,
+        "alert_days": 3,
+    },
+    {
+        "key": "lianlian",
+        "label": "练练健身",
+        "aliases": ["练练健身", "练练"],
+        "target_per_week": 5,
+        "alert_days": 3,
+    },
+    {
+        "key": "notes_app",
+        "label": "整理随手记 app 数据",
+        "aliases": ["整理随手记app数据", "整理随手记 app 数据", "整理随手记"],
+        "target_per_week": 7,
+        "alert_days": 5,
+    },
+    {
+        "key": "daily_review",
+        "label": "每日复盘总结",
+        "aliases": ["每日复盘总结", "每日复盘"],
+        "target_per_week": 7,
+        "alert_days": 2,
+    },
+    {
+        "key": "maimemo",
+        "label": "墨墨背单词",
+        "aliases": ["墨墨背单词app", "墨墨背单词 app", "墨墨背单词", "墨墨"],
+        "target_per_week": 7,
+        "alert_days": 3,
+    },
+    {
+        "key": "good_habit",
+        "label": "寻找并调整好习惯",
+        "aliases": [
+            "寻找一些个人提升的好习惯，然后调整自己",
+            "寻找并调整好习惯",
+            "寻找一些个人提升的好习惯",
+        ],
+        "target_per_week": 3,
+        "alert_days": 7,
+    },
+]
+
+# ClickUp「习惯与打卡」list id（select_habits / habit_sync 默认源）
+HABITS_LIST_ID = "901422213139"
 
 
 # ---------------------------------------------------------------------------
@@ -398,15 +467,16 @@ TRACK_ADHERENCE_ALERT = {
 # ---------------------------------------------------------------------------
 # 外部素材源：ClickUp（可选，v1.6.0）
 #
-# ClickUp 是**行为跟踪的执行层**，只向复盘**单向供给素材**：
-#   · 只读 —— 只 GET 任务，不回写 ClickUp；**不读进 reviews.db**，不参与任何评分；
-#   · 四维分只由 SCORE_THRESHOLDS + 复盘 md 的数据块决定，ClickUp 拿不到一票；
+# ClickUp 是**行为跟踪的执行层**：
+#   · 素材通道（``clickup``）：只 GET → 收件箱 md，不参与四维评分；
+#   · 习惯快照（``habit_sync`` / ``clickup --with-habits``）：ClickUp → habit_logs
+#     —— **唯一允许的 ClickUp→库写方向**（与 ``clickup-push`` 库→ClickUp 互不干扰）；
 #   · 「习惯与打卡」的勾选**不得**写进复盘 md 的「一、日常打卡」——那一节只收
 #     补剂 / 护肤（``PERSONAL_ITEMS``），混进去会污染 personal_tracks 的依从率。
 # 映射口径、list ID 语义与日期归属（``date_closed`` 而非 ``due_date``）另见项目级
 # skill ``clickup-tracking``。
 #
-# 不用 ClickUp 的话整段不用管 —— 没有凭据就没有 `clickup` 子命令可用，
+# 不用 ClickUp 的话整段不用管 —— 没有凭据就没有 `clickup` / `habits --sync`，
 # 其余功能零影响（依旧零依赖、无网络调用）。
 # ---------------------------------------------------------------------------
 

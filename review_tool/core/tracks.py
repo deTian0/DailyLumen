@@ -19,6 +19,9 @@ key 规则
 - ``track_key`` ``item_key``，若时段明确则追加 ``@<slot>``
 
 未知写法不会被丢弃：用 slug 生成稳定的 ``other:<slug>``，同样可以聚合。
+
+``normalize_item(text, items)`` 是通用匹配（M11 起与 ``core/habits`` 共用）；
+``resolve_item`` 仍只绑 ``PERSONAL_ITEMS``，既有行为不变。
 """
 from __future__ import annotations
 
@@ -27,24 +30,31 @@ import re
 from ..config import PERSONAL_ITEMS, SLOT_BY_CN, SUPPLEMENT_MARKER
 from .util import slugify, split_items
 
-# alias -> 规范项，按 alias 长度降序（长 alias 优先，避免「Exia 早」抢走「Exia 早3」）
-_ALIAS_INDEX: list[tuple[str, dict]] = sorted(
-    ((alias, item) for item in PERSONAL_ITEMS for alias in item["aliases"]),
-    key=lambda pair: len(pair[0]),
-    reverse=True,
-)
-
 # 旧数据的时段前缀：「晨间-」「午间-」「晚间-」
 _LEGACY_SLOT_RE = re.compile(r"^\s*(晨间|午间|晚间)\s*[-－—]\s*")
 
 
-def resolve_item(fragment: str) -> dict | None:
-    """在 PERSONAL_ITEMS 中匹配文本片段；未命中返回 None。"""
-    text = str(fragment or "")
-    for alias, item in _ALIAS_INDEX:
-        if alias in text:
+def normalize_item(text: str, items: list[dict]) -> dict | None:
+    """在 ``items`` 中按 alias 最长优先匹配文本；未命中返回 None。
+
+    每项需含 ``aliases``（可迭代）与 ``key``。供 ``PERSONAL_ITEMS`` /
+    ``HABITS`` 等目录共用 —— **匹配语义与历史 ``resolve_item`` 一致**。
+    """
+    raw = str(text or "")
+    index = sorted(
+        ((alias, item) for item in items for alias in (item.get("aliases") or [])),
+        key=lambda pair: len(pair[0]),
+        reverse=True,
+    )
+    for alias, item in index:
+        if alias in raw:
             return item
     return None
+
+
+def resolve_item(fragment: str) -> dict | None:
+    """在 PERSONAL_ITEMS 中匹配文本片段；未命中返回 None。"""
+    return normalize_item(fragment, PERSONAL_ITEMS)
 
 
 def make_track_key(item_key: str, slot: str | None) -> str:

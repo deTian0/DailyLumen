@@ -6,11 +6,14 @@
     python -m review_tool clickup 2026-10-14 --stdout   # 只打印，不落文件
     python -m review_tool clickup --out DIR          # 换输出目录
     python -m review_tool clickup --list 901422213142   # 只取指定 list（可重复）
+    python -m review_tool clickup --with-habits      # 素材附习惯状态，并同步 habit_logs
 
 三条边界（改本模块前先看）
 --------------------------
-1. **只读**。只 GET ClickUp 任务：不回写 ClickUp、**不读进 reviews.db**、不参与四维评分。
+1. **素材通道默认只读**。只 GET ClickUp 任务：不回写 ClickUp、不参与四维评分。
    四维分只由 ``config.SCORE_THRESHOLDS`` + 复盘 md 的数据块决定。
+   **例外（v1.15.0）**：``--with-habits`` 会把习惯状态写入 ``habit_logs``
+   （唯一 ClickUp→库写方向；与 ``clickup-push`` 互不干扰）。
 2. **日期看 ``date_closed``**。「某天完成了什么」按**实际完成时刻**（东八区）归日，
    不看 ``due_date``（那是计划日）—— 否则「今天做完的昨天到期任务」会被算到昨天。
    唯一例外是 **「次日早上补勾」回拨**（v1.12.0，见 ``config.CLICKUP_REBATE``）：
@@ -18,8 +21,8 @@
    习惯是「当天做完、次日早上一起勾」，纯按 ``date_closed`` 会把前一天的事
    系统性记到第二天。回拨条件很窄（早上窗口 + due 恰在前 N 天内），
    不会把迁移时整批关闭的历史任务拉回来。素材里回拨过的条目会**显式标注**。
-3. **两套打卡体系不许混**。ClickUp「习惯与打卡」的勾选是**行为习惯**，与复盘 md
-   「一、日常打卡」的补剂 / 护肤（``config.PERSONAL_ITEMS``）不是一回事。
+3. **两套打卡体系不许混**。ClickUp「习惯与打卡」的勾选是**行为习惯**（→ ``habit_logs``），
+   与复盘 md「一、日常打卡」的补剂 / 护肤（``personal_tracks``）不是一回事。
    本模块产出的素材**故意不使用 ``- [x]`` 勾选语法**，从格式上杜绝被误读成打卡。
 
 产出的是一份**素材**（不是复盘成品），默认落 ``每日复盘/收件箱/``（该目录不参与
@@ -43,9 +46,12 @@ from ..config import (
     CLICKUP_MCP_PATH,
     CLICKUP_REBATE,
     CLICKUP_TZ_HOURS,
+    HABITS,
+    HABITS_LIST_ID,
     INBOX_DIR,
     WEEKDAY_CN,
 )
+from ..core.habits import resolve_habit
 
 API_BASE = "https://api.clickup.com/api/v2"
 
@@ -266,6 +272,42 @@ def select_cross_day_open(tasks: list[dict], day: str, *, tz_hours: int | None =
     return sorted(hit, key=lambda t: int(t.get("date_created") or 0))
 
 
+def _task_is_closed(t: dict) -> bool:
+    """任务是否已关闭（含 date_closed / status.type / status 名）。"""
+    if t.get("date_closed"):
+        return True
+    st = t.get("status")
+    if isinstance(st, dict):
+        if (st.get("type") or "").strip().lower() == "closed":
+            return True
+        if (st.get("status") or "").strip().lower() == "complete":
+            return True
+    return False
+
+
+def select_habits(tasks: list[dict], *, items: list[dict] | None = None) -> list[dict]:
+    """从任务列表筛出 ``HABITS`` 能归一化到的项，**含未完成**。
+
+    返回 ``[{habit_key, label, name, done, status, task}, ...]``，
+    按 habit_key 排序。同一 key 多条任务都保留（调用方按日归并）。
+    """
+    catalog = items if items is not None else HABITS
+    out: list[dict] = []
+    for t in tasks:
+        spec = resolve_habit(_name(t), items=catalog)
+        if spec is None:
+            continue
+        out.append({
+            "habit_key": spec["key"],
+            "label": spec["label"],
+            "name": _name(t),
+            "done": _task_is_closed(t),
+            "status": _status(t),
+            "task": t,
+        })
+    return sorted(out, key=lambda h: (h["habit_key"], h["name"]))
+
+
 def collect(day: str, list_ids=None, *, key: str = "", fetch=None,
             meta: dict | None = None, timeout: int = 60) -> list[dict]:
     """按 list 汇总某天的素材。
@@ -330,7 +372,7 @@ def render(day: str, groups: list[dict], *, generated_at: str | None = None,
     lines += [
         "> ⚠️ **这是素材，不是复盘成品** —— 由 `python -m review_tool clickup` 自动生成。",
         "> ClickUp 是行为跟踪的**执行层**，只提供「今天干了什么」的证据："
-        "**不参与四维评分、不落库**。",
+        "**不参与四维评分**。习惯依从率另走 `habit_logs`（`--with-habits` / `habits --sync`）。",
         "> ⛔ 「习惯与打卡」的勾选属**行为习惯**，**不得**写进复盘 md 的「一、日常打卡」"
         "（那一节只收补剂 / 护肤，混进去会污染 `personal_tracks` 依从率）。",
         "> 归日口径：按 `date_closed`（实际完成时刻，东八区）归日；"
@@ -418,19 +460,45 @@ def render(day: str, groups: list[dict], *, generated_at: str | None = None,
     return "\n".join(lines)
 
 
+def render_habits_section(habits: list[dict], day: str) -> str:
+    """渲染「行为习惯」段（含未完成）；不使用 ``- [x]`` 勾选语法。"""
+    lines = [
+        "## 行为习惯（habit_logs 候选）",
+        "",
+        f"> 目标日 **{day}** · 含未完成 · 与补剂/护肤打卡分栏（R3）。",
+        "",
+    ]
+    if not habits:
+        lines += ["> （无匹配到 config.HABITS 的任务）", ""]
+        return "\n".join(lines)
+    lines += ["| habit_key | 展示名 | 任务名 | 状态 |",
+              "|-----------|--------|--------|------|"]
+    for h in habits:
+        st = "已完成" if h["done"] else (h["status"] or "未完成")
+        lines.append(
+            f"| {h['habit_key']} | {h['label']} | {h['name']} | {st} |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
 # ----------------------------------------------------------------------- CLI
-USAGE = "clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID]..."
+USAGE = ("clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID]... "
+         "[--with-habits]")
 
 
-def _parse(argv: list[str]) -> tuple[str, str, bool, list[str]]:
-    """返回 ``(day, out_dir, to_stdout, list_ids)``；非法参数抛 ValueError。"""
+def _parse(argv: list[str]) -> tuple[str, str, bool, list[str], bool]:
+    """返回 ``(day, out_dir, to_stdout, list_ids, with_habits)``；非法参数抛 ValueError。"""
     day, out_dir, to_stdout = "", INBOX_DIR, False
     list_ids: list[str] = []
+    with_habits = False
     i = 0
     while i < len(argv):
         a = argv[i]
         if a == "--stdout":
             to_stdout = True
+        elif a == "--with-habits":
+            with_habits = True
         elif a == "--out" or a.startswith("--out="):
             if a.startswith("--out="):
                 out_dir = a.split("=", 1)[1]
@@ -463,7 +531,7 @@ def _parse(argv: list[str]) -> tuple[str, str, bool, list[str]]:
             raise ValueError(f"日期格式应为 YYYY-MM-DD，收到: {day}") from None
     else:
         day = datetime.date.today().isoformat()
-    return day, out_dir, to_stdout, list_ids
+    return day, out_dir, to_stdout, list_ids, with_habits
 
 
 def main(argv: list[str] | None = None, *, fetch=None, env=None, now=None) -> int:
@@ -475,7 +543,7 @@ def main(argv: list[str] | None = None, *, fetch=None, env=None, now=None) -> in
         return 0
 
     try:
-        day, out_dir, to_stdout, list_ids = _parse(argv)
+        day, out_dir, to_stdout, list_ids, with_habits = _parse(argv)
     except ValueError as e:
         print(f"参数错误: {e}", file=sys.stderr)
         print(f"用法: python -m review_tool {USAGE}", file=sys.stderr)
@@ -489,6 +557,11 @@ def main(argv: list[str] | None = None, *, fetch=None, env=None, now=None) -> in
 
     try:
         groups = collect(day, list_ids or None, key=key, fetch=fetch)
+        habit_tasks: list[dict] = []
+        habits_view: list[dict] = []
+        if with_habits:
+            habit_tasks = fetch_tasks(HABITS_LIST_ID, key, fetch=fetch)
+            habits_view = select_habits(habit_tasks)
     except urllib.error.HTTPError as e:
         code = getattr(e, "code", "?")
         hint = "（401/403 = token 失效或权限不足）" if str(code) in ("401", "403") else ""
@@ -500,6 +573,19 @@ def main(argv: list[str] | None = None, *, fetch=None, env=None, now=None) -> in
 
     stamp = now() if callable(now) else datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     text = render(day, groups, generated_at=stamp, workspace=team)
+    if with_habits:
+        text = text.rstrip() + "\n\n" + render_habits_section(habits_view, day)
+        # 延迟导入，避免 clickup ↔ habit_sync 循环
+        from ..config import DB_PATH
+        from ..storage.db import init_db
+        from .habit_sync import sync_habits
+        conn = init_db(DB_PATH)
+        try:
+            summary = sync_habits(conn, day, tasks=habit_tasks)
+            print(f"habit_logs 已同步 {day}："
+                  f"匹配 {summary['matched']} 项 / 写入 {summary['written']} 行")
+        finally:
+            conn.close()
 
     total = sum(len(g["done"]) for g in groups)
     if to_stdout:

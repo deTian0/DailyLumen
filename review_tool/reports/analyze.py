@@ -34,7 +34,7 @@ from datetime import datetime
 
 from ..config import DIMENSIONS, GENERATED_DIR
 from ..core.util import minutes_to_clock
-from ..storage.db import COLUMNS, init_db, load_training
+from ..storage.db import COLUMNS, init_db, load_habit_logs, load_training
 from .streak import render_streaks, summarize_streaks
 
 DIM_LABEL = {
@@ -286,6 +286,70 @@ def track_adherence(conn, where: str, params: tuple) -> dict:
     return {"items": items, "categories": categories, "by_week": by_week}
 
 
+def habit_adherence(conn, where: str, params: tuple) -> dict:
+    """周期内行为习惯依从率（按 ``habit_key`` 聚合）。
+
+    与 ``track_adherence``（补剂/护肤）**分栏不混**（R3）。
+    完成率 = done 次数 / 有记录次数；不参与四维（G5）。
+    """
+    dates = [
+        r[0] for r in conn.execute(
+            f"SELECT date FROM daily_reviews WHERE {where} ORDER BY date",
+            params,
+        )
+    ]
+    if not dates:
+        return {"items": [], "by_week": []}
+    rows = load_habit_logs(conn, start=dates[0], end=dates[-1])
+    date_set = set(dates)
+    # 仅计入本周期有复盘日的习惯行
+    filtered = [r for r in rows if r["date"] in date_set]
+
+    acc: dict[str, dict] = {}
+    for r in filtered:
+        key = r["habit_key"]
+        b = acc.setdefault(key, {
+            "habit_key": key, "item": r["item"], "recorded": 0, "done": 0,
+        })
+        b["recorded"] += 1
+        if int(r["done"] or 0) == 1:
+            b["done"] += 1
+        if r["item"]:
+            b["item"] = r["item"]
+
+    items = []
+    for key in sorted(acc):
+        b = acc[key]
+        rate = round(b["done"] / b["recorded"], 4) if b["recorded"] else None
+        items.append({**b, "adherence": rate})
+
+    # 按 ISO 周总体依从率
+    week_of = {
+        r[0]: r[1] for r in conn.execute(
+            f"SELECT date, iso_week FROM daily_reviews WHERE {where}", params
+        )
+    }
+    week_acc: dict[int, dict] = {}
+    for r in filtered:
+        wk = week_of.get(r["date"])
+        if wk is None:
+            continue
+        b = week_acc.setdefault(wk, {"recorded": 0, "done": 0})
+        b["recorded"] += 1
+        if int(r["done"] or 0) == 1:
+            b["done"] += 1
+    by_week = []
+    for wk in sorted(week_acc):
+        b = week_acc[wk]
+        by_week.append({
+            "iso_week": wk,
+            "recorded": b["recorded"],
+            "done": b["done"],
+            "adherence": round(b["done"] / b["recorded"], 4) if b["recorded"] else None,
+        })
+    return {"items": items, "by_week": by_week}
+
+
 def _track_adherence_lines(adh: dict | None) -> list[str]:
     """渲染「个人打卡依从率」段落；无数据时给一行说明。"""
     L: list[str] = []
@@ -307,6 +371,26 @@ def _track_adherence_lines(adh: dict | None) -> list[str]:
                 f"  · {c['category']}",
                 f"{_pct(c['adherence'])}（{c['done']}/{c['recorded']}）",
             ))
+    weeks = adh.get("by_week") or []
+    if len(weeks) >= 2:
+        bits = [f"W{w['iso_week']} {_pct(w['adherence'])}" for w in weeks]
+        L.append(_line("周趋势", " → ".join(bits)))
+    return L
+
+
+def _habit_adherence_lines(adh: dict | None) -> list[str]:
+    """渲染「行为习惯依从率」段落（与补剂分栏）。"""
+    L: list[str] = []
+    L.append("")
+    L.append("  ---- 行为习惯依从率（不计入四维评分 · 与补剂分栏）----")
+    if not adh or not adh.get("items"):
+        L.append(_line("习惯", "本周期无 habit_logs 记录"))
+        return L
+    for it in adh["items"]:
+        L.append(_line(
+            it["habit_key"],
+            f"{_pct(it['adherence'])}（{it['done']}/{it['recorded']}）· {it['item']}",
+        ))
     weeks = adh.get("by_week") or []
     if len(weeks) >= 2:
         bits = [f"W{w['iso_week']} {_pct(w['adherence'])}" for w in weeks]
@@ -382,6 +466,7 @@ def collect(conn, where: str, params: tuple, title: str) -> dict | None:
         },
         "worst_dim": {"name": worst[0], "value": worst[1]},
         "track_adherence": track_adherence(conn, where, params),
+        "habit_adherence": habit_adherence(conn, where, params),
         "streaks": _streaks_for_scope(conn, where, params),
         "training_structure": training_structure(conn, where, params),
     }
@@ -489,6 +574,7 @@ def render_summary(s: dict) -> str:
                    f"{s['completeness']['rate_pct']}%（核心字段缺失: {detail}）"))
     L.append(f"  >> 最差维度: {s['worst_dim']['name']} ({s['worst_dim']['value']})")
     L.extend(_track_adherence_lines(s.get("track_adherence")))
+    L.extend(_habit_adherence_lines(s.get("habit_adherence")))
     L.extend(_training_structure_lines(s.get("training_structure")))
     if s.get("streaks"):
         L.append(render_streaks(s["streaks"]))
@@ -731,8 +817,22 @@ def render_week_md(conn, iso_week: int) -> str | None:
                 f"{it['done']}/{it['recorded']} | {it['item']} |"
             )
 
+    hadh = s.get("habit_adherence") or {}
+    hitems = hadh.get("items") or []
+    L += ["", "## 四、行为习惯依从率（不计入四维评分 · 与补剂分栏）", ""]
+    if not hitems:
+        L.append("> 本周无 `habit_logs` 记录。")
+    else:
+        L += ["| habit_key | 完成率 | 次数 | 展示名 |",
+              "|-----------|--------|------|--------|"]
+        for it in hitems:
+            L.append(
+                f"| {it['habit_key']} | {_pct(it['adherence'])} | "
+                f"{it['done']}/{it['recorded']} | {it['item']} |"
+            )
+
     ts = s.get("training_structure") or {}
-    L += ["", "## 四、训练结构（不计入四维评分）", ""]
+    L += ["", "## 五、训练结构（不计入四维评分）", ""]
     if not ts.get("sessions"):
         L.append("> 本周无 `training_sessions` 记录。")
     else:
@@ -753,7 +853,7 @@ def render_week_md(conn, iso_week: int) -> str | None:
 
     L += [
         "",
-        "## 五、自动生成说明",
+        "## 六、自动生成说明",
         "",
         "> 本文件由 CLI `--write` 落盘。关键发现 / 与上周对比 / 行动清单等叙事段"
         "请人工补写，或继续沿用既有手写周总结（默认**不**用本渲染器回填历史件）。",
@@ -861,9 +961,29 @@ def render_month_md(conn, month: int) -> str | None:
             bits = " → ".join(f"W{w['iso_week']} {_pct(w['adherence'])}" for w in weeks)
             L += ["", f"> 周趋势：{bits}"]
 
+    hadh = s.get("habit_adherence") or {}
+    hitems = hadh.get("items") or []
+    L += ["", "## 四、行为习惯依从率（不计入四维评分 · 与补剂分栏）", ""]
+    if not hitems:
+        L.append("> 本月无 `habit_logs` 记录。")
+    else:
+        L += ["| habit_key | 完成率 | 次数 |",
+              "|-----------|--------|------|"]
+        for it in hitems:
+            L.append(
+                f"| {it['habit_key']} | {_pct(it['adherence'])} | "
+                f"{it['done']}/{it['recorded']} |"
+            )
+        hweeks = hadh.get("by_week") or []
+        if len(hweeks) >= 2:
+            bits = " → ".join(
+                f"W{w['iso_week']} {_pct(w['adherence'])}" for w in hweeks
+            )
+            L += ["", f"> 周趋势：{bits}"]
+
     L += [
         "",
-        "## 四、自动生成说明",
+        "## 五、自动生成说明",
         "",
         "> 本文件由 CLI `--write` 落盘。上下半月 / 工作日周末 / 熔断诊断等叙事段"
         "请人工补写（默认**不**回填既有手写月总结）。",

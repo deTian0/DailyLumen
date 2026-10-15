@@ -112,10 +112,12 @@ class TestMigrationV6(unittest.TestCase):
 
         summary = migrate(conn)
         conn.commit()
-        self.assertEqual(summary["version_after"], 6)
-        self.assertEqual(SCHEMA_VERSION, 6)
+        self.assertEqual(summary["version_after"], SCHEMA_VERSION)
+        self.assertGreaterEqual(SCHEMA_VERSION, 6)
         self.assertTrue(summary.get("training_created"))
-        self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 6)
+        self.assertEqual(
+            conn.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+        )
 
         tables = {
             r[0] for r in conn.execute(
@@ -162,15 +164,19 @@ class TestMigrationV6(unittest.TestCase):
         s2 = migrate(conn)
         conn.commit()
         self.assertFalse(s2.get("training_created"))
-        self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 6)
+        self.assertEqual(
+            conn.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+        )
         n = conn.execute("SELECT COUNT(*) FROM training_sessions").fetchone()[0]
         self.assertEqual(n, 0)
         conn.close()
 
-    def test_init_db_on_fresh_is_v6(self):
+    def test_init_db_on_fresh_has_training_tables(self):
         path = os.path.join(self.root, "fresh.db")
         conn = init_db(db_path=path)
-        self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 6)
+        self.assertEqual(
+            conn.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+        )
         sess_cols = [r[1] for r in conn.execute("PRAGMA table_info(training_sessions)")]
         self.assertEqual(
             sess_cols,

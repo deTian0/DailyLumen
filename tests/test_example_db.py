@@ -66,6 +66,8 @@ class TestExampleDb(unittest.TestCase):
             self.conn.execute("SELECT COUNT(*) FROM training_sessions").fetchone()[0], 0)
         self.assertEqual(
             self.conn.execute("SELECT COUNT(*) FROM training_items").fetchone()[0], 0)
+        self.assertEqual(
+            self.conn.execute("SELECT COUNT(*) FROM habit_logs").fetchone()[0], 0)
 
     def test_body_metrics_table_present(self):
         """v5：空模板必须带 body_metrics（含 CHECK）。"""
@@ -95,6 +97,14 @@ class TestExampleDb(unittest.TestCase):
         ddl = _ddl(self.conn, "training_sessions")
         self.assertIn("'lianlian'", ddl)
         self.assertIn("'self'", ddl)
+
+    def test_habit_logs_table_present(self):
+        """v7：空模板必须带 habit_logs。"""
+        cols = [r[1] for r in self.conn.execute("PRAGMA table_info(habit_logs)")]
+        self.assertEqual(
+            cols,
+            ["date", "habit_key", "category", "item", "done", "src", "note"],
+        )
 
     def test_integrity_ok(self):
         self.assertEqual(

@@ -18,6 +18,8 @@
 12. 熔断检测：单维度连续低分 + 相对基线漂移
 13. 打卡依从率骤降：近 N 日完成率相对此前基线骤降（建议性，不影响 is_healthy）
 14. 体征：最新体征距今 / 体重单周突变 > 1.5kg（建议性，不影响 is_healthy）
+15. R3 隔离：habit_logs.habit_key ∩ personal_tracks.item_key 不得有交集（影响 is_healthy）
+16. 习惯断更：连续未完成 ≥ alert_days（建议性，不影响 is_healthy）
 """
 from __future__ import annotations
 
@@ -30,10 +32,12 @@ from datetime import datetime, timedelta
 from ..config import (
     ARCHIVE_SRC_DIR,
     FUSE_RULES,
+    HABITS,
     INPUT_DIR,
     PROFILE,
     TRACK_ADHERENCE_ALERT,
 )
+from ..core.habits import detect_gaps, key_overlap
 from ..core.score import (
     compute_health_score,
     compute_learn_score,
@@ -41,12 +45,47 @@ from ..core.score import (
     compute_work_score,
     system_score_from,
 )
-from ..storage.db import SCHEMA_VERSION, init_db, load_body_metrics
+from ..storage.db import SCHEMA_VERSION, init_db, load_body_metrics, load_habit_logs
 from .analyze import completeness
 from .fuse import find_fuses
 
 # 体征：单周体重突变阈值（kg）；建议性提示，不参与 is_healthy
 _BODY_WEEKLY_SPIKE_KG = 1.5
+
+
+def habit_track_key_overlap(conn) -> list[str]:
+    """R3：库内 habit_key ∩ item_key 交集（有序）；空 = 隔离完好。"""
+    tables = {
+        r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )
+    }
+    if "habit_logs" not in tables or "personal_tracks" not in tables:
+        return []
+    hkeys = {
+        r[0] for r in conn.execute("SELECT DISTINCT habit_key FROM habit_logs")
+    }
+    tkeys = {
+        r[0] for r in conn.execute("SELECT DISTINCT item_key FROM personal_tracks")
+    }
+    return key_overlap(hkeys, tkeys)
+
+
+def habit_gap_status(conn, *, today: str) -> dict:
+    """习惯断更（建议性）。返回 ``{"as_of", "gaps", "count"}``。"""
+    tables = {
+        r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )
+    }
+    if "habit_logs" not in tables:
+        return {"as_of": today, "gaps": [], "count": 0}
+    rows = [dict(r) for r in load_habit_logs(conn)]
+    as_of = max((r["date"] for r in rows), default=today)
+    # 断更按「有日志的最近日」计更稳；若完全无日志则用 today
+    check_as = as_of or today
+    gaps = detect_gaps(rows, as_of=check_as, items=HABITS)
+    return {"as_of": check_as, "gaps": gaps, "count": len(gaps)}
 
 # 只认可「文件名主干 = 纯日期」的日复盘。历史上用 ``search`` 抓文件名里第一段日期，
 # 会把 ``周总结-W36-2026-08-31_09-06.md`` 误当成 08-31 的日复盘 —— 于是当 08-31
@@ -440,6 +479,12 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
 
         # 体征（建议性：最新距今 / 单周突变；不影响 is_healthy）
         result["body"] = body_status(conn, today=today)
+
+        # R3：habit_logs ↔ personal_tracks key 隔离（交集非空 → 不健康）
+        result["habit_track_overlap"] = habit_track_key_overlap(conn)
+
+        # 习惯断更（建议性；不影响 is_healthy）
+        result["habit_gaps"] = habit_gap_status(conn, today=today)
     finally:
         conn.close()
     return result
@@ -643,6 +688,38 @@ def render(result: dict, *, encoding: str | None = None) -> str:
             if len(spikes) > 5:
                 L.append(f"    … 其余 {len(spikes) - 5} 处省略")
 
+    L.append("")
+    L.append("[习惯隔离 R3]")
+    overlap = result.get("habit_track_overlap") or []
+    if overlap:
+        L.append(
+            f"  {crit} habit_key ∩ item_key 有交集（禁止合并）: "
+            + "、".join(overlap)
+        )
+        L.append("     → 检查 config.HABITS / PERSONAL_ITEMS，清理误写入的行")
+    else:
+        L.append(f"  {ok} habit_logs 与 personal_tracks 的 key 无交集")
+
+    L.append("")
+    L.append("[习惯断更]")
+    hg = result.get("habit_gaps") or {}
+    gaps = hg.get("gaps") or []
+    if not gaps:
+        L.append(f"  {ok} 无触发 alert_days 的习惯断更"
+                 f"（锚点 {hg.get('as_of') or '—'}；建议性）")
+    else:
+        L.append(
+            f"  {warn} {len(gaps)} 项习惯断更"
+            f"（锚点 {hg.get('as_of')}；建议性，不影响数据健康）:"
+        )
+        for g in gaps[:6]:
+            L.append(
+                f"    - {g['habit_key']}（{g.get('label', '')}）"
+                f"连续 {g['gap_days']} 天未完成（阈值 {g['alert_days']}）"
+            )
+        if len(gaps) > 6:
+            L.append(f"    … 其余 {len(gaps) - 6} 项省略")
+
     if result["inbox_files"]:
         L.append("")
         L.append(f"[收件箱] {result['inbox_files']} 个待处理素材")
@@ -691,10 +768,12 @@ def is_healthy(result: dict) -> bool:
     - ``training_day`` 与星期约定不符：可能只是临时调整训练日，属合理的个人差异；
     - 新鲜度（距上次复盘超过 1 天）：属「该补录了」的建议，CI 里历史库必然过期；
     - 历史断更（相邻入库日空洞）：属可见性提示，不代表库坏了；
-    - 分数一致性 / 打卡对账 / 熔断 / 打卡依从率骤降 / 体征：手填覆盖合法、陈旧打卡由
-      ``--prune-tracks`` 处理、熔断与依从率与体征属「人生指标」告警，都不代表数据本身坏了。
+    - 分数一致性 / 打卡对账 / 熔断 / 打卡依从率骤降 / 体征 / 习惯断更：手填覆盖合法、
+      陈旧打卡由 ``--prune-tracks`` 处理、熔断与依从率与体征与习惯断更属「人生指标」
+      告警，都不代表数据本身坏了。
 
-    真正算故障的是：库损坏、schema 版本不符、md 与库的日期集合对不上、库里一条记录都没有。
+    真正算故障的是：库损坏、schema 版本不符、md 与库的日期集合对不上、库里一条记录
+    都没有、``habit_logs`` 与 ``personal_tracks`` 的 key 交叉（R3）。
     """
     return (
         result["integrity"] == "ok"
@@ -702,6 +781,7 @@ def is_healthy(result: dict) -> bool:
         and result["rows"] > 0
         and not result["not_ingested"]
         and not result["orphan_in_db"]
+        and not (result.get("habit_track_overlap") or [])
     )
 
 
