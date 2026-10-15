@@ -205,12 +205,127 @@ BODYWEIGHT_MOVES = {
         "set_rest_sec": 60,   # 组间休息 60 秒
         "default_reps": 20,   # 只提到动作、没写数量时：按 1 组 × 20 次估
     },
+    "深蹲": {
+        "aliases": ["深蹲", "徒手深蹲", "自重深蹲", "squat"],
+        "per_minute": 15,
+        "set_rest_sec": 60,
+        "default_reps": 15,
+    },
+    "卷腹": {
+        "aliases": ["卷腹", "仰卧起坐", "crunch"],
+        "per_minute": 25,
+        "set_rest_sec": 45,
+        "default_reps": 20,
+    },
+    "平板支撑": {
+        "aliases": ["平板支撑", "平板", "plank"],
+        "per_minute": 1,      # 按秒计时为主；次数折算兜底
+        "set_rest_sec": 30,
+        "default_reps": 60,
+    },
+    "波比跳": {
+        "aliases": ["波比跳", "波比", "burpee", "burpees"],
+        "per_minute": 10,
+        "set_rest_sec": 60,
+        "default_reps": 10,
+    },
 }
 
 BODYWEIGHT_RULES = {
     "min_session_min": 10,  # 单日下限（= 训练日「尚可」阈值，防止如实记录反倒扣分）
     "max_session_min": 45,  # 单日上限（防离谱外推）
     "max_reps": 1000,       # 单日次数合理性上限，超出视为误写并回退到 default_reps
+}
+
+
+# ---------------------------------------------------------------------------
+# 训练动作目录 / 课表 / 教练规则（M10）
+#
+# TRAINING_MOVES = 动作目录（结构 / 部位 / 可选折算参数）
+# BODYWEIGHT_MOVES = 徒手折算参数（「三件事」描述 → 分钟）
+# 约束：BODYWEIGHT_MOVES 的每个 key 必须在 TRAINING_MOVES 里；两者 alias 不得互抢。
+# ---------------------------------------------------------------------------
+
+TRAINING_MOVES = {
+    "俯卧撑": {
+        "aliases": ["俯卧撑", "掌上压", "push-up", "pushup", "push up"],
+        "body_part": "胸",
+        "per_minute": 20,
+        "set_rest_sec": 60,
+        "default_reps": 20,
+    },
+    "深蹲": {
+        "aliases": ["深蹲", "徒手深蹲", "自重深蹲", "squat"],
+        "body_part": "腿",
+        "per_minute": 15,
+        "set_rest_sec": 60,
+        "default_reps": 15,
+    },
+    "卷腹": {
+        "aliases": ["卷腹", "仰卧起坐", "crunch"],
+        "body_part": "核心",
+        "per_minute": 25,
+        "set_rest_sec": 45,
+        "default_reps": 20,
+    },
+    "平板支撑": {
+        "aliases": ["平板支撑", "平板", "plank"],
+        "body_part": "核心",
+        "per_minute": 1,
+        "set_rest_sec": 30,
+        "default_reps": 60,
+    },
+    "波比跳": {
+        "aliases": ["波比跳", "波比", "burpee", "burpees"],
+        "body_part": "全身",
+        "per_minute": 10,
+        "set_rest_sec": 60,
+        "default_reps": 10,
+    },
+    "卧推": {
+        "aliases": ["卧推", "杠铃卧推", "哑铃卧推", "bench"],
+        "body_part": "胸",
+        "default_set_min": 2.5,
+    },
+    "划船": {
+        "aliases": ["划船", "杠铃划船", "哑铃划船", "row"],
+        "body_part": "背",
+        "default_set_min": 2.5,
+    },
+    "硬拉": {
+        "aliases": ["硬拉", "罗马尼亚硬拉", "deadlift"],
+        "body_part": "腿",
+        "default_set_min": 3.0,
+    },
+    "肩推": {
+        "aliases": ["肩推", "推举", "哑铃肩推", "overhead press"],
+        "body_part": "肩",
+        "default_set_min": 2.0,
+    },
+    "跑步": {
+        "aliases": ["跑步", "慢跑", "有氧跑", "run", "running"],
+        "body_part": "有氧",
+    },
+    "引体向上": {
+        "aliases": ["引体向上", "引体", "pull-up", "pullup"],
+        "body_part": "背",
+        "per_minute": 8,
+        "set_rest_sec": 90,
+        "default_reps": 5,
+    },
+}
+
+# 可选课表：weekday(0=周一) → 计划名。空 dict = 用 training_weekdays 计数作计划课次。
+TRAINING_PLAN: dict[int, str] = {}
+
+COACH_RULES = {
+    "min_ratio": 0.8,              # 完成课次 / 计划课次 ≥ 此值才建议加量
+    "max_consecutive_days": 3,     # 连续训练天数上限，达线强制建议恢复
+    "progression_cv": 0.10,        # 近 N 次体积变异系数 ≤ 此值视为「稳定」
+    "add_sets": 1,
+    "add_reps": 2,
+    "body_part_gap_hours": 48,     # 同一部位主项最短间隔
+    "progression_lookback": 3,     # 渐进看近几次
 }
 
 

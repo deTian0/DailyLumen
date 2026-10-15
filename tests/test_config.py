@@ -9,14 +9,17 @@ import unittest
 
 from review_tool import __version__
 from review_tool.config import (
+    BODYWEIGHT_MOVES,
     PERSONAL_ITEMS,
     PROFILE,
     SCORE_THRESHOLDS,
     SLOT_BY_CN,
     SLOT_CN,
+    TRAINING_MOVES,
     WEEKDAY_CN,
 )
 from review_tool.core.tracks import resolve_item
+from review_tool.core.training import resolve_move
 
 
 class TestScoreThresholds(unittest.TestCase):
@@ -126,6 +129,37 @@ class TestPersonalItems(unittest.TestCase):
             self.assertEqual(SLOT_BY_CN[cn], key)
 
 
+class TestTrainingMovesCatalog(unittest.TestCase):
+    """TRAINING_MOVES ↔ BODYWEIGHT_MOVES 守卫（M10）。"""
+
+    def test_bodyweight_keys_subset_of_training(self):
+        missing = set(BODYWEIGHT_MOVES) - set(TRAINING_MOVES)
+        self.assertFalse(
+            missing,
+            f"BODYWEIGHT_MOVES key 必须在 TRAINING_MOVES 里: {missing}",
+        )
+
+    def test_training_aliases_no_cross_grab(self):
+        """每个 TRAINING_MOVES alias 必须解析回所属 key（不得互抢）。"""
+        for key, spec in TRAINING_MOVES.items():
+            for alias in spec.get("aliases") or [key]:
+                got_key, _, _ = resolve_move(alias)
+                self.assertEqual(
+                    got_key, key,
+                    f"alias {alias!r} 被 {got_key!r} 抢走（期望 {key!r}）",
+                )
+
+    def test_bodyweight_aliases_resolve_same_owner(self):
+        """BODYWEIGHT alias 经 TRAINING 解析仍归同一动作名。"""
+        for key, spec in BODYWEIGHT_MOVES.items():
+            for alias in spec.get("aliases") or [key]:
+                got_key, _, _ = resolve_move(alias)
+                self.assertEqual(
+                    got_key, key,
+                    f"BODYWEIGHT alias {alias!r} → {got_key!r}，期望 {key!r}",
+                )
+
+
 class TestVersionConsistency(unittest.TestCase):
     """pyproject 与包内 __version__ 必须一致，否则发布版本会撒谎。"""
 
@@ -143,3 +177,4 @@ class TestVersionConsistency(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

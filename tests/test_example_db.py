@@ -62,6 +62,10 @@ class TestExampleDb(unittest.TestCase):
             self.conn.execute("SELECT COUNT(*) FROM personal_tracks").fetchone()[0], 0)
         self.assertEqual(
             self.conn.execute("SELECT COUNT(*) FROM body_metrics").fetchone()[0], 0)
+        self.assertEqual(
+            self.conn.execute("SELECT COUNT(*) FROM training_sessions").fetchone()[0], 0)
+        self.assertEqual(
+            self.conn.execute("SELECT COUNT(*) FROM training_items").fetchone()[0], 0)
 
     def test_body_metrics_table_present(self):
         """v5：空模板必须带 body_metrics（含 CHECK）。"""
@@ -74,6 +78,23 @@ class TestExampleDb(unittest.TestCase):
         self.assertIn("weight_kg", ddl)
         self.assertIn("'scale'", ddl)
         self.assertIn("'manual'", ddl)
+
+    def test_training_tables_present(self):
+        """v6：空模板必须带 training_sessions / training_items。"""
+        sess = [r[1] for r in self.conn.execute("PRAGMA table_info(training_sessions)")]
+        self.assertEqual(
+            sess,
+            ["date", "session_key", "plan_name", "src", "total_min", "note"],
+        )
+        items = [r[1] for r in self.conn.execute("PRAGMA table_info(training_items)")]
+        self.assertEqual(
+            items,
+            ["date", "session_key", "item_key", "item", "sets", "reps",
+             "minutes", "load_kg"],
+        )
+        ddl = _ddl(self.conn, "training_sessions")
+        self.assertIn("'lianlian'", ddl)
+        self.assertIn("'self'", ddl)
 
     def test_integrity_ok(self):
         self.assertEqual(

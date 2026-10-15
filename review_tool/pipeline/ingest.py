@@ -36,6 +36,7 @@ from ..storage.db import (
     upsert,
     upsert_body_metrics,
     upsert_personal_track,
+    upsert_training,
 )
 from .parse import parse_file
 
@@ -123,6 +124,21 @@ def ingest_path(conn, path: str, *, overwrite: bool = False,
             "note": body.get("note"),
         }
         upsert_body_metrics(conn, payload, overwrite=overwrite)
+    # 训练明细 → training_sessions / training_items（独立指标区；R2：
+    # exercise_min 派生已在 parse 完成，此处只落两表）
+    training = row.get("_training")
+    if training is not None:
+        session = {
+            "date": row["date"],
+            "session_key": training.get("session_key") or "main",
+            "plan_name": training.get("plan_name"),
+            "src": training.get("src"),
+            "total_min": training.get("total_min"),
+            "note": training.get("note"),
+        }
+        upsert_training(
+            conn, session, training.get("items") or [], overwrite=overwrite
+        )
     conn.commit()
     return row
 

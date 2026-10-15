@@ -18,7 +18,7 @@ from ..config import DB_PATH, SCHEMA_PATH
 from ..core.tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
@@ -81,6 +81,9 @@ _INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_pt_date ON personal_tracks(date)",
     "CREATE INDEX IF NOT EXISTS idx_pt_item ON personal_tracks(item_key)",
     "CREATE INDEX IF NOT EXISTS idx_body_date ON body_metrics(date)",
+    "CREATE INDEX IF NOT EXISTS idx_ts_date ON training_sessions(date)",
+    "CREATE INDEX IF NOT EXISTS idx_ti_date ON training_items(date)",
+    "CREATE INDEX IF NOT EXISTS idx_ti_item ON training_items(item_key)",
 ]
 
 # 体征表（v5）：与 schema.sql 对齐；迁移路径在 schema 未跑时也能建表
@@ -104,6 +107,42 @@ BODY_COLUMNS = [
 ]
 # src 跟着新值走（与 exercise_src 同理）；用户填报的数值走 COALESCE
 _BODY_ALWAYS_OVERWRITE = {"src"}
+
+# 训练课 / 明细（v6）
+_TRAINING_SESSIONS_DDL = """
+CREATE TABLE IF NOT EXISTS training_sessions (
+    date        TEXT NOT NULL,
+    session_key TEXT NOT NULL,
+    plan_name   TEXT,
+    src         TEXT
+        CHECK (src IS NULL OR src IN ('lianlian', 'self')),
+    total_min   INTEGER
+        CHECK (total_min IS NULL OR total_min >= 0),
+    note        TEXT,
+    PRIMARY KEY (date, session_key)
+)
+"""
+
+_TRAINING_ITEMS_DDL = """
+CREATE TABLE IF NOT EXISTS training_items (
+    date        TEXT NOT NULL,
+    session_key TEXT NOT NULL,
+    item_key    TEXT NOT NULL,
+    item        TEXT NOT NULL,
+    sets        INTEGER,
+    reps        INTEGER,
+    minutes     REAL,
+    load_kg     REAL,
+    PRIMARY KEY (date, session_key, item_key)
+)
+"""
+
+SESSION_COLUMNS = [
+    "date", "session_key", "plan_name", "src", "total_min", "note",
+]
+ITEM_COLUMNS = [
+    "date", "session_key", "item_key", "item", "sets", "reps", "minutes", "load_kg",
+]
 
 
 def _create_indexes(conn: sqlite3.Connection) -> None:
@@ -269,10 +308,27 @@ def _migrate_body_metrics(conn: sqlite3.Connection) -> bool:
     return True
 
 
+def _migrate_training(conn: sqlite3.Connection) -> bool:
+    """v5 → v6：建 ``training_sessions`` / ``training_items``（幂等）。
+
+    返回是否本次新创建了任一表。
+    """
+    names = _table_names(conn)
+    created = False
+    if "training_sessions" not in names:
+        conn.execute(_TRAINING_SESSIONS_DDL)
+        created = True
+    if "training_items" not in names:
+        conn.execute(_TRAINING_ITEMS_DDL)
+        created = True
+    return created
+
+
 def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     """执行全部增量迁移（幂等）。返回本次迁移动作摘要。
 
-    顺序：补列 -> 建表 -> 重建 personal_tracks -> body_metrics -> 建索引 -> 记录版本。
+    顺序：补列 -> 建表 -> 重建 personal_tracks -> body_metrics ->
+    training_* -> 建索引 -> 记录版本。
     """
     version_before = conn.execute("PRAGMA user_version").fetchone()[0]
     _migrate_daily_reviews(conn)
@@ -281,6 +337,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     _migrate_daily_reviews(conn)
     tracks_rows = _migrate_personal_tracks(conn)
     body_created = _migrate_body_metrics(conn)
+    training_created = _migrate_training(conn)
     _create_indexes(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     if verbose:
@@ -295,12 +352,15 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
             print(f"  personal_tracks 归一化: {tracks_rows} 条规范记录")
         if body_created:
             print("  body_metrics: 新建体征表（v5）")
+        if training_created:
+            print("  training_sessions/items: 新建训练表（v6）")
     return {
         "version_before": version_before,
         "version_after": SCHEMA_VERSION,
         "tracks_migrated": tracks_rows,
         "columns_dropped": rebuilt,
         "body_metrics_created": body_created,
+        "training_created": training_created,
     }
 
 
@@ -432,6 +492,105 @@ def load_body_metrics(
         f"SELECT * FROM body_metrics {where} ORDER BY date ASC", params
     )
     return cur.fetchall()
+
+
+def upsert_training(
+    conn: sqlite3.Connection,
+    session: dict,
+    items: list[dict],
+    *,
+    overwrite: bool = False,
+) -> None:
+    """写入一堂训练课及其动作明细。
+
+    ``session`` 必须含 ``date`` / ``session_key``。默认 COALESCE 保护 session
+    的用户填报字段；``items`` 对该 ``(date, session_key)`` **整表替换**
+    （以 md 为权威，保证可重建），避免陈旧动作残留。
+    """
+    date = session.get("date")
+    sk = session.get("session_key") or "main"
+    if not date:
+        raise ValueError("training upsert 需要 date")
+    row = {
+        "date": date,
+        "session_key": sk,
+        "plan_name": session.get("plan_name"),
+        "src": session.get("src"),
+        "total_min": session.get("total_min"),
+        "note": session.get("note"),
+    }
+    if overwrite:
+        assigns = [f"{c}=excluded.{c}" for c in SESSION_COLUMNS
+                   if c not in ("date", "session_key")]
+    else:
+        assigns = [
+            f"{c}=COALESCE(excluded.{c}, training_sessions.{c})"
+            for c in SESSION_COLUMNS if c not in ("date", "session_key")
+        ]
+    sql = (
+        f"INSERT INTO training_sessions ({', '.join(SESSION_COLUMNS)}) "
+        f"VALUES ({', '.join(['?'] * len(SESSION_COLUMNS))}) "
+        f"ON CONFLICT(date, session_key) DO UPDATE SET {', '.join(assigns)}"
+    )
+    conn.execute(sql, [row.get(c) for c in SESSION_COLUMNS])
+
+    # 明细：先删后插，保证与源 md 一致
+    conn.execute(
+        "DELETE FROM training_items WHERE date=? AND session_key=?",
+        (date, sk),
+    )
+    for it in items:
+        key = it.get("item_key")
+        if not key:
+            continue
+        conn.execute(
+            f"INSERT INTO training_items ({', '.join(ITEM_COLUMNS)}) "
+            f"VALUES ({', '.join(['?'] * len(ITEM_COLUMNS))})",
+            [
+                date, sk, key,
+                it.get("item") or key,
+                it.get("sets"), it.get("reps"),
+                it.get("minutes"), it.get("load_kg"),
+            ],
+        )
+
+
+def load_training(
+    conn: sqlite3.Connection,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+    date: str | None = None,
+) -> dict:
+    """加载训练课 + 明细。
+
+    返回 ``{"sessions": [...], "items": [...]}``，均按 date / session_key 升序。
+    ``date`` 与 ``start``/``end`` 互斥优先用 ``date``。
+    """
+    clauses: list[str] = []
+    params: list[str] = []
+    if date is not None:
+        clauses.append("date = ?")
+        params.append(date)
+    else:
+        if start is not None:
+            clauses.append("date >= ?")
+            params.append(start)
+        if end is not None:
+            clauses.append("date <= ?")
+            params.append(end)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    sessions = conn.execute(
+        f"SELECT * FROM training_sessions {where} "
+        "ORDER BY date ASC, session_key ASC",
+        params,
+    ).fetchall()
+    items = conn.execute(
+        f"SELECT * FROM training_items {where} "
+        "ORDER BY date ASC, session_key ASC, item_key ASC",
+        params,
+    ).fetchall()
+    return {"sessions": sessions, "items": items}
 
 
 def upsert_personal_track(conn: sqlite3.Connection, date: str, track_key: str,

@@ -110,8 +110,11 @@ class TestEstimate(unittest.TestCase):
         self.assertIsNone(minutes)
 
     def test_other_move_not_enabled(self):
-        """未在 config.BODYWEIGHT_MOVES 登记的动作不折算。"""
-        self.assertIsNone(estimate(wrap("1. 深蹲 50 个"))[0])
+        """未在 config.BODYWEIGHT_MOVES 登记的动作不折算。
+
+        M10 起深蹲已扩容进 BODYWEIGHT_MOVES，故改用「哑铃弯举」作反面样本。
+        """
+        self.assertIsNone(estimate(wrap("1. 哑铃弯举 50 个"))[0])
 
     def test_no_section_returns_none(self):
         self.assertIsNone(estimate("## 一、日常打卡\n\n- [x] 护肤\n")[0])
