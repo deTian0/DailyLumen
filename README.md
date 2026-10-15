@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.13.0**（体征基线：体重 / BMI / 体脂 / 腰围落库 + 趋势；schema v5）
+> 当前版本 **1.14.0**（训练结构化：课/动作明细 + 教练建议；schema v6）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -24,7 +24,7 @@
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md + 迁移指南.md + 路线图.md(M1-M8)
 │                                     #   + 生活管家需求文档.md + 生活管家路线图.md(M9-M15) + 能力图谱.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，447 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，473 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
@@ -46,12 +46,13 @@
     │   ├── tracks.py                 #   打卡项归一化（自由文本 -> 规范 ID）★
     │   ├── bodyweight.py             #   徒手训练折算（描述动作 -> 运动时长）★
     │   ├── body.py                   #   体征纯规则（BMI / 均线 / 距目标）★
+    │   ├── training.py               #   训练明细解析 + 合计 + 推荐规则纯函数 ★
     │   └── score.py                  #   四维评分规则 ★
     ├── storage/                      # 持久化层：SQLite 的唯一出入口
-    │   └── db.py                     #   读写 + 带版本增量迁移 + 打卡对账 + 体征
+    │   └── db.py                     #   读写 + 带版本增量迁移 + 打卡对账 + 体征 + 训练
     ├── pipeline/                     # 数据流转层：复盘 md <-> 库
-    │   ├── parse.py                  #   解析 md -> 结构化 dict（兼容三种格式；体征侧车）
-    │   ├── ingest.py                 #   入库（按 date 主键 upsert，默认不擦数据；体征 → body_metrics）
+    │   ├── parse.py                  #   解析 md -> 结构化 dict（体征侧车 + 训练明细）
+    │   ├── ingest.py                 #   入库（体征 → body_metrics；训练 → 两表；R2 派生）
     │   ├── sync_docs.py              #   库中分数回写复盘 md（数据块 + 六章）★
     │   ├── import_history.py         #   语雀历史文件转换导入
     │   ├── new_day.py                #   生成当天文件（默认关闭，见 FEATURES）
@@ -61,6 +62,7 @@
     └── reports/                      # 产出层：读库生成面向人的结果
         ├── analyze.py                #   周 / 月分析（collect / render 分离，--json / --write）
         ├── body.py                   #   体征趋势（最新 / BMI / 7 日均 / 距目标）★
+        ├── coach.py                  #   训练教练建议（达标 / 渐进 / 恢复 / 轮换）★
         ├── streak.py                 #   正向连续天数（复盘 / 训练 / 打卡）
         ├── chart.py                  #   离线趋势 SVG（零依赖）
         ├── doctor.py                 #   数据体检（对账 / 完整度 / 新鲜度 / 断更 / 一致性 / 熔断 / 体征）★
@@ -88,6 +90,7 @@
 | `clickup-push [YYYY-MM-DD] [--apply]`                | 复盘已入库 → 勾 ClickUp「每日复盘总结」（**默认 dry-run**） |
 | `doctor`                                             | 数据体检：对账 / 完整度 / 新鲜度 / 历史断更 / 分数一致性 / 打卡对账 / 归一化 / 熔断 / 体征 |
 | `body [--json]`                                      | 体征趋势：最新体重 / BMI / 7 日均 / 周变化 / 距目标（独立指标区） |
+| `coach [YYYY-MM-DD] [--json]`                        | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据数字） |
 | `fuse`                                               | 熔断检测：单维度持续走低 + 相对基线偏离                  |
 | `sync-docs [--check]`                                | 把库里的四维分回写到复盘 md（数据块 + 六章表格）            |
 | `recompute-scores [--apply]`                         | 按当前规则重算库中四维 / 系统分（默认只试算）               |

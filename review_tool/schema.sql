@@ -116,4 +116,31 @@ CREATE TABLE IF NOT EXISTS body_metrics (
     note         TEXT
 );
 
+-- 训练课（session）+ 动作明细（items）：独立指标区，不直接改四维评分
+-- exercise_min 仍是健康分唯一运动输入；明细合计仅在字段为空时派生（R2）
+-- 不设对 daily_reviews 的外键：允许「只录了训练、没写复盘」的日子
+CREATE TABLE IF NOT EXISTS training_sessions (
+    date        TEXT NOT NULL,
+    session_key TEXT NOT NULL,        -- 'main' / 'morning' / 'evening'
+    plan_name   TEXT,                 -- 课表名（如 'A-胸背'）
+    src         TEXT
+        CHECK (src IS NULL OR src IN ('lianlian', 'self')),
+    total_min   INTEGER
+        CHECK (total_min IS NULL OR total_min >= 0),
+    note        TEXT,
+    PRIMARY KEY (date, session_key)
+);
+
+CREATE TABLE IF NOT EXISTS training_items (
+    date        TEXT NOT NULL,
+    session_key TEXT NOT NULL,
+    item_key    TEXT NOT NULL,        -- 归一化动作 key（在 config.TRAINING_MOVES 里）
+    item        TEXT NOT NULL,        -- 展示名
+    sets        INTEGER,
+    reps        INTEGER,
+    minutes     REAL,
+    load_kg     REAL,
+    PRIMARY KEY (date, session_key, item_key)
+);
+
 -- 索引见文件开头说明，由 db.py 统一创建。

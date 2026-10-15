@@ -25,7 +25,7 @@ reports   ->  pipeline  ->  storage  ->  core
 ### 包根
 | 模块 | 职责 |
 | --- | --- |
-| `config.py` | 路径常量（全靠 `__file__` 推导，无硬编码绝对路径）+ 可配置层：`PROFILE` / `PERSONAL_ITEMS` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` |
+| `config.py` | 路径常量（全靠 `__file__` 推导，无硬编码绝对路径）+ 可配置层：`PROFILE` / `PERSONAL_ITEMS` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` / `TRAINING_MOVES` / `COACH_RULES` |
 | `schema.sql` | 建表语句（含 CHECK 约束），与 `reviews*.db` 同在包根 |
 | `__init__.py` | 包公共 API（对外唯一契约，`__all__`） |
 | `__main__.py` | **纯路由**：只派发子命令，参数由各模块自己解析（单一来源，杜绝静默丢参） |
@@ -37,18 +37,19 @@ reports   ->  pipeline  ->  storage  ->  core
 | `tracks.py` | 打卡项归一化：自由文本 → 规范 `track_key` / `item_key` |
 | `bodyweight.py` | 徒手训练折算：描述里的动作 → 运动分钟（段落门控 + 上下限） |
 | `body.py` | 体征纯规则：BMI / 分档 / 7 日均 / 周变化 / 距目标 / 外推周数（零 I/O） |
+| `training.py` | 训练明细行解析 + 合计 + 推荐规则纯函数（零 I/O） |
 | `score.py` | 四维评分规则（健康加权子项；工作/学习/生活时长分档） |
 
 ### storage/ —— 持久化层
 | 模块 | 职责 |
 | --- | --- |
-| `db.py` | SQLite 读写 + `PRAGMA user_version` 增量迁移（含表重建的原子化流程）+ `prune_personal_tracks` 打卡对账 + `upsert_body_metrics` / `load_body_metrics` |
+| `db.py` | SQLite 读写 + `PRAGMA user_version` 增量迁移（含表重建的原子化流程）+ `prune_personal_tracks` 打卡对账 + `upsert_body_metrics` / `upsert_training` / `load_training` |
 
 ### pipeline/ —— 数据流转层（md ↔ 库）
 | 模块 | 职责 |
 | --- | --- |
-| `parse.py` | md → 结构化 dict（兼容 ```` ```data ```` 块 / HTML 注释块 / 纯文本散落三种格式）；体征字段进 `_body_metrics` 侧车；`has_tracks_section` 供打卡对账判断权威性 |
-| `ingest.py` | 扫描 / 解析 / 折算 / 补零 / 评分 / 入库；体征侧车 → `body_metrics` |
+| `parse.py` | md → 结构化 dict（兼容 ```` ```data ```` 块 / HTML 注释块 / 纯文本散落三种格式）；体征 → `_body_metrics`；训练明细 → `_training`；`has_tracks_section` 供打卡对账判断权威性 |
+| `ingest.py` | 扫描 / 解析 / 折算 / 补零 / 评分 / 入库；体征 → `body_metrics`；训练 → `training_sessions` / `training_items` |
 | `sync_docs.py` | 把库里的四维分回写到复盘 md（附录数据块 + 「六、四维评分」表） |
 | `import_history.py` | 语雀历史复盘 → 标准格式转换（输出到 `每日复盘/复盘/YYYY-MM/`） |
 | `new_day.py` | 生成当天复盘文件（写入 `每日复盘/复盘/YYYY-MM/`）；**默认关闭**，见 `config.FEATURES` |
@@ -61,8 +62,9 @@ reports   ->  pipeline  ->  storage  ->  core
 ### reports/ —— 产出层
 | 模块 | 职责 |
 | --- | --- |
-| `analyze.py` | 周 / 月聚合报告（`collect()` 取数 + `render_summary()` 排版，`--json` 复用同一份数据） |
+| `analyze.py` | 周 / 月聚合报告（`collect()` 取数 + `render_summary()` 排版，`--json` 复用同一份数据；含「训练结构」段） |
 | `body.py` | 体征趋势：最新值 + BMI + 7 日均 + 周变化 + 距目标（`--json`） |
+| `coach.py` | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据；`--json`） |
 | `doctor.py` | 数据体检：schema / 完整性 / 新鲜度 / 历史断更 / md↔DB 对账 / 分数一致性 / 打卡对账 / 归一化 / 来源分布 / 熔断 / 体征 |
 | `fuse.py` | 熔断检测：单维度连续走低（绝对）+ 近 7 日 vs 前 28 日均值漂移（相对） |
 | `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则） |
@@ -82,6 +84,7 @@ python -m review_tool clickup [YYYY-MM-DD] [--out 目录] [--stdout] [--list ID]
 python -m review_tool clickup-push [YYYY-MM-DD] [--apply]   # 勾「每日复盘总结」（默认 dry-run）
 python -m review_tool doctor                           # 数据体检（exit≠0 表示有问题）
 python -m review_tool body [--json]                    # 体征趋势（BMI / 均线 / 距目标）
+python -m review_tool coach [YYYY-MM-DD] [--json]      # 训练教练建议（达标 / 渐进 / 恢复 / 轮换）
 python -m review_tool fuse                             # 熔断检测（有绝对熔断时 exit=1）
 python -m review_tool sync-docs [--check]              # 库中分数回写到 md（--check 仅报告）
 python -m review_tool recompute-scores [--apply]       # 按规则重算四维/系统分（默认试算）

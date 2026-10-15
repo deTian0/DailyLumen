@@ -18,6 +18,10 @@
 徒手训练折算：「运动时长_min」为空但「二、今日三件事」里提到俯卧撑等动作时，
 由 bodyweight 模块按确定性模型折算分钟数（并记 exercise_src='derived'）。
 字段已有数值时以字段为准，不做叠加。
+
+训练明细（M10）：「附录 · 训练明细」→ ``_training`` 侧车；合计分钟仅在
+``exercise_min`` 仍为空时派生（字段优先 → 三件事折算 → 明细合计），
+同样标 ``exercise_src='derived'``（R2，不加新枚举）。
 """
 from __future__ import annotations
 
@@ -36,6 +40,7 @@ from ..config import (
 from ..core.bodyweight import estimate
 from ..core.score import system_score_from
 from ..core.tracks import normalize_supplement_line, resolve_item, resolve_track
+from ..core.training import parse_section as parse_training_section
 from ..core.util import KV_RE, clock_to_minutes, to_bool, to_float, to_int
 
 # 数据块的 YAML 风格字段名 -> 数据库列名
@@ -229,9 +234,14 @@ def parse_text(text: str) -> dict:
     if row.get("date"):
         row["system_score"] = system_score_from(row)
 
-    # 4) 徒手训练折算：字段为空但「三件事」里提到动作（俯卧撑…）时补上运动时长。
-    #    字段已有数值则**以字段为准、不叠加**，避免同一份运动被计两次。
-    #    exercise_src 记录来源，供报告区分「填报」与「折算」。
+    # 4) 训练明细侧车（附录 · 训练明细）—— 先解析、后参与时长派生
+    training = parse_training_section(text)
+    if training is not None:
+        row["_training"] = training
+
+    # 5) 运动时长派生（字段优先、不叠加 —— R2）
+    #    优先级：手填字段 → 三件事折算 → 训练明细合计。
+    #    exercise_src 记录来源；⛔ 不加新枚举，明细派生复用 'derived'。
     if row.get("exercise_min") is not None:
         row["exercise_src"] = "record"
     else:
@@ -240,8 +250,15 @@ def parse_text(text: str) -> dict:
             row["exercise_min"] = minutes
             row["exercise_src"] = "derived"
             row["_exercise_detail"] = detail
+        elif training is not None and training.get("total_min") is not None:
+            row["exercise_min"] = int(training["total_min"])
+            row["exercise_src"] = "derived"
+            row["_exercise_detail"] = (
+                f"训练明细合计 {training['total_min']}min"
+                f"（session={training.get('session_key')}）"
+            )
 
-    # 5) 提取「一、日常打卡」下的个人定制勾选 -> personal_tracks（补剂/护肤）
+    # 6) 提取「一、日常打卡」下的个人定制勾选 -> personal_tracks（补剂/护肤）
     tracks = _extract_personal_tracks(text)
     if tracks:
         row["_personal_tracks"] = tracks

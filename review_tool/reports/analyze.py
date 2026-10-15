@@ -34,7 +34,7 @@ from datetime import datetime
 
 from ..config import DIMENSIONS, GENERATED_DIR
 from ..core.util import minutes_to_clock
-from ..storage.db import COLUMNS, init_db
+from ..storage.db import COLUMNS, init_db, load_training
 from .streak import render_streaks, summarize_streaks
 
 DIM_LABEL = {
@@ -314,6 +314,32 @@ def _track_adherence_lines(adh: dict | None) -> list[str]:
     return L
 
 
+def _training_structure_lines(ts: dict | None) -> list[str]:
+    """渲染「训练结构」段落（独立指标区）。"""
+    L: list[str] = []
+    L.append("")
+    L.append("  ---- 训练结构（不计入四维评分）----")
+    if not ts or not ts.get("sessions"):
+        L.append(_line("训练明细", "本周期无 training_sessions 记录"))
+        return L
+    L.append(_line(
+        "课次/动作",
+        f"{ts['sessions']} 课 / {ts['items']} 条明细",
+    ))
+    for day in ts.get("by_date") or []:
+        moves = "、".join(day.get("moves") or []) or "—"
+        plan = day.get("plan_name") or "—"
+        mins = day.get("total_min")
+        mins_s = f"{mins}min" if mins is not None else "—"
+        L.append(_line(day["date"], f"{plan} · {mins_s} · {moves}"))
+    for m in (ts.get("by_move") or [])[:8]:
+        L.append(_line(
+            f"  · {m['item_key']}",
+            f"{m['sessions']} 次 · 体积合计 {m['volume']}",
+        ))
+    return L
+
+
 def collect(conn, where: str, params: tuple, title: str) -> dict | None:
     """把周 / 月报告涉及的全部数字收集成结构化 dict（渲染与 JSON 共用同一份数据）。
 
@@ -357,6 +383,67 @@ def collect(conn, where: str, params: tuple, title: str) -> dict | None:
         "worst_dim": {"name": worst[0], "value": worst[1]},
         "track_adherence": track_adherence(conn, where, params),
         "streaks": _streaks_for_scope(conn, where, params),
+        "training_structure": training_structure(conn, where, params),
+    }
+
+
+def training_structure(conn, where: str, params: tuple) -> dict:
+    """周期内训练课 / 动作明细汇总（独立指标区，不计入四维）。
+
+    返回 ``{"sessions": n, "items": n, "by_date": [...], "by_move": [...]}``。
+    """
+    # 用 daily_reviews 日期集合限定窗口（与 where 口径一致）
+    dates = [
+        r[0] for r in conn.execute(
+            f"SELECT date FROM daily_reviews WHERE {where} ORDER BY date",
+            params,
+        )
+    ]
+    if not dates:
+        return {"sessions": 0, "items": 0, "by_date": [], "by_move": []}
+    data = load_training(conn, start=dates[0], end=dates[-1])
+    date_set = set(dates)
+    sessions = [dict(r) for r in data["sessions"] if r["date"] in date_set]
+    items = [dict(r) for r in data["items"] if r["date"] in date_set]
+
+    by_date_map: dict[str, dict] = {}
+    for s in sessions:
+        bucket = by_date_map.setdefault(s["date"], {
+            "date": s["date"],
+            "plan_name": None,
+            "total_min": None,
+            "moves": [],
+        })
+        if s["plan_name"] and not bucket["plan_name"]:
+            bucket["plan_name"] = s["plan_name"]
+        if s["total_min"] is not None:
+            bucket["total_min"] = (bucket["total_min"] or 0) + int(s["total_min"])
+    for it in items:
+        bucket = by_date_map.setdefault(it["date"], {
+            "date": it["date"], "plan_name": None, "total_min": None, "moves": [],
+        })
+        bit = it["item_key"]
+        if it["sets"] is not None and it["reps"] is not None:
+            bit += f" {it['sets']}×{it['reps']}"
+        elif it["minutes"] is not None:
+            bit += f" {it['minutes']}min"
+        if it["load_kg"] is not None:
+            bit += f" @{it['load_kg']}kg"
+        bucket["moves"].append(bit)
+
+    move_acc: dict[str, dict] = {}
+    for it in items:
+        key = it["item_key"]
+        b = move_acc.setdefault(key, {"item_key": key, "sessions": 0, "volume": 0})
+        b["sessions"] += 1
+        if it["sets"] is not None and it["reps"] is not None:
+            b["volume"] += int(it["sets"]) * int(it["reps"])
+
+    return {
+        "sessions": len(sessions),
+        "items": len(items),
+        "by_date": [by_date_map[d] for d in sorted(by_date_map)],
+        "by_move": sorted(move_acc.values(), key=lambda x: (-x["sessions"], x["item_key"])),
     }
 
 
@@ -402,6 +489,7 @@ def render_summary(s: dict) -> str:
                    f"{s['completeness']['rate_pct']}%（核心字段缺失: {detail}）"))
     L.append(f"  >> 最差维度: {s['worst_dim']['name']} ({s['worst_dim']['value']})")
     L.extend(_track_adherence_lines(s.get("track_adherence")))
+    L.extend(_training_structure_lines(s.get("training_structure")))
     if s.get("streaks"):
         L.append(render_streaks(s["streaks"]))
     return "\n".join(L)
@@ -643,9 +731,29 @@ def render_week_md(conn, iso_week: int) -> str | None:
                 f"{it['done']}/{it['recorded']} | {it['item']} |"
             )
 
+    ts = s.get("training_structure") or {}
+    L += ["", "## 四、训练结构（不计入四维评分）", ""]
+    if not ts.get("sessions"):
+        L.append("> 本周无 `training_sessions` 记录。")
+    else:
+        L.append(
+            f"> 本周 **{ts['sessions']} 课 / {ts['items']} 条明细**"
+            "（明细合计仅在 `运动时长_min` 为空时派生，见 R2）。"
+        )
+        L += ["", "| 日期 | 计划 | 合计(min) | 动作 |",
+              "|------|------|-----------|------|"]
+        for day in ts.get("by_date") or []:
+            moves = "、".join(day.get("moves") or []) or "—"
+            plan = day.get("plan_name") or "—"
+            mins = day.get("total_min")
+            L.append(
+                f"| {day['date']} | {plan} | "
+                f"{mins if mins is not None else '—'} | {moves} |"
+            )
+
     L += [
         "",
-        "## 四、自动生成说明",
+        "## 五、自动生成说明",
         "",
         "> 本文件由 CLI `--write` 落盘。关键发现 / 与上周对比 / 行动清单等叙事段"
         "请人工补写，或继续沿用既有手写周总结（默认**不**用本渲染器回填历史件）。",
