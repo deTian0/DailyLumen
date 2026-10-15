@@ -24,8 +24,8 @@ agent_created: true
 - ⛔ **不混"重装备份 / win-reinstall-toolkit"那套** —— 那是跨项目基础设施，与本系统**相互独立**。
   不要在本仓库文档里引用备份脚本，也不要把本仓库内容写进备份清单。
 - **行为跟踪执行层在 ClickUp**（个人行为 / 习惯 / 年度目标 / 书单）：与本系统是**单向素材供给**
-  关系 —— ClickUp **不参与评分、不落库**。空间结构、list ID、映射口径、日期归属（`date_closed`）
-  与「两套打卡体系不许混」的边界，见 skill **`clickup-tracking`**。
+  关系 —— ClickUp **不参与评分、不落库**。空间结构、list ID、映射口径、日期归属（`date_closed`，
+  含「次日早上补勾」回拨）与「两套打卡体系不许混」的边界，见 skill **`clickup-tracking`**。
 - **不在本仓库的资产**：助手人格 / 协作准则在用户级记忆 `~/.workbuddy/MEMORY.md`；
   跨项目通用 SOP 在用户级 `~/.workbuddy/skills/`（`sqlite-safe-migration`、`nmpa-cosmetic-record`）。
   用户级资产怎么保管**不属本仓库职责**，本仓库只保证项目级 skill 随代码入库。

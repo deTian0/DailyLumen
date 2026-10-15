@@ -1,6 +1,6 @@
 ---
 name: clickup-tracking
-description: ClickUp 是 DailyLumen 的「行为跟踪执行层」。本 skill 定义 ClickUp 空间结构与 list ID 速查、凭据与命令行入口、ClickUp 数据 → 复盘素材的映射口径、日期归属规则（用 date_closed 而非 due_date）、以及「两套打卡体系不许混」的边界。触发词：ClickUp、行为跟踪、习惯同步、日常事务、年度目标、阅读体系、cu.bat、clickup_client、从 ClickUp 拉记录出复盘。
+description: ClickUp 是 DailyLumen 的「行为跟踪执行层」。本 skill 定义 ClickUp 空间结构与 list ID 速查、凭据与命令行入口、ClickUp 数据 → 复盘素材的映射口径、日期归属规则（用 date_closed 而非 due_date，含「次日早上补勾」回拨）、以及「两套打卡体系不许混」的边界。触发词：ClickUp、行为跟踪、习惯同步、日常事务、年度目标、阅读体系、cu.bat、clickup_client、从 ClickUp 拉记录出复盘。
 agent_created: true
 ---
 
@@ -26,10 +26,24 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 ⛔ 别因为 ClickUp 勾了「每日阅读 30 分钟」就往 md 的「一、日常打卡」补一行 ——
 那不属于补剂/护肤，会污染依从率，`doctor [打卡对账]` 会立刻报出来。
 
-**③ 日期看 `date_closed`，不看 `due_date`。**
+**③ 日期看 `date_closed`，不看 `due_date`（有且仅有「次日早上补勾」一处例外）。**
 `due_date` 是**计划日**，`date_closed` 才是**实际完成时刻**。
-统计「某天完成了什么」必须按 `date_closed` 落在目标日（东八区）过滤 —— 用 `due_date` 会把
+统计「某天完成了什么」按 `date_closed` 落在目标日（东八区）过滤 —— 用 `due_date` 会把
 「今天做完的昨天到期任务」判成昨天，把「今天到期但明天才做」判成今天。
+
+**例外（v1.12.0）：次日早上补勾回拨。** 实际用法是「**当天做完、次日早上一起勾**」，
+纯按 `date_closed` 会把前一天做的系统性记到第二天（实例：10-14 做的 3 条在 10-15
+08:41/08:46 才勾）。规则在 `config.CLICKUP_REBATE`，三条**同时**满足才回拨：
+
+| 条件 | 默认值 |
+| --- | --- |
+| ① 完成时刻早于当日 `morning_hour` 点 | 12:00 |
+| ② 有 `due_date`，且日期 = 完成日 − N 天（`1 ≤ N ≤ lookback_days`） | 1 天 |
+| ③ 归到该 `due_date` 那天（素材里标「完成 10-15 08:41 → 归 10-14 · 次日补勾」） | — |
+
+⛔ **别放宽**：2026-10-13 迁移时整批关闭的 100+ 条历史任务 `due` 散在 6–9 月，
+只看 ① 会把它们全拉回几个月前。宁可少归一天。
+想关掉回拨：`morning_hour` 或 `lookback_days` 设 0。
 
 ---
 
@@ -124,18 +138,22 @@ v1.8.1 起素材简报除「当日完成 / 当日到期未完成」外，还带 
 - 默认采 `config.CLICKUP_DAILY_IDS`（日常事务 + 习惯与打卡 + **工作**）；改范围改 `config.CLICKUP_LISTS`。
   ⚠️ **v1.11.0 前「工作」是 `daily=False`** —— 导致 10-13（9 条）/ 10-14（2 条）等工作记录
   整批缺席每日素材，复盘「工作」栏只能靠用户自报。看到「当日完成 0 条」先怀疑采集范围，再怀疑数据。
-- 它**已经替你处理**了三个坑：按 `date_closed` 归日（东八区）、带 `include_closed=true`、
-  按 id 去重 **+ 翻页**（单页 100，不翻页会静默漏）。
+- 它**已经替你处理**了四个坑：按 `date_closed` 归日（东八区）+「次日早上补勾」回拨、
+  带 `include_closed=true`、按 id 去重 **+ 翻页**（单页 100，不翻页会静默漏）。
+  ⚠️ 素材里的「当日完成」可能**大于**当日 `date_closed` 的条数 —— 多出来的是回拨进来的，
+  条目标了「次日补勾」，表头下方也有 `其中 N 条为「次日早上补勾」回拨` 一行。
 - 产出是**素材**（落 `收件箱/`，不参与 ingest 扫描），**不是**复盘成品；同一分钟 ≥10 条完成
   时素材会自带「疑似批量改状态」提示，别把那数字读成「一口气干了 N 件事」。
 - 退出码：`0` 成功 / `1` 取数失败（网络 / 认证）/ `2` 用法或凭据问题。
 
 **临时查别的维度**（命令没覆盖的）才手写脚本，但下面这条口径必须守死：
 先拉全量（**必须带 `include_closed=true`**，否则已完成任务全漏），
-再按 `date_closed` 落在目标日过滤，最后按 list 分组。
+再按「归属日」落在目标日过滤（**归日别自己重写** —— 直接复用
+`review_tool.pipeline.clickup.completion_day`，它已含「次日早上补勾」回拨），最后按 list 分组。
 
 ```python
 import json, datetime, urllib.request, os
+from review_tool.pipeline.clickup import completion_day   # 归日（含回拨），别自己实现
 
 KEY = json.load(open(os.path.expanduser('~/.workbuddy/mcp.json'), encoding='utf-8-sig')) \
           ['mcpServers']['clickup']['env']['CLICKUP_API_KEY']
@@ -153,7 +171,7 @@ def get(path):
 
 for lid in ['901422213138', '901422213139', '901410092299']:   # 日常事务 / 习惯与打卡 / 工作
     ts = get('/list/%s/task?subtasks=true&include_closed=true&page=0' % lid).get('tasks', [])
-    hit = [t for t in ts if t.get('date_closed') and day_of(t['date_closed']) == DAY]
+    hit = [t for t in ts if t.get('date_closed') and completion_day(t) == DAY]
     print('== list %s  当日完成 %d 条 ==' % (lid, len(hit)))
     for t in hit:
         print('  -', t['name'])
@@ -191,7 +209,8 @@ $PY $CLI archive <list_id>           # 归档 list（可 Unarchive 还原）
 | 坑 | 表现 | 处理 |
 | --- | --- | --- |
 | 拉不到已完成任务 | 只拿到几条，看着像「今天什么都没干」 | 必须带 `include_closed=true`；`subtasks=true` 分页会**重复返回**，按 `id` 去重 |
-| 用 `due_date` 判完成日 | 今天的完成项被算到昨天 / 明天 | 用 `date_closed` |
+| 用 `due_date` 判完成日 | 今天的完成项被算到昨天 / 明天 | 用 `date_closed`；仅「次日早上补勾」按 `config.CLICKUP_REBATE` 回拨 |
+| 手写脚本漏掉回拨 | 自己拉的清单与 `python -m review_tool clickup` 对不上（差的就是次日补勾的几条） | 手写脚本要复用 `review_tool.pipeline.clickup.completion_day(t)`，别自己重写归日 |
 | 归档 list 返回空 | 以为数据全丢 | 传 `archived=false`（不是 `true`） |
 | 写操作 200 但没生效 | 移动类字段被静默忽略 | **一律 GET 回读确认**，不信状态码 |
 | 限流 | 免费版 100 次/分 | 批量间隔 0.25s |

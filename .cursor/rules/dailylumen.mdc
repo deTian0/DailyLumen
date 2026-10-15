@@ -24,7 +24,7 @@ alwaysApply: true
 | 文件 | 内容 |
 | --- | --- |
 | `.workbuddy/skills/dailylumen-conventions/SKILL.md` | **范围边界 / 权威归属 / 评分与熔断 / 文档与库规约 / 工程约定 / 交付流程** —— 必读 |
-| `.workbuddy/skills/clickup-tracking/SKILL.md` | ClickUp 素材源、list ID、映射口径、`date_closed` 归日规则 |
+| `.workbuddy/skills/clickup-tracking/SKILL.md` | ClickUp 素材源、list ID、映射口径、`date_closed` 归日规则（含「次日早上补勾」回拨） |
 | `.workbuddy/skills/daily-review-intake/SKILL.md` | 素材（截图 / 文档 / ClickUp）→ 成品复盘的流程 |
 | `docs/设计说明.md` | 评分规则 / 统计口径 / 数据库字段速查 / **变更日志** |
 | `docs/路线图.md` | **接下来做什么** —— 里程碑 M1–M8 + 每项的范围与验收清单 + 通用 DoD |

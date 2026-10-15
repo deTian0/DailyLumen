@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.11.0**（「工作」list 纳入默认 ClickUp 素材采集 —— 修复工作产出系统性缺席）
+> 当前版本 **1.12.0**（ClickUp 归日新增「次日早上补勾」回拨 —— 当天做、次日早上才勾的归回前一天）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -336,7 +336,7 @@ python -m review_tool ai-context 2026-09-15
     素材由用户手动投递，靠这个 skill 按需生成复盘。
   - `doc-corpus-normalize` —— 批量文档标准化 SOP（保证解析 / 入库可证明无损）。
   - `clickup-tracking` —— **ClickUp 行为跟踪 ↔ 复盘衔接**（空间结构 / list ID / 映射口径 /
-    按 `date_closed` 取当日完成项 / 「两套打卡体系不许混」的边界）。取数**已代码化**：
+    按 `date_closed` 取当日完成项（含「次日早上补勾」回拨）/ 「两套打卡体系不许混」的边界）。取数**已代码化**：
     `python -m review_tool clickup [日期]` 直接产素材简报到 `收件箱/`（只读，不落库、
     不参与评分）；本 skill 讲的是空间结构与映射口径。
   `.gitignore` 用 `.workbuddy/*` + `!.workbuddy/skills/` 开白名单；**注意必须写成

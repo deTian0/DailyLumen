@@ -51,7 +51,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `sync_docs.py` | 把库里的四维分回写到复盘 md（附录数据块 + 「六、四维评分」表） |
 | `import_history.py` | 语雀历史复盘 → 标准格式转换（输出到 `每日复盘/复盘/YYYY-MM/`） |
 | `new_day.py` | 生成当天复盘文件（写入 `每日复盘/复盘/YYYY-MM/`）；**默认关闭**，见 `config.FEATURES` |
-| `clickup.py` | **ClickUp → 素材简报**（只读：按 `date_closed` 取当日完成项，落 `收件箱/`，不落库、不参与评分） |
+| `clickup.py` | **ClickUp → 素材简报**（只读：按 `date_closed` 取当日完成项，含「次日早上补勾」回拨，落 `收件箱/`，不落库、不参与评分） |
 | `clickup_sync.py` | **复盘入库 → 勾「每日复盘总结」**（默认 dry-run；`--apply` 真写 + GET 回读；不落库、不参与评分） |
 | `export.py` | 导出 CSV / JSON（含依从率表） |
 | `chart.py`（reports） | 离线趋势 SVG（`chart` 子命令 → `exports/trends.svg`） |

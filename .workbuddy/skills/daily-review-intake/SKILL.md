@@ -31,7 +31,8 @@ agent_created: true
   但**不再有自动化去扫**，需要用户明确说「去收件箱读」才读
 - **ClickUp 行为记录**（行为侧证据）：**一条命令拿到素材** ——
   `python -m review_tool clickup <YYYY-MM-DD>` → 落 `收件箱/clickup-素材-<日期>.md`
-  （`--stdout` 只看不落文件）。它按 `date_closed`（东八区）归日、只读、**不参与评分**。
+  （`--stdout` 只看不落文件）。它按 `date_closed`（东八区）归日（**含 v1.12.0「次日早上补勾」回拨**：当天做、
+  次日早上才勾的归回 `due_date` 那天，素材里标「次日补勾」）、只读、**不参与评分**。
   空间结构与 list ID、映射口径、**两套打卡体系不许混**的边界见 skill **`clickup-tracking`**。
   ⚠️ ClickUp「习惯与打卡」的勾选**不进** md 的「一、日常打卡」—— 那一节只收补剂 / 护肤
   （`config.PERSONAL_ITEMS`），混进去会污染 `personal_tracks` 的依从率。
