@@ -464,7 +464,8 @@ def collect(
 # ----------------------------------------------------------------------- CLI
 USAGE = (
     "keepstrong [--date YYYY-MM-DD|yyyyMMdd] "
-    "[--range START END] [--type records,body,plan] [--out DIR] [--stdout]"
+    "[--range START END] [--type records,body,plan] "
+    "[--out DIR] [--stdout] [--write] [--ingest]"
 )
 
 
@@ -483,11 +484,17 @@ def _parse(argv: list[str]) -> dict[str, Any]:
     types_raw = "records,body,plan"
     out_dir = INBOX_DIR
     to_stdout = False
+    do_write = False
+    do_ingest = False
     i = 0
     while i < len(argv):
         a = argv[i]
         if a in ("--stdout",):
             to_stdout = True
+        elif a in ("--write",):
+            do_write = True
+        elif a in ("--ingest",):
+            do_ingest = True
         elif a == "--date" or a.startswith("--date="):
             if a.startswith("--date="):
                 date_one = a.split("=", 1)[1]
@@ -547,6 +554,8 @@ def _parse(argv: list[str]) -> dict[str, Any]:
         "types": types,
         "out_dir": out_dir,
         "to_stdout": to_stdout,
+        "write": do_write,
+        "ingest": do_ingest,
     }
 
 
@@ -615,10 +624,68 @@ def main(
         print("内部错误：素材内容含 API Key，已拒绝写出。", file=sys.stderr)
         return 1
 
+    # M18：同步进当日复盘 md（默认 dry-run；--write 才落盘）
+    if opts["write"] or opts["ingest"]:
+        from .keepstrong_sync import review_md_path, write_sync
+
+        if opts["start"] != opts["end"]:
+            print(
+                "同步到复盘 md 仅支持单日（--date）；跨天请逐日执行。",
+                file=sys.stderr,
+            )
+            return 2
+        md_path = review_md_path(label)
+        if not os.path.isfile(md_path):
+            print(f"找不到复盘 md：{md_path}", file=sys.stderr)
+            return 2
+        day_records = [
+            r for r in (bundle.get("records") or [])
+            if str(r.get("dayStr") or r.get("date") or "").replace("-", "")
+            == opts["start"]
+        ]
+        # 若 API 未按日过滤干净，上面筛一遍；空列表 → 不写空章节
+        try:
+            summary = write_sync(
+                md_path,
+                records=day_records,
+                body_logs=bundle.get("body_logs") or [],
+                body_profile=bundle.get("body_profile"),
+                day_str=opts["start"],
+                dry_run=not opts["write"],
+            )
+        except OSError as e:
+            print(f"写 md 失败: {e}", file=sys.stderr)
+            return 1
+        mode = "已写入" if opts["write"] and summary.get("changed") else (
+            "dry-run" if not opts["write"] else "无变更"
+        )
+        print(
+            f"同步复盘 md（{mode}）: {md_path}；"
+            f"训练块={'是' if summary.get('training_written') else '否'}；"
+            f"体重={summary.get('weight_kg')}"
+        )
+        if opts["ingest"]:
+            if not opts["write"]:
+                print(
+                    "--ingest 需要同时加 --write（禁止只进库不落 md / G1）。",
+                    file=sys.stderr,
+                )
+                return 2
+            from ..storage.db import init_db
+            from .ingest import ingest_path
+
+            conn = init_db()
+            try:
+                ingest_path(conn, os.path.abspath(md_path))
+            finally:
+                conn.close()
+            print(f"已 ingest: {md_path}")
+
     if opts["to_stdout"]:
         print(text)
         return 0
 
+    # 未要求 stdout / 仅 sync 时仍落收件箱素材（方便对照）；纯 --write 也产一份
     out_dir = opts["out_dir"]
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, f"{INBOX_PREFIX}-{label}.md")
