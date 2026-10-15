@@ -287,9 +287,14 @@ CLICKUP_TZ_HOURS = 8
 CLICKUP_LISTS = [
     {"id": ***REMOVED***, "name": "日常事务", "role": "行为流水", "daily": True},
     {"id": ***REMOVED***, "name": "习惯与打卡", "role": "长期习惯", "daily": True},
+    # v1.11.0：工作改为默认采集 —— 它是**当天工作产出的唯一来源**
+    # （形如「TeammateA-2h-修复…」的工时/工单记录，含请假等工时填报）。
+    # 此前 daily=False，导致 10-13（9 条）/ 10-14（2 条）等工作记录
+    # 全部缺席每日素材，复盘叙事的「工作」栏只能靠用户自报。
+    {"id": ***REMOVED***, "name": "工作", "role": "工作产出", "daily": True},
     {"id": "<CLICKUP_LIST_ID>", "name": "成长课 · 14周计划", "role": "学习进度", "daily": False},
     {"id": "<CLICKUP_LIST_ID>", "name": "阅读与学习", "role": "读书进度", "daily": False},
-    {"id": ***REMOVED***, "name": "工作", "role": "工作产出", "daily": False},
+    {"id": ***REMOVED***, "name": "项目孵化", "role": "副业产出", "daily": False},
     {"id": ***REMOVED***, "name": "2026 年度目标", "role": "长期方向", "daily": False},
 ]
 
