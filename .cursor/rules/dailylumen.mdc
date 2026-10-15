@@ -27,7 +27,10 @@ alwaysApply: true
 | `.workbuddy/skills/clickup-tracking/SKILL.md` | ClickUp 素材源、list ID、映射口径、`date_closed` 归日规则（含「次日早上补勾」回拨） |
 | `.workbuddy/skills/daily-review-intake/SKILL.md` | 素材（截图 / 文档 / ClickUp）→ 成品复盘的流程 |
 | `docs/设计说明.md` | 评分规则 / 统计口径 / 数据库字段速查 / **变更日志** |
-| `docs/路线图.md` | **接下来做什么** —— 里程碑 M1–M8 + 每项的范围与验收清单 + 通用 DoD |
+| **`docs/生活管家路线图.md`** | **接下来做什么（当前主线）** —— 里程碑 **M9–M15** + 文件级范围 / DDL 草案 / md 格式 / 验收清单 |
+| `docs/生活管家需求文档.md` | 要什么（7 个管家角色的 FR / 数据需求 / NFR / 边界） |
+| `docs/能力图谱.md` | 现在有什么（分层能力图 + 角色×环节矩阵 + 缺口占位） |
+| `docs/路线图.md` | ⚠️ **M1–M8 历史留档（已全部完成）** —— **不要在本文追加新里程碑** |
 
 ## 命令
 
@@ -35,7 +38,7 @@ alwaysApply: true
 # 解释器（本机托管 Python 3.13）
 PY="C:/Users/63516/.workbuddy/binaries/python/versions/3.13.12/python.exe"
 
-$PY -m unittest discover -s tests -t .   # 全量测试（当前 400 项，零依赖，离线可跑）
+$PY -m unittest discover -s tests -t .   # 全量测试（当前 412 项，零依赖，离线可跑，约 95s）
 $PY -m review_tool                       # 列出所有子命令（15 个）
 $PY -m review_tool doctor                # 数据体检（库是否健康、有无该补的）
 $PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
@@ -62,9 +65,21 @@ $PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
    别"顺手"改成 `True`。
 7. **不重建定时任务**：本项目刻意无任何自动化调度，素材靠**手动投递**。
 8. **两套打卡体系不许混**：复盘 md 的补剂/护肤勾选 → `personal_tracks`（算依从率）；
-   ClickUp「习惯与打卡」→ **不落库**，只当素材。混了会污染依从率。
+   ClickUp「习惯与打卡」→ **在 M11 落地前仍不落库**，只当素材。
+   M11 会把 ClickUp 习惯落到**新表 `habit_logs`**，届时两表**物理隔离、永不合并**，
+   `doctor` 加代码守卫（两表 key 不得交叉）。
+9. **截图是输入通道，不是数据源**：体脂秤 / 薄荷 / 练练的截图一律**先落 md 数据块 → `ingest` 入库**。
+   禁止「只进库不落 md」—— 会破掉「删库可从 md 100% 重建」这条安全网。
+10. **新表不参与四维评分**：体征 / 训练 / 习惯 / 学习全部是**独立指标区**，
+    不动四维权重、不动 72 天历史分（改了会让 7 份周报 + 2 份月报集体作废）。
 
 ## 一次只做一个里程碑
 
-按 `docs/路线图.md` 的编号开发（当前从 **M1** 开始）。严格照该节的「范围 + 涉及文件 + 验收清单」，
-走 §4 的通用 DoD，**不跨里程碑混提交**。
+按 **`docs/生活管家路线图.md`** 的编号开发，**当前从 M9（体征基线）开始**。
+严格照该节的「范围（文件级）+ DDL 草案 + 核心口径 + 验收清单」做，走该文 §4 的通用 DoD，
+**不跨里程碑混提交**。M1–M8 已完成，见 `docs/路线图.md`（历史留档，勿追加）。
+
+**范围内必须守的三条红线**（详见路线图 §2.2）：
+- **R1** 同一指标只能有一个算法来源，新报告**必须复用**既有实现（如 `reports/ai_review.py` 的饮食判定）。
+- **R2** `exercise_min` 仍是健康分的**唯一运动输入**；训练明细只在字段为空时派生写入且标 `derived`。
+- **R3** `habit_logs` 与 `personal_tracks` **永不合并**，`doctor` 加代码守卫。
