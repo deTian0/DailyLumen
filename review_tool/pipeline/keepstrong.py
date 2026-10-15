@@ -1,20 +1,21 @@
-"""练练健身（KeepStrong）只读管道（M17）。
+"""练练健身（KeepStrong）管道（M17 只读 / M18 落 md / M19 受控写回）。
 
 用法::
 
     python -m review_tool keepstrong --date 20261001
-    python -m review_tool keepstrong --date 2026-10-01 --stdout
-    python -m review_tool keepstrong --range 20261001 20261007 --type records,body,plan
+    python -m review_tool keepstrong --date 2026-10-01 --write --ingest
+    python -m review_tool keepstrong --set-weight act_xxx 60 --yes
+    python -m review_tool keepstrong --log-body weight 82 --day 20261015 --yes
+    python -m review_tool keepstrong --schedule --day 20261016 --name 全身A \\
+        --actions-json acts.json --yes
 
 边界
 ----
-1. **只读**：本模块不调任何写端点、不落库、不改复盘 md；只产
-   ``收件箱/keepstrong-素材-<日期>.md``。
-2. **输入通道**：与截图同级；G1 要求后续先落 md 再 ingest（M18）。
-3. **中文文案一律写「练练健身」**（上游硬要求）。
-4. **中文查询参数必须 URL 编码**（未编码会静默返回空 list）。
+1. **读**：产 ``收件箱/keepstrong-素材-<日期>.md``；``--write`` 才改复盘 md。
+2. **写回（M19）**：须 ``--yes``；不落库、不作系统状态；无确认零网络写调用。
+3. **中文文案一律写「练练健身」**；查询参数必须 URL 编码。
 
-退出码：0 = 成功；1 = 取数失败（网络 / 上游错误）；2 = 用法或凭据缺失。
+退出码：0 = 成功；1 = 取数/写入失败；2 = 用法或凭据缺失。
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -425,6 +427,174 @@ class Client:
         if changed:
             self.save_actions_cache(cache)
 
+    # ---- 写端点（M19 · 须 userConfirmed / CLI --yes）-------------------
+    def post(
+        self,
+        path: str,
+        body: dict,
+        *,
+        idempotency_key: str,
+        params: dict[str, Any] | None = None,
+    ) -> Any:
+        return self.request(
+            "POST", path, params=params, body=body, idempotency_key=idempotency_key
+        )
+
+    def set_action_weight(
+        self,
+        action_id: str,
+        weight: str | float | int | None,
+        *,
+        user_confirmed: bool = False,
+        idempotency_key: str | None = None,
+        weight_unit: str | None = None,
+        template_id: str | None = None,
+        right_weight: str | float | int | None = None,
+    ) -> tuple[Any, str]:
+        """POST ``/training/actions/{id}/weight``。
+
+        ``weight is None`` → 传空串 ``""``（沿用历史）；⛔ 不用 ``0``。
+        返回 ``(响应体, idempotency_key)``。
+        """
+        if not user_confirmed:
+            raise KeepStrongError("写操作需要明确确认（userConfirmed / --yes）")
+        key = idempotency_key or new_idempotency_key()
+        # 未指定 → 空串；显式 0 也拒绝（上游语义会关闭自动取值）
+        if weight is None:
+            w = ""
+        else:
+            w = str(weight).strip()
+            if w == "0":
+                raise KeepStrongError(
+                    "重量不能传 0（会关闭历史自动取值）；未指定请省略参数以传空串"
+                )
+        body: dict[str, Any] = {"userConfirmed": True, "weight": w}
+        if weight_unit is not None:
+            body["weightUnit"] = weight_unit
+        if template_id is not None:
+            body["templateId"] = template_id
+        if right_weight is not None:
+            body["rightWeight"] = str(right_weight)
+        resp = self.post(
+            f"/api/v1/ai/training/actions/{action_id}/weight",
+            body,
+            idempotency_key=key,
+        )
+        verify_weight_response(action_id, w, resp)
+        return resp, key
+
+    def log_body_metric(
+        self,
+        metric: str,
+        value: float | int | str,
+        *,
+        unit: str,
+        day_str: str,
+        user_confirmed: bool = False,
+        idempotency_key: str | None = None,
+    ) -> tuple[Any, str]:
+        """POST ``/body/logs``。写回**不落库**。"""
+        if not user_confirmed:
+            raise KeepStrongError("写操作需要明确确认（userConfirmed / --yes）")
+        key = idempotency_key or new_idempotency_key()
+        body = {
+            "userConfirmed": True,
+            "metric": metric,
+            "value": float(value) if not isinstance(value, str) else value,
+            "unit": unit,
+            "dayStr": to_day_str(day_str),
+        }
+        resp = self.post("/api/v1/ai/body/logs", body, idempotency_key=key)
+        verify_body_log_response(body, resp)
+        return resp, key
+
+    def schedule_workout(
+        self,
+        day_str: str,
+        name: str,
+        actions: list[dict],
+        *,
+        user_confirmed: bool = False,
+        idempotency_key: str | None = None,
+    ) -> tuple[Any, str]:
+        """POST ``/training/scheduled-workouts``。首版只支持普通组。"""
+        if not user_confirmed:
+            raise KeepStrongError("写操作需要明确确认（userConfirmed / --yes）")
+        if not actions:
+            raise KeepStrongError("排课 actions 不能为空")
+        key = idempotency_key or new_idempotency_key()
+        body = {
+            "userConfirmed": True,
+            "dayStr": to_day_str(day_str),
+            "name": name,
+            "actions": actions,
+        }
+        resp = self.post(
+            "/api/v1/ai/training/scheduled-workouts", body, idempotency_key=key
+        )
+        verify_schedule_response(body, resp)
+        return resp, key
+
+
+def new_idempotency_key() -> str:
+    """每次调用唯一；同一逻辑请求重试时应复用调用方持有的 key。"""
+    return str(uuid.uuid4())
+
+
+def verify_weight_response(action_id: str, weight: str, resp: Any) -> None:
+    if not isinstance(resp, dict):
+        raise KeepStrongError(f"设重量返回体异常（非对象）: {resp!r}")
+    rid = resp.get("actionId")
+    if rid is not None and str(rid) != str(action_id):
+        raise KeepStrongError(
+            f"返回 actionId 不一致：请求 {action_id}，返回 {rid}"
+        )
+    if weight != "" and resp.get("weight") is not None:
+        if str(resp.get("weight")) != str(weight):
+            raise KeepStrongError(
+                f"返回 weight 不一致：请求 {weight!r}，返回 {resp.get('weight')!r}"
+            )
+
+
+def verify_body_log_response(request_body: dict, resp: Any) -> None:
+    if not isinstance(resp, dict):
+        raise KeepStrongError(f"记体重返回体异常（非对象）: {resp!r}")
+    for k in ("metric", "dayStr"):
+        if resp.get(k) is not None and str(resp.get(k)) != str(request_body.get(k)):
+            raise KeepStrongError(
+                f"返回 {k} 不一致：请求 {request_body.get(k)!r}，返回 {resp.get(k)!r}"
+            )
+
+
+def verify_schedule_response(request_body: dict, resp: Any) -> None:
+    if not isinstance(resp, dict):
+        raise KeepStrongError(f"排课返回体异常（非对象）: {resp!r}")
+    if resp.get("dayStr") is not None and str(resp["dayStr"]) != str(
+        request_body["dayStr"]
+    ):
+        raise KeepStrongError(
+            f"返回 dayStr 不一致：请求 {request_body['dayStr']}，返回 {resp['dayStr']}"
+        )
+
+
+def format_write_preview(kind: str, payload: dict) -> str:
+    """写前展示完整变更（给人确认）。"""
+    lines = [f"即将向「{PRODUCT_CN}」写入（{kind}）：", ""]
+    for k, v in payload.items():
+        if k == "actions" and isinstance(v, list):
+            lines.append(f"- actions（{len(v)}）：")
+            for i, a in enumerate(v, 1):
+                lines.append(f"  {i}. {json.dumps(a, ensure_ascii=False)}")
+        else:
+            lines.append(f"- {k}: {v}")
+    lines += [
+        "",
+        "⚠️ 写回不落 DailyLumen 库、不作系统状态。",
+        "⚠️ App 里可能需重启才可见。",
+        "确认后请加 --yes 再执行。",
+    ]
+    return "\n".join(lines)
+
 
 # --------------------------------------------------------------------- 采集
 def collect(
@@ -463,9 +633,10 @@ def collect(
 
 # ----------------------------------------------------------------------- CLI
 USAGE = (
-    "keepstrong [--date YYYY-MM-DD|yyyyMMdd] "
-    "[--range START END] [--type records,body,plan] "
-    "[--out DIR] [--stdout] [--write] [--ingest]"
+    "keepstrong [--date D] [--range S E] [--type …] [--write] [--ingest] [--stdout] | "
+    "keepstrong --set-weight <actionId> <kg|''> [--yes] | "
+    "keepstrong --log-body <metric> <value> [--day D] [--unit U] [--yes] | "
+    "keepstrong --schedule --day D --name N --actions-json PATH [--yes]"
 )
 
 
@@ -486,6 +657,13 @@ def _parse(argv: list[str]) -> dict[str, Any]:
     to_stdout = False
     do_write = False
     do_ingest = False
+    yes = False
+    mode = "read"  # read | set_weight | log_body | schedule
+    set_weight: list[str] = []
+    log_body: list[str] = []
+    sch_day = sch_name = sch_json = ""
+    body_day = ""
+    body_unit = "kg"
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -495,6 +673,58 @@ def _parse(argv: list[str]) -> dict[str, Any]:
             do_write = True
         elif a in ("--ingest",):
             do_ingest = True
+        elif a in ("--yes", "-y"):
+            yes = True
+        elif a == "--set-weight":
+            if i + 2 >= len(argv):
+                raise ValueError("--set-weight 需要 <actionId> <kg|''>")
+            mode = "set_weight"
+            set_weight = [argv[i + 1], argv[i + 2]]
+            i += 2
+        elif a == "--log-body":
+            if i + 2 >= len(argv):
+                raise ValueError("--log-body 需要 <metric> <value>")
+            mode = "log_body"
+            log_body = [argv[i + 1], argv[i + 2]]
+            i += 2
+        elif a == "--schedule":
+            mode = "schedule"
+        elif a == "--name" or a.startswith("--name="):
+            if a.startswith("--name="):
+                sch_name = a.split("=", 1)[1]
+            else:
+                i += 1
+                if i >= len(argv):
+                    raise ValueError("--name 需要课名")
+                sch_name = argv[i]
+        elif a == "--actions-json" or a.startswith("--actions-json="):
+            if a.startswith("--actions-json="):
+                sch_json = a.split("=", 1)[1]
+            else:
+                i += 1
+                if i >= len(argv):
+                    raise ValueError("--actions-json 需要路径")
+                sch_json = argv[i]
+        elif a == "--unit" or a.startswith("--unit="):
+            if a.startswith("--unit="):
+                body_unit = a.split("=", 1)[1]
+            else:
+                i += 1
+                if i >= len(argv):
+                    raise ValueError("--unit 需要单位")
+                body_unit = argv[i]
+        elif a == "--day" or a.startswith("--day="):
+            if a.startswith("--day="):
+                raw_day = a.split("=", 1)[1]
+            else:
+                i += 1
+                if i >= len(argv):
+                    raise ValueError("--day 需要日期")
+                raw_day = argv[i]
+            if mode == "schedule":
+                sch_day = raw_day
+            else:
+                body_day = raw_day
         elif a == "--date" or a.startswith("--date="):
             if a.startswith("--date="):
                 date_one = a.split("=", 1)[1]
@@ -536,6 +766,12 @@ def _parse(argv: list[str]) -> dict[str, Any]:
             raise ValueError(f"多余的参数: {a}")
         i += 1
 
+    if mode == "schedule":
+        if not sch_day or not sch_name or not sch_json:
+            raise ValueError("--schedule 需要 --day / --name / --actions-json")
+    if mode == "log_body" and not body_day:
+        body_day = datetime.date.today().strftime("%Y%m%d")
+
     types = _parse_types(types_raw)
     if range_start or range_end:
         if not (range_start and range_end):
@@ -549,6 +785,7 @@ def _parse(argv: list[str]) -> dict[str, Any]:
     if start > end:
         raise ValueError(f"起始日期不能晚于结束日期: {start} > {end}")
     return {
+        "mode": mode,
         "start": start,
         "end": end,
         "types": types,
@@ -556,7 +793,108 @@ def _parse(argv: list[str]) -> dict[str, Any]:
         "to_stdout": to_stdout,
         "write": do_write,
         "ingest": do_ingest,
+        "yes": yes,
+        "set_weight": set_weight,
+        "log_body": log_body,
+        "body_day": body_day,
+        "body_unit": body_unit,
+        "sch_day": sch_day,
+        "sch_name": sch_name,
+        "sch_json": sch_json,
     }
+
+
+def _run_outbound(opts: dict[str, Any], client: Client) -> int:
+    """M19 写回：无 --yes 只预览、零网络写；有 --yes 才 POST。"""
+    mode = opts["mode"]
+    yes = bool(opts["yes"])
+
+    if mode == "set_weight":
+        action_id, raw_w = opts["set_weight"]
+        weight: str | None
+        if raw_w in ("", "''", '""'):
+            weight = None  # → 空串
+        else:
+            weight = raw_w
+        preview = {
+            "actionId": action_id,
+            "weight": "" if weight is None else weight,
+            "note": "空串=沿用历史自动重量",
+        }
+        print(format_write_preview("设下次重量", preview))
+        if not yes:
+            return 0
+        try:
+            resp, key = client.set_action_weight(
+                action_id, weight, user_confirmed=True
+            )
+        except KeepStrongError as e:
+            print(f"写入失败: {e}", file=sys.stderr)
+            return 1
+        print(f"已写入（Idempotency-Key={key}）: {json.dumps(resp, ensure_ascii=False)}")
+        print("提示：App 里可能需重启才可见。写回未入 DailyLumen 库。")
+        return 0
+
+    if mode == "log_body":
+        metric, value = opts["log_body"]
+        preview = {
+            "metric": metric,
+            "value": value,
+            "unit": opts["body_unit"],
+            "dayStr": to_day_str(opts["body_day"]),
+        }
+        print(format_write_preview("记体征", preview))
+        if not yes:
+            return 0
+        try:
+            resp, key = client.log_body_metric(
+                metric,
+                value,
+                unit=opts["body_unit"],
+                day_str=opts["body_day"],
+                user_confirmed=True,
+            )
+        except KeepStrongError as e:
+            print(f"写入失败: {e}", file=sys.stderr)
+            return 1
+        print(f"已写入（Idempotency-Key={key}）: {json.dumps(resp, ensure_ascii=False)}")
+        print("提示：App 里可能需重启才可见。写回未入 DailyLumen 库。")
+        return 0
+
+    if mode == "schedule":
+        path = opts["sch_json"]
+        try:
+            with open(path, encoding="utf-8") as f:
+                actions = json.load(f)
+        except (OSError, ValueError) as e:
+            print(f"读 actions-json 失败: {e}", file=sys.stderr)
+            return 2
+        if not isinstance(actions, list):
+            print("--actions-json 须为 JSON 数组", file=sys.stderr)
+            return 2
+        preview = {
+            "dayStr": to_day_str(opts["sch_day"]),
+            "name": opts["sch_name"],
+            "actions": actions,
+        }
+        print(format_write_preview("排课", preview))
+        if not yes:
+            return 0
+        try:
+            resp, key = client.schedule_workout(
+                opts["sch_day"],
+                opts["sch_name"],
+                actions,
+                user_confirmed=True,
+            )
+        except KeepStrongError as e:
+            print(f"写入失败: {e}", file=sys.stderr)
+            return 1
+        print(f"已写入（Idempotency-Key={key}）: {json.dumps(resp, ensure_ascii=False)}")
+        print("提示：App 里可能需重启才可见。写回未入 DailyLumen 库。")
+        return 0
+
+    raise KeepStrongError(f"未知写模式: {mode}")
 
 
 def main(
@@ -571,7 +909,7 @@ def main(
     argv = list(sys.argv[1:]) if argv is None else list(argv)
     if any(a in ("-h", "--help") for a in argv):
         print(f"用法: python -m review_tool {USAGE}")
-        print(f"从「{PRODUCT_CN}」拉取训练 / 体征 / 计划素材（只读，不落库）。")
+        print(f"「{PRODUCT_CN}」读素材 / 落 md / 受控写回（写回须 --yes）。")
         return 0
 
     try:
@@ -589,6 +927,9 @@ def main(
         return 2
 
     client = Client(key, urlopen=urlopen, sleep=sleep)
+
+    if opts["mode"] != "read":
+        return _run_outbound(opts, client)
     try:
         bundle = collect(
             opts["start"], opts["end"], types=opts["types"], client=client

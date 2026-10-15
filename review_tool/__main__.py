@@ -117,8 +117,7 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
         "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]"),
     "keepstrong": (
         keepstrong_main,
-        "keepstrong [--date D] [--range S E] [--type …] "
-        "[--write] [--ingest] [--stdout]"),
+        "keepstrong [--date D] [--write] [--ingest] | --set-weight/--log-body/--schedule --yes"),
     "doctor": (doctor_main, "doctor"),
     "body": (body_main, "body [--json]"),
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),
