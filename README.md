@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.22.0**（练练数据落 md 入库；schema v8）
+> 当前版本 **1.23.0**（练练受控写回；schema v8）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -98,7 +98,7 @@
 | `import-history [--check] [--src DIR]`               | 语雀历史文件转换为标准格式                          |
 | `clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--with-habits]` | 拉 ClickUp 当日素材；`--with-habits` 附习惯段并同步 `habit_logs` |
 | `clickup-push [YYYY-MM-DD] [--apply]`                | 复盘已入库 → 勾 ClickUp「每日复盘总结」（**默认 dry-run**） |
-| `keepstrong [--date D] [--write] [--ingest] [--stdout]` | 练练素材；`--write` 落复盘 md，`--ingest` 入库（G1） |
+| `keepstrong [--date D] [--write] [--ingest] / --set-weight … --yes` | 练练读/落 md；写回须 `--yes` |
 | `doctor`                                             | 数据体检：对账 / R3 习惯隔离 / 习惯断更 / 体征 / 熔断… |
 | `body [--json]`                                      | 体征趋势：最新体重 / BMI / 7 日均 / 周变化 / 距目标（独立指标区） |
 | `coach [YYYY-MM-DD] [--json]`                        | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据数字） |
