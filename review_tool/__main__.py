@@ -20,7 +20,8 @@
     python -m review_tool sync-docs  [--check]
     python -m review_tool recompute-scores [--apply] [--db PATH]
     python -m review_tool export     [--format csv|json] [--out DIR] [--stdout]
-    python -m review_tool chart      [--out DIR] [--stdout]
+    python -m review_tool chart      [--type body|training|nutrition|all] [--out DIR] [--stdout]
+    python -m review_tool correlate  [--json] [--min-samples N]
     python -m review_tool version
 
 任意子命令加 ``-h`` 可查看该项用法。
@@ -58,6 +59,7 @@ from .reports.analyze import main as analyze_main
 from .reports.body import main as body_main
 from .reports.chart import main as chart_main
 from .reports.coach import main as coach_main
+from .reports.correlate import main as correlate_main
 from .reports.doctor import main as doctor_main
 from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
@@ -125,7 +127,11 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "recompute-scores": (
         recompute_main, "recompute-scores [--apply] [--db PATH]"),
     "export": (export_main, "export [--format csv|json] [--out DIR] [--stdout]"),
-    "chart": (chart_main, "chart [--out DIR] [--stdout]"),
+    "chart": (
+        chart_main,
+        "chart [--type body|training|nutrition|all] [--out DIR] [--stdout]"),
+    "correlate": (
+        correlate_main, "correlate [--json] [--min-samples N]"),
     "version": (_version, "version"),
 }
 

@@ -154,7 +154,7 @@ agent_created: true
 
 ## 6. 工程约定
 
-- **零依赖**：纯标准库。测试用 `unittest`（**21** 子命令；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
+- **零依赖**：纯标准库。测试用 `unittest`（**22** 子命令；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
 - **CI 是阻塞的**：从仓库内 md 从零重建数据库 → `doctor` / `recompute-scores` / `sync-docs --check`
   **阻塞**（对账干净、分数与字段重算一致、md 无需回写）；`fuse` 不阻塞（人生指标告警）。
   矩阵 3.10–3.13。

@@ -60,7 +60,6 @@ reports   ->  pipeline  ->  storage  ->  core
 | `habit_sync.py` | **ClickUp 习惯 → habit_logs**（唯一 ClickUp→库写方向；幂等；不改写已有 done） |
 | `clickup_sync.py` | **复盘入库 → 勾「每日复盘总结」**（默认 dry-run；`--apply` 真写 + GET 回读） |
 | `export.py` | 导出 CSV / JSON（含依从率表） |
-| `chart.py`（reports） | 离线趋势 SVG（`chart` 子命令 → `exports/trends.svg`） |
 | `streak.py`（reports） | 正向连续：复盘 / 训练 / 打卡 |
 
 ### reports/ —— 产出层
@@ -73,6 +72,8 @@ reports   ->  pipeline  ->  storage  ->  core
 | `nutrition.py` | 营养缺口报告：当日/近窗缺口 + FOOD_LIB ≤3 种具体动作（`--json`） |
 | `tutor.py` | 学习/复习报告：今日待复习 + 本周主题/投入/产出物（`--json`） |
 | `steward.py` | 总管家编排：`--slot morning\|evening\|week`（只调用既有模块，数字可溯源） |
+| `chart.py` | 离线 SVG：默认四维趋势；`--type body|training|nutrition|all`（目标带 / 柱状 / 双轴） |
+| `correlate.py` | 跨维关联：睡眠/训练/体重/热量/学习；样本不足 10 仅观察；相关≠因果 |
 | `doctor.py` | 数据体检：schema / 对账 / 熔断 / 体征 / **R3 习惯隔离** / **习惯断更**（建议性） |
 | `fuse.py` | 熔断检测：单维度连续走低（绝对）+ 近 7 日 vs 前 28 日均值漂移（相对） |
 | `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则；宏量判定复用 core.nutrition） |
@@ -101,7 +102,8 @@ python -m review_tool fuse                             # 熔断检测（有绝�
 python -m review_tool sync-docs [--check]              # 库中分数回写到 md（--check 仅报告）
 python -m review_tool recompute-scores [--apply]       # 按规则重算四维/系统分（默认试算）
 python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
-python -m review_tool chart [--out 目录] [--stdout]   # 趋势 SVG
+python -m review_tool chart [--type body|training|nutrition|all] [--out 目录] [--stdout]
+python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（样本不足 10 仅观察）
 ```
 
 ## 目录约定
