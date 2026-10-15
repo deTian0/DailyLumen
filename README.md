@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.16.0**（营养缺口：FOOD_LIB → 具体动作；schema v7 无迁移）
+> 当前版本 **1.17.0**（学习记录 + 间隔重复队列；schema v8）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -24,7 +24,7 @@
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md + 迁移指南.md + 路线图.md(M1-M8)
 │                                     #   + 生活管家需求文档.md + 生活管家路线图.md(M9-M15) + 能力图谱.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，519 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，540 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
@@ -49,6 +49,7 @@
     │   ├── training.py               #   训练明细解析 + 合计 + 推荐规则纯函数 ★
     │   ├── habits.py                 #   行为习惯纯规则（归一化 / 依从率 / streak / 断更）★
     │   ├── nutrition.py              #   营养缺口 / 组合建议 / 极端值（零 I/O；与 ai_review 同源）★
+    │   ├── learning.py               #   学习主题归一化 + 间隔重复队列推算（零 I/O）★
     │   └── score.py                  #   四维评分规则 ★
     ├── storage/                      # 持久化层：SQLite 的唯一出入口
     │   └── db.py                     #   读写 + 带版本增量迁移 + 打卡对账 + 体征 + 训练 + 习惯
@@ -68,6 +69,7 @@
         ├── coach.py                  #   训练教练建议（达标 / 渐进 / 恢复 / 轮换）★
         ├── habits.py                 #   行为习惯依从率 / streak / 断更报告 ★
         ├── nutrition.py              #   营养缺口报告（FOOD_LIB 具体动作）★
+        ├── tutor.py                  #   学习/复习报告（待复习 + 本周主题/投入/产出）★
         ├── streak.py                 #   正向连续天数（复盘 / 训练 / 打卡）
         ├── chart.py                  #   离线趋势 SVG（零依赖）
         ├── doctor.py                 #   数据体检（对账 / R3 隔离 / 习惯断更 / 体征…）★
@@ -98,6 +100,7 @@
 | `coach [YYYY-MM-DD] [--json]`                        | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据数字） |
 | `habits [--json] [--sync …]`                         | 行为习惯报告；`--sync` 从 ClickUp 写入 `habit_logs` |
 | `nutrition [YYYY-MM-DD] [--json]`                    | 营养缺口：当日/近窗 vs macro_targets + FOOD_LIB 具体动作 |
+| `tutor [YYYY-MM-DD] [--json]`                        | 学习/复习：今日待复习 + 本周主题/投入/产出物（独立指标区） |
 | `fuse`                                               | 熔断检测：单维度持续走低 + 相对基线偏离                  |
 | `sync-docs [--check]`                                | 把库里的四维分回写到复盘 md（数据块 + 六章表格）            |
 | `recompute-scores [--apply]`                         | 按当前规则重算库中四维 / 系统分（默认只试算）               |

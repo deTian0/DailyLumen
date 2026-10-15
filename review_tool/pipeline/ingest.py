@@ -33,8 +33,10 @@ from ..storage.db import (
     count,
     init_db,
     prune_personal_tracks,
+    rebuild_review_queue,
     upsert,
     upsert_body_metrics,
+    upsert_learning_log,
     upsert_personal_track,
     upsert_training,
 )
@@ -139,6 +141,23 @@ def ingest_path(conn, path: str, *, overwrite: bool = False,
         upsert_training(
             conn, session, training.get("items") or [], overwrite=overwrite
         )
+    # 学习记录 → learning_logs + 重建 review_queue（独立指标区；G5）
+    learning = row.get("_learning")
+    if learning is not None:
+        for item in learning:
+            upsert_learning_log(
+                conn,
+                {
+                    "date": row["date"],
+                    "topic_key": item["topic_key"],
+                    "topic": item.get("topic") or item["topic_key"],
+                    "minutes": item.get("minutes"),
+                    "src": item.get("src"),
+                    "artifact": item.get("artifact"),
+                },
+                overwrite=overwrite,
+            )
+        rebuild_review_queue(conn)
     conn.commit()
     return row
 

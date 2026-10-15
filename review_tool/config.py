@@ -7,6 +7,8 @@
 - ``PROFILE``      个人作息 / 目标 / 训练日约定
 - ``PERSONAL_ITEMS`` 个人打卡项定义（补剂 / 护肤 / 自定义）——解析与归一化的单一来源
 - ``HABITS``       行为习惯目录（ClickUp「习惯与打卡」）——与 PERSONAL_ITEMS **永不合并**
+- ``LEARNING_TOPICS`` 学习主题目录（可选；未命中则 slugify）
+- ``SPACED_REPEAT``   间隔重复天数（默认 1/3/7/16）
 - ``SCORE_THRESHOLDS`` 四维评分阈值与权重（同时驱动「AI 评价与建议」的关注点规则）
 - ``FEATURES``     功能开关：默认关闭你用不到的子命令（当前只有 ``new_day``）
 - ``CLICKUP_LISTS`` 外部素材源（可选）：ClickUp list → 中文名 / 用途的一处定义
@@ -395,6 +397,52 @@ HABITS = [
 
 # ClickUp「习惯与打卡」list id（select_habits / habit_sync 默认源）
 HABITS_LIST_ID = "901422213139"
+
+
+# ---------------------------------------------------------------------------
+# 学习主题目录（可选）+ 间隔重复
+#
+# LEARNING_TOPICS：未命中时 core/learning 用 slugify(主题) 作 topic_key，
+# 保证 md → 库可重建。别名最长优先（与 HABITS / PERSONAL_ITEMS 同口径）。
+# SPACED_REPEAT.intervals：学习次数 n → stage = min(n-1, len-1)，
+# due = last_seen + intervals[stage]。review_queue 必须可从 learning_logs 重建。
+# ---------------------------------------------------------------------------
+
+LEARNING_TOPICS = [
+    {
+        "key": "python",
+        "label": "Python",
+        "aliases": ["Python", "python", "Py"],
+    },
+    {
+        "key": "system_design",
+        "label": "系统设计",
+        "aliases": ["系统设计", "System Design", "架构"],
+    },
+    {
+        "key": "english",
+        "label": "英语",
+        "aliases": ["英语", "English", "英文"],
+    },
+    {
+        "key": "reading",
+        "label": "阅读",
+        "aliases": ["阅读", "读书", "Reading"],
+    },
+    {
+        "key": "growth_course",
+        "label": "成长课",
+        "aliases": ["成长课", "14周计划", "成长课 · 14周计划"],
+    },
+]
+
+# 简化 SM-2：1d / 3d / 7d / 16d
+SPACED_REPEAT = {
+    "intervals": [1, 3, 7, 16],
+}
+
+# 学习证据链 ClickUp list（阅读与学习 + 成长课）；素材用 clickup --list 组合即可
+LEARNING_LIST_IDS = ("901422213142", "901422213140")
 
 
 # ---------------------------------------------------------------------------

@@ -158,4 +158,29 @@ CREATE TABLE IF NOT EXISTS habit_logs (
     PRIMARY KEY (date, habit_key)
 );
 
+-- 学习记录（教师角色）：独立指标区，不参与四维评分（G5）
+-- 权威：md「附录 · 学习记录」→ ingest；可从 md 100% 重建
+CREATE TABLE IF NOT EXISTS learning_logs (
+    date      TEXT NOT NULL,
+    topic_key TEXT NOT NULL,        -- 归一化主题（config.LEARNING_TOPICS 或 slugify）
+    topic     TEXT NOT NULL,        -- 展示名
+    minutes   REAL
+        CHECK (minutes IS NULL OR minutes >= 0),
+    src       TEXT
+        CHECK (src IS NULL OR src IN ('clickup', 'self', 'course')),
+    artifact  TEXT,                 -- 产出物（笔记 / 代码 / 章节）
+    PRIMARY KEY (date, topic_key)
+);
+
+-- 复习队列：派生表，必须可从 learning_logs 完全重建（stage 由历史学习次数推算）
+-- note 在重建路径上恒为 NULL（不存无法重建的状态）
+CREATE TABLE IF NOT EXISTS review_queue (
+    topic_key TEXT PRIMARY KEY,
+    topic     TEXT NOT NULL,
+    stage     INTEGER NOT NULL DEFAULT 0,
+    due_date  TEXT NOT NULL,
+    last_seen TEXT,
+    note      TEXT
+);
+
 -- 索引见文件开头说明，由 db.py 统一创建。

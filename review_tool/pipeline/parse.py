@@ -22,6 +22,9 @@
 训练明细（M10）：「附录 · 训练明细」→ ``_training`` 侧车；合计分钟仅在
 ``exercise_min`` 仍为空时派生（字段优先 → 三件事折算 → 明细合计），
 同样标 ``exercise_src='derived'``（R2，不加新枚举）。
+
+学习记录（M13）：「附录 · 学习记录」→ ``_learning`` 侧车（条目列表）；
+不参与四维（G5）；ingest 落 ``learning_logs`` 并重建 ``review_queue``。
 """
 from __future__ import annotations
 
@@ -38,6 +41,7 @@ from ..config import (
     SUPPLEMENT_MARKER,
 )
 from ..core.bodyweight import estimate
+from ..core.learning import parse_section as parse_learning_section
 from ..core.score import system_score_from
 from ..core.tracks import normalize_supplement_line, resolve_item, resolve_track
 from ..core.training import parse_section as parse_training_section
@@ -258,7 +262,12 @@ def parse_text(text: str) -> dict:
                 f"（session={training.get('session_key')}）"
             )
 
-    # 6) 提取「一、日常打卡」下的个人定制勾选 -> personal_tracks（补剂/护肤）
+    # 6) 学习记录侧车（附录 · 学习记录）—— 独立指标区，不参与四维
+    learning = parse_learning_section(text)
+    if learning is not None:
+        row["_learning"] = learning
+
+    # 7) 提取「一、日常打卡」下的个人定制勾选 -> personal_tracks（补剂/护肤）
     tracks = _extract_personal_tracks(text)
     if tracks:
         row["_personal_tracks"] = tracks

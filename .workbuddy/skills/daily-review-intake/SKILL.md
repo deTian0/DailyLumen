@@ -150,6 +150,35 @@ agent_created: true
 
 ⛔ 禁止「只进库不落 md」。有计时器读数时优先填数据块 `运动时长_min`，明细作证据。
 
+
+### 3.7 学习记录回填规则
+
+学习主题 / 产出是**输入通道**，权威仍是 md（G1）。流程：
+
+1. 写入当日 md **「附录 · 学习记录」**（建议在「附录 · 系统数据」之前）：
+
+```markdown
+## 附录 · 学习记录
+
+- 主题：Python｜时长：45min｜来源：self｜产出：笔记-asyncio
+- 主题：系统设计｜时长：30min｜来源：course｜产出：章节3
+```
+
+2. `python -m review_tool ingest` → `learning_logs`，并重建 `review_queue`
+3. 查看：`python -m review_tool tutor`（今日待复习 + 本周主题/投入/产出物）
+
+| 项 | 规则 |
+| --- | --- |
+| 主题 | `config.LEARNING_TOPICS` 命中用规范 key；否则 `slugify` |
+| 来源 | `clickup` / `self` / `course`（中文别名：手填 / 课程 / 成长课） |
+| 队列 | stage 由历史学习次数推算；间隔 1/3/7/16；可从 logs 完全重建 |
+| 与四维 | **不参与**（G5） |
+
+证据链素材：`python -m review_tool clickup --list 901422213142 --list 901422213140`。
+讲解 / 出题交给对话现场能力，不落库。
+
+⛔ 禁止「只进库不落 md」。
+
 ## 4. 生成「七、AI 评价与建议」
 
 先取确定性上下文，再据此撰写：

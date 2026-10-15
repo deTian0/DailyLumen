@@ -139,7 +139,7 @@ agent_created: true
 
 ## 5. 数据库规约
 
-- **SQLite `reviews.db` 是唯一数据源**；schema 走 `PRAGMA user_version` 幂等迁移（当前 **v7**）。
+- **SQLite `reviews.db` 是唯一数据源**；schema 走 `PRAGMA user_version` 幂等迁移（当前 **v8**）。
   v1.9.0 决断：`energy` / `mood` / `commute_done` **保留**（模板提醒 / 通勤默认「是」），
   不做破坏性删列；三者**不参与四维评分**。
 - **改 CHECK 只能重建表**，重建必须走全覆盖流程：
@@ -154,7 +154,7 @@ agent_created: true
 
 ## 6. 工程约定
 
-- **零依赖**：纯标准库。测试用 `unittest`（**19** 子命令；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
+- **零依赖**：纯标准库。测试用 `unittest`（**20** 子命令；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
 - **CI 是阻塞的**：从仓库内 md 从零重建数据库 → `doctor` / `recompute-scores` / `sync-docs --check`
   **阻塞**（对账干净、分数与字段重算一致、md 无需回写）；`fuse` 不阻塞（人生指标告警）。
   矩阵 3.10–3.13。

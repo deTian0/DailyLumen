@@ -68,6 +68,10 @@ class TestExampleDb(unittest.TestCase):
             self.conn.execute("SELECT COUNT(*) FROM training_items").fetchone()[0], 0)
         self.assertEqual(
             self.conn.execute("SELECT COUNT(*) FROM habit_logs").fetchone()[0], 0)
+        self.assertEqual(
+            self.conn.execute("SELECT COUNT(*) FROM learning_logs").fetchone()[0], 0)
+        self.assertEqual(
+            self.conn.execute("SELECT COUNT(*) FROM review_queue").fetchone()[0], 0)
 
     def test_body_metrics_table_present(self):
         """v5：空模板必须带 body_metrics（含 CHECK）。"""
@@ -105,6 +109,23 @@ class TestExampleDb(unittest.TestCase):
             cols,
             ["date", "habit_key", "category", "item", "done", "src", "note"],
         )
+
+    def test_learning_tables_present(self):
+        """v8：空模板必须带 learning_logs / review_queue。"""
+        ll = [r[1] for r in self.conn.execute("PRAGMA table_info(learning_logs)")]
+        self.assertEqual(
+            ll,
+            ["date", "topic_key", "topic", "minutes", "src", "artifact"],
+        )
+        rq = [r[1] for r in self.conn.execute("PRAGMA table_info(review_queue)")]
+        self.assertEqual(
+            rq,
+            ["topic_key", "topic", "stage", "due_date", "last_seen", "note"],
+        )
+        ddl = _ddl(self.conn, "learning_logs")
+        self.assertIn("'clickup'", ddl)
+        self.assertIn("'self'", ddl)
+        self.assertIn("'course'", ddl)
 
     def test_integrity_ok(self):
         self.assertEqual(

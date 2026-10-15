@@ -12,12 +12,15 @@ from review_tool.config import (
     BODYWEIGHT_MOVES,
     FOOD_LIB,
     HABITS,
+    LEARNING_LIST_IDS,
+    LEARNING_TOPICS,
     NUTRITION_RULES,
     PERSONAL_ITEMS,
     PROFILE,
     SCORE_THRESHOLDS,
     SLOT_BY_CN,
     SLOT_CN,
+    SPACED_REPEAT,
     TRAINING_MOVES,
     WEEKDAY_CN,
 )
@@ -230,6 +233,28 @@ class TestTrainingMovesCatalog(unittest.TestCase):
                     got_key, key,
                     f"BODYWEIGHT alias {alias!r} → {got_key!r}，期望 {key!r}",
                 )
+
+
+class TestLearningCatalog(unittest.TestCase):
+    """LEARNING_TOPICS / SPACED_REPEAT 守卫（M13）。"""
+
+    def test_topics_structure(self):
+        keys = [t["key"] for t in LEARNING_TOPICS]
+        self.assertEqual(len(keys), len(set(keys)))
+        for t in LEARNING_TOPICS:
+            self.assertIn("key", t)
+            self.assertIn("label", t)
+            self.assertTrue(t.get("aliases"))
+
+    def test_spaced_repeat_intervals(self):
+        iv = SPACED_REPEAT.get("intervals") or []
+        self.assertEqual(iv, [1, 3, 7, 16])
+        self.assertTrue(all(isinstance(x, int) and x > 0 for x in iv))
+
+    def test_learning_list_ids(self):
+        self.assertEqual(len(LEARNING_LIST_IDS), 2)
+        self.assertIn("901422213142", LEARNING_LIST_IDS)
+        self.assertIn("901422213140", LEARNING_LIST_IDS)
 
 
 class TestVersionConsistency(unittest.TestCase):
