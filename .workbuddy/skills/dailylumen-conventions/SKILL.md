@@ -154,7 +154,7 @@ agent_created: true
 
 ## 6. 工程约定
 
-- **零依赖**：纯标准库。测试用 `unittest`（**20** 子命令；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
+- **零依赖**：纯标准库。测试用 `unittest`（**21** 子命令；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
 - **CI 是阻塞的**：从仓库内 md 从零重建数据库 → `doctor` / `recompute-scores` / `sync-docs --check`
   **阻塞**（对账干净、分数与字段重算一致、md 无需回写）；`fuse` 不阻塞（人生指标告警）。
   矩阵 3.10–3.13。
@@ -187,7 +187,9 @@ agent_created: true
 
 ## 8. 换机 / 迁移（v1.4.5 定版口径）
 
-**git 里有什么**：全部代码 + 测试 + CI + 全部复盘原文 + 空库模板 + 三个项目级 skill（`dailylumen-conventions` / `daily-review-intake` / `doc-corpus-normalize`）。
+**git 里有什么**：全部代码 + 测试 + CI + 全部复盘原文 + 空库模板 + 项目级 skill
+（`dailylumen-conventions` / `daily-review-intake` / `life-steward-daily` /
+`doc-corpus-normalize` / `clickup-tracking`）。
 
 | 路径 | 迁移动作 |
 | --- | --- |
@@ -215,6 +217,7 @@ agent_created: true
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
+| **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
 | **ClickUp 行为跟踪 → 复盘素材**（结构 / 映射 / 日期口径 / 边界） | skill **`clickup-tracking`** |
 | ClickUp API 通用能力（批量建任务 / 迁移 / 坑清单） | skill `clickup-api-bulk-tasks`（用户级） |

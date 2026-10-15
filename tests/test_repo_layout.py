@@ -60,6 +60,21 @@ class TestProjectSkills(unittest.TestCase):
         self.assertTrue(os.path.isdir(SKILLS_DIR), "缺少 .workbuddy/skills/")
         self.assertTrue(self._skill_dirs(), ".workbuddy/skills/ 下没有任何 skill")
 
+    # M14 起必须入 git 的编排 skill（白名单目录内；缺了 = 换机丢 SOP）
+    REQUIRED_SKILLS = (
+        "dailylumen-conventions",
+        "daily-review-intake",
+        "doc-corpus-normalize",
+        "clickup-tracking",
+        "life-steward-daily",
+    )
+
+    def test_required_skills_present(self):
+        """关键项目级 skill 不得缺席（含 M14 life-steward-daily）。"""
+        present = set(self._skill_dirs())
+        missing = [n for n in self.REQUIRED_SKILLS if n not in present]
+        self.assertEqual(missing, [], f"缺 skill: {missing}")
+
     def test_every_skill_has_valid_frontmatter(self):
         """每个项目级 skill 都要有可被加载器识别的 frontmatter。"""
         for name in self._skill_dirs():

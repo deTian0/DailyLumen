@@ -10,6 +10,8 @@ agent_created: true
 > 或说「总结一下我们刚才聊的」），由本 SOP 生成当日复盘。原先的「晨间收集自动化」已删除，
 > 本 skill 就是它的替代品 —— 但机制从 **always-on 调度** 换成 **按需加载**。
 > 项目口径（评分 / 熔断 / 权威归属 / 规约）见 skill `dailylumen-conventions`，这里只讲流程。
+> 总管家「夜间复盘」段挂本 skill：先 `steward --slot evening` 看清单，再按本文落地
+> （见 skill `life-steward-daily`）。
 
 ## 触发与开场
 

@@ -72,6 +72,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `habits.py` | 行为习惯报告：依从率 / streak / 断更；`--sync` 调 `habit_sync` |
 | `nutrition.py` | 营养缺口报告：当日/近窗缺口 + FOOD_LIB ≤3 种具体动作（`--json`） |
 | `tutor.py` | 学习/复习报告：今日待复习 + 本周主题/投入/产出物（`--json`） |
+| `steward.py` | 总管家编排：`--slot morning\|evening\|week`（只调用既有模块，数字可溯源） |
 | `doctor.py` | 数据体检：schema / 对账 / 熔断 / 体征 / **R3 习惯隔离** / **习惯断更**（建议性） |
 | `fuse.py` | 熔断检测：单维度连续走低（绝对）+ 近 7 日 vs 前 28 日均值漂移（相对） |
 | `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则；宏量判定复用 core.nutrition） |
@@ -95,6 +96,7 @@ python -m review_tool coach [YYYY-MM-DD] [--json]      # 训练教练建议（�
 python -m review_tool habits [--json] [--sync ...]     # 行为习惯报告 / ClickUp→habit_logs
 python -m review_tool nutrition [YYYY-MM-DD] [--json]  # 营养缺口 + FOOD_LIB 建议
 python -m review_tool tutor [YYYY-MM-DD] [--json]      # 学习/复习队列
+python -m review_tool steward --slot morning|evening|week […]  # 总管家编排
 python -m review_tool fuse                             # 熔断检测（有绝对熔断时 exit=1）
 python -m review_tool sync-docs [--check]              # 库中分数回写到 md（--check 仅报告）
 python -m review_tool recompute-scores [--apply]       # 按规则重算四维/系统分（默认试算）
