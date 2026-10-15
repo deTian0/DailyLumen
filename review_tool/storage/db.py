@@ -18,7 +18,7 @@ from ..config import DB_PATH, SCHEMA_PATH
 from ..core.tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
@@ -86,6 +86,9 @@ _INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_ti_item ON training_items(item_key)",
     "CREATE INDEX IF NOT EXISTS idx_hl_date ON habit_logs(date)",
     "CREATE INDEX IF NOT EXISTS idx_hl_habit ON habit_logs(habit_key)",
+    "CREATE INDEX IF NOT EXISTS idx_ll_date ON learning_logs(date)",
+    "CREATE INDEX IF NOT EXISTS idx_ll_topic ON learning_logs(topic_key)",
+    "CREATE INDEX IF NOT EXISTS idx_rq_due ON review_queue(due_date)",
 ]
 
 # 体征表（v5）：与 schema.sql 对齐；迁移路径在 schema 未跑时也能建表
@@ -163,6 +166,39 @@ CREATE TABLE IF NOT EXISTS habit_logs (
 
 HABIT_COLUMNS = [
     "date", "habit_key", "category", "item", "done", "src", "note",
+]
+
+# 学习记录 + 复习队列（v8）
+_LEARNING_LOGS_DDL = """
+CREATE TABLE IF NOT EXISTS learning_logs (
+    date      TEXT NOT NULL,
+    topic_key TEXT NOT NULL,
+    topic     TEXT NOT NULL,
+    minutes   REAL
+        CHECK (minutes IS NULL OR minutes >= 0),
+    src       TEXT
+        CHECK (src IS NULL OR src IN ('clickup', 'self', 'course')),
+    artifact  TEXT,
+    PRIMARY KEY (date, topic_key)
+)
+"""
+
+_REVIEW_QUEUE_DDL = """
+CREATE TABLE IF NOT EXISTS review_queue (
+    topic_key TEXT PRIMARY KEY,
+    topic     TEXT NOT NULL,
+    stage     INTEGER NOT NULL DEFAULT 0,
+    due_date  TEXT NOT NULL,
+    last_seen TEXT,
+    note      TEXT
+)
+"""
+
+LEARNING_COLUMNS = [
+    "date", "topic_key", "topic", "minutes", "src", "artifact",
+]
+QUEUE_COLUMNS = [
+    "topic_key", "topic", "stage", "due_date", "last_seen", "note",
 ]
 
 
@@ -353,11 +389,27 @@ def _migrate_habit_logs(conn: sqlite3.Connection) -> bool:
     return True
 
 
+def _migrate_learning(conn: sqlite3.Connection) -> bool:
+    """v7 → v8：建 ``learning_logs`` / ``review_queue``（幂等）。
+
+    返回是否本次新创建了任一表。
+    """
+    names = _table_names(conn)
+    created = False
+    if "learning_logs" not in names:
+        conn.execute(_LEARNING_LOGS_DDL)
+        created = True
+    if "review_queue" not in names:
+        conn.execute(_REVIEW_QUEUE_DDL)
+        created = True
+    return created
+
+
 def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     """执行全部增量迁移（幂等）。返回本次迁移动作摘要。
 
     顺序：补列 -> 建表 -> 重建 personal_tracks -> body_metrics ->
-    training_* -> habit_logs -> 建索引 -> 记录版本。
+    training_* -> habit_logs -> learning_* -> 建索引 -> 记录版本。
     """
     version_before = conn.execute("PRAGMA user_version").fetchone()[0]
     _migrate_daily_reviews(conn)
@@ -368,6 +420,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     body_created = _migrate_body_metrics(conn)
     training_created = _migrate_training(conn)
     habits_created = _migrate_habit_logs(conn)
+    learning_created = _migrate_learning(conn)
     _create_indexes(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     if verbose:
@@ -386,6 +439,8 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
             print("  training_sessions/items: 新建训练表（v6）")
         if habits_created:
             print("  habit_logs: 新建行为习惯表（v7）")
+        if learning_created:
+            print("  learning_logs/review_queue: 新建学习表（v8）")
     return {
         "version_before": version_before,
         "version_after": SCHEMA_VERSION,
@@ -394,6 +449,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
         "body_metrics_created": body_created,
         "training_created": training_created,
         "habit_logs_created": habits_created,
+        "learning_created": learning_created,
     }
 
 
@@ -691,6 +747,134 @@ def load_habit_logs(
         f"SELECT * FROM habit_logs {where} ORDER BY date ASC, habit_key ASC",
         params,
     ).fetchall()
+
+
+def upsert_learning_log(conn: sqlite3.Connection, row: dict,
+                        *, overwrite: bool = False) -> None:
+    """按 ``(date, topic_key)`` 写入学习记录。
+
+    默认 COALESCE 保护用户填报字段；``overwrite=True`` 时全覆盖。
+    """
+    date = row.get("date")
+    topic_key = row.get("topic_key")
+    if not date or not topic_key:
+        raise ValueError("learning_logs upsert 需要 date 与 topic_key")
+    if overwrite:
+        assigns = (
+            "topic=excluded.topic, minutes=excluded.minutes, "
+            "src=excluded.src, artifact=excluded.artifact"
+        )
+    else:
+        assigns = (
+            "topic=COALESCE(excluded.topic, learning_logs.topic), "
+            "minutes=COALESCE(excluded.minutes, learning_logs.minutes), "
+            "src=COALESCE(excluded.src, learning_logs.src), "
+            "artifact=COALESCE(excluded.artifact, learning_logs.artifact)"
+        )
+    sql = f"""
+        INSERT INTO learning_logs (date, topic_key, topic, minutes, src, artifact)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(date, topic_key) DO UPDATE SET {assigns}
+    """
+    conn.execute(sql, (
+        date,
+        topic_key,
+        row.get("topic") or topic_key,
+        row.get("minutes"),
+        row.get("src"),
+        row.get("artifact"),
+    ))
+
+
+def load_learning_logs(
+    conn: sqlite3.Connection,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+    date: str | None = None,
+    topic_key: str | None = None,
+) -> list:
+    """按日期 / topic_key 升序返回学习记录。"""
+    clauses: list[str] = []
+    params: list[str] = []
+    if date is not None:
+        clauses.append("date = ?")
+        params.append(date)
+    else:
+        if start is not None:
+            clauses.append("date >= ?")
+            params.append(start)
+        if end is not None:
+            clauses.append("date <= ?")
+            params.append(end)
+    if topic_key is not None:
+        clauses.append("topic_key = ?")
+        params.append(topic_key)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    return conn.execute(
+        f"SELECT * FROM learning_logs {where} "
+        "ORDER BY date ASC, topic_key ASC",
+        params,
+    ).fetchall()
+
+
+def upsert_review_queue(conn: sqlite3.Connection, row: dict) -> None:
+    """写入 / 覆盖一条复习队列（按 topic_key）。通常由 ``rebuild_review_queue`` 调用。"""
+    topic_key = row.get("topic_key")
+    if not topic_key:
+        raise ValueError("review_queue upsert 需要 topic_key")
+    conn.execute(
+        """
+        INSERT INTO review_queue (topic_key, topic, stage, due_date, last_seen, note)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(topic_key) DO UPDATE SET
+            topic=excluded.topic,
+            stage=excluded.stage,
+            due_date=excluded.due_date,
+            last_seen=excluded.last_seen,
+            note=excluded.note
+        """,
+        (
+            topic_key,
+            row.get("topic") or topic_key,
+            int(row.get("stage") or 0),
+            row["due_date"],
+            row.get("last_seen"),
+            row.get("note"),
+        ),
+    )
+
+
+def load_review_queue(
+    conn: sqlite3.Connection,
+    *,
+    due_on_or_before: str | None = None,
+) -> list:
+    """返回复习队列；可选只取 ``due_date <= due_on_or_before``。"""
+    if due_on_or_before is not None:
+        return conn.execute(
+            "SELECT * FROM review_queue WHERE due_date <= ? "
+            "ORDER BY due_date ASC, topic_key ASC",
+            (due_on_or_before,),
+        ).fetchall()
+    return conn.execute(
+        "SELECT * FROM review_queue ORDER BY due_date ASC, topic_key ASC"
+    ).fetchall()
+
+
+def rebuild_review_queue(conn: sqlite3.Connection) -> int:
+    """从 ``learning_logs`` 完全重建 ``review_queue``（硬验收：删表后重建 0 差异）。
+
+    返回写入行数。``note`` 恒为 NULL。
+    """
+    from ..core.learning import build_queue
+
+    logs = [dict(r) for r in load_learning_logs(conn)]
+    queue = build_queue(logs)
+    conn.execute("DELETE FROM review_queue")
+    for entry in queue:
+        upsert_review_queue(conn, entry)
+    return len(queue)
 
 
 def upsert_personal_track(conn: sqlite3.Connection, date: str, track_key: str,

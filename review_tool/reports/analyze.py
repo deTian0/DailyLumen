@@ -33,9 +33,17 @@ import sys
 from datetime import datetime
 
 from ..config import DIMENSIONS, GENERATED_DIR
+from ..core.learning import week_rollup
 from ..core.util import minutes_to_clock
-from ..storage.db import COLUMNS, init_db, load_habit_logs, load_training
+from ..storage.db import (
+    COLUMNS,
+    init_db,
+    load_habit_logs,
+    load_learning_logs,
+    load_training,
+)
 from .streak import render_streaks, summarize_streaks
+from .tutor import week_section_lines
 
 DIM_LABEL = {
     "health_score": "健康", "work_score": "工作",
@@ -398,6 +406,34 @@ def _habit_adherence_lines(adh: dict | None) -> list[str]:
     return L
 
 
+def learning_week(conn, where: str, params: tuple) -> dict:
+    """周期内学习记录汇总（独立指标区，不计入四维）。"""
+    dates = [
+        r[0] for r in conn.execute(
+            f"SELECT date FROM daily_reviews WHERE {where} ORDER BY date",
+            params,
+        )
+    ]
+    if not dates:
+        return week_rollup([])
+    logs = [
+        dict(r) for r in load_learning_logs(
+            conn, start=dates[0], end=dates[-1]
+        )
+        if r["date"] in set(dates)
+    ]
+    return week_rollup(logs)
+
+
+def _learning_week_lines(week: dict | None) -> list[str]:
+    """渲染「学习记录」段落（独立指标区）。"""
+    L: list[str] = []
+    L.append("")
+    L.append("  ---- 学习记录（不计入四维评分）----")
+    L.extend(week_section_lines(week or {}))
+    return L
+
+
 def _training_structure_lines(ts: dict | None) -> list[str]:
     """渲染「训练结构」段落（独立指标区）。"""
     L: list[str] = []
@@ -469,6 +505,7 @@ def collect(conn, where: str, params: tuple, title: str) -> dict | None:
         "habit_adherence": habit_adherence(conn, where, params),
         "streaks": _streaks_for_scope(conn, where, params),
         "training_structure": training_structure(conn, where, params),
+        "learning_week": learning_week(conn, where, params),
     }
 
 
@@ -576,6 +613,7 @@ def render_summary(s: dict) -> str:
     L.extend(_track_adherence_lines(s.get("track_adherence")))
     L.extend(_habit_adherence_lines(s.get("habit_adherence")))
     L.extend(_training_structure_lines(s.get("training_structure")))
+    L.extend(_learning_week_lines(s.get("learning_week")))
     if s.get("streaks"):
         L.append(render_streaks(s["streaks"]))
     return "\n".join(L)
@@ -851,9 +889,35 @@ def render_week_md(conn, iso_week: int) -> str | None:
                 f"{mins if mins is not None else '—'} | {moves} |"
             )
 
+    lw = s.get("learning_week") or {}
+    L += ["", "## 六、学习记录（不计入四维评分）", ""]
+    topics = lw.get("topics") or []
+    if not topics:
+        L.append("> 本周无 `learning_logs` 记录。")
+    else:
+        total = lw.get("total_minutes")
+        total_s = f"{total:.0f} min" if total is not None else "—"
+        L.append(
+            f"> 本周投入 **{total_s}** · {lw.get('entries', 0)} 条 · "
+            f"{len(lw.get('days') or [])} 天。"
+        )
+        L += ["", "| topic_key | 投入 | 次数 | 展示名 |",
+              "|-----------|------|------|--------|"]
+        for t in topics:
+            m = t.get("minutes")
+            ms = f"{m:.0f}" if m is not None else "—"
+            L.append(
+                f"| {t['topic_key']} | {ms} | {t['entries']} | {t['topic']} |"
+            )
+        arts = lw.get("artifacts") or []
+        if arts:
+            L += ["", "**产出物**：", ""]
+            for a in arts:
+                L.append(f"- {a}")
+
     L += [
         "",
-        "## 六、自动生成说明",
+        "## 七、自动生成说明",
         "",
         "> 本文件由 CLI `--write` 落盘。关键发现 / 与上周对比 / 行动清单等叙事段"
         "请人工补写，或继续沿用既有手写周总结（默认**不**用本渲染器回填历史件）。",

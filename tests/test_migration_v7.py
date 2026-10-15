@@ -139,10 +139,12 @@ class TestMigrationV7(unittest.TestCase):
 
         summary = migrate(conn)
         conn.commit()
-        self.assertEqual(summary["version_after"], 7)
-        self.assertEqual(SCHEMA_VERSION, 7)
+        self.assertEqual(summary["version_after"], SCHEMA_VERSION)
+        self.assertGreaterEqual(SCHEMA_VERSION, 7)
         self.assertTrue(summary.get("habit_logs_created"))
-        self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 7)
+        self.assertEqual(
+            conn.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+        )
 
         tables = {
             r[0] for r in conn.execute(
@@ -176,15 +178,19 @@ class TestMigrationV7(unittest.TestCase):
         s2 = migrate(conn)
         conn.commit()
         self.assertFalse(s2.get("habit_logs_created"))
-        self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 7)
+        self.assertEqual(
+            conn.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+        )
         n = conn.execute("SELECT COUNT(*) FROM habit_logs").fetchone()[0]
         self.assertEqual(n, 0)
         conn.close()
 
-    def test_init_db_on_fresh_is_v7(self):
+    def test_init_db_on_fresh_has_habit_logs(self):
         path = os.path.join(self.root, "fresh.db")
         conn = init_db(db_path=path)
-        self.assertEqual(conn.execute("PRAGMA user_version").fetchone()[0], 7)
+        self.assertEqual(
+            conn.execute("PRAGMA user_version").fetchone()[0], SCHEMA_VERSION
+        )
         cols = [r[1] for r in conn.execute("PRAGMA table_info(habit_logs)")]
         self.assertEqual(
             cols,
