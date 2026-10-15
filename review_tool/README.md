@@ -18,14 +18,16 @@ reports   ->  pipeline  ->  storage  ->  core
 - **`pipeline/` 数据流转层**：复盘 md ↔ 库（解析 / 入库 / 回写 / 转换 / 生成 / 导出）
   ＋ 外部素材源（ClickUp → 素材简报，只读）与受控回写（``clickup-push``）。
 - **`reports/` 产出层**：读库生成面向人的结果（分析 / 体检 / 熔断 / AI 上下文 / 分数维护）。
-- 包根的 **`config.py`** 是可配置层（**唯一要改的文件**）；**`__main__.py`** 是纯路由。
+- 包根的 **`config.py`**（门面）+ **`settings.py`**（凭据 / 环境差异）是可配置层；
+  **`__main__.py`** 是纯路由。个人参数与业务规则仍改 `config.py`；API Key 只进 `.env`。
 
 ## 模块地图
 
 ### 包根
 | 模块 | 职责 |
 | --- | --- |
-| `config.py` | 路径常量（全靠 `__file__` 推导，无硬编码绝对路径）+ 可配置层：`PROFILE` / `PERSONAL_ITEMS` / `HABITS` / `FOOD_LIB` / `NUTRITION_RULES` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` / `TRAINING_MOVES` / `COACH_RULES` |
+| `settings.py` | 零依赖 Settings：`.env` 解析 + env 覆盖 + 类型校验（凭据 / 环境差异） |
+| `config.py` | 门面：路径 + `PROFILE` / `PERSONAL_ITEMS` / `HABITS` / `FOOD_LIB` / `KS_DEFAULTS` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` / `TRAINING_MOVES` / `COACH_RULES` |
 | `schema.sql` | 建表语句（含 CHECK 约束），与 `reviews*.db` 同在包根 |
 | `__init__.py` | 包公共 API（对外唯一契约，`__all__`） |
 | `__main__.py` | **纯路由**：只派发子命令，参数由各模块自己解析（单一来源，杜绝静默丢参） |

@@ -2,9 +2,13 @@
 
 所有路径都相对「包目录」推导，因此无论项目放在何处都能正常工作。
 
-本文件同时承担「可配置层」职责，小伙伴拿到本项目后**只需改本文件**即可适配自己：
+本文件是**门面**（M16）：对外名字（``PROFILE`` / ``FEATURES`` / ``DB_PATH`` /
+``CLICKUP_LISTS`` / ``FOOD_LIB`` …）全部保留；**凭据与环境差异**从
+``settings.SETTINGS`` 派生，**个人参数与业务规则**仍写在本文件（入 git）。
 
-- ``PROFILE``      个人作息 / 目标 / 训练日约定
+小伙伴适配自己时改这些即可：
+
+- ``PROFILE``      个人作息 / 目标 / 训练日约定（个人参数，⛔ 不进 ``.env``）
 - ``PERSONAL_ITEMS`` 个人打卡项定义（补剂 / 护肤 / 自定义）——解析与归一化的单一来源
 - ``HABITS``       行为习惯目录（ClickUp「习惯与打卡」）——与 PERSONAL_ITEMS **永不合并**
 - ``LEARNING_TOPICS`` 学习主题目录（可选；未命中则 slugify）
@@ -13,12 +17,15 @@
 - ``FEATURES``     功能开关：默认关闭你用不到的子命令（当前只有 ``new_day``）
 - ``CLICKUP_LISTS`` 外部素材源（可选）：ClickUp list → 中文名 / 用途的一处定义
 - ``CLICKUP_REVIEW_TASK`` 回写通道（可选）：「每日复盘总结」元任务的定位信息
+- 凭据 / 路径覆盖 / 练练 API 默认值 → 见 ``settings.py`` + 仓库根 ``.env``
 
 改这几处即可，无需改动模板与其余代码。
 """
 from __future__ import annotations
 
 import os
+
+from .settings import SETTINGS
 
 # ---------------------------------------------------------------------------
 # 路径
@@ -30,8 +37,8 @@ PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 # 项目根目录（仓库根 = 每日复盘计划/）
 BASE_DIR = os.path.dirname(PACKAGE_DIR)
 
-# 数据库文件
-DB_PATH = os.path.join(PACKAGE_DIR, "reviews.db")
+# 数据库文件（可用 ``DAILYLUMEN_DB_PATH`` / ``.env`` 覆盖）
+DB_PATH = SETTINGS.db_path
 
 # 建表脚本
 SCHEMA_PATH = os.path.join(PACKAGE_DIR, "schema.sql")
@@ -51,8 +58,17 @@ ARCHIVE_SRC_DIR = os.path.join(INPUT_DIR, "历史源复盘")
 # 复盘模板
 TEMPLATE_PATH = os.path.join(BASE_DIR, "每日复盘模板.md")
 
-# 历史语雀文件来源目录（用环境变量 DAILYLUMEN_HISTORY_SRC 指定，不内置个人路径）
-HISTORY_SRC_DIR = os.environ.get("DAILYLUMEN_HISTORY_SRC")
+# 历史语雀文件来源目录（``DAILYLUMEN_HISTORY_SRC`` / ``.env``；不内置个人路径）
+HISTORY_SRC_DIR = SETTINGS.history_src_dir
+
+# 练练健身（KeepStrong）环境默认 —— 密钥只从 SETTINGS / .env 读，绝不写在这里
+KS_DEFAULTS = {
+    "base_url": SETTINGS.keepstrong_base_url,
+    "skill_version": SETTINGS.keepstrong_skill_version,
+    "agent_name": SETTINGS.keepstrong_agent_name,
+    "timeout_s": SETTINGS.keepstrong_timeout_s,
+    "cache_dir": SETTINGS.keepstrong_cache_dir,
+}
 
 # ---------------------------------------------------------------------------
 # 字段类型（解析时按此转换）
@@ -679,8 +695,9 @@ TRACK_ADHERENCE_ALERT = {
 # 其余功能零影响（依旧零依赖、无网络调用）。
 # ---------------------------------------------------------------------------
 
-# 凭据来源（本机）：``~/.workbuddy/mcp.json`` → ``mcpServers.clickup.env``；
-# 环境变量 ``CLICKUP_API_KEY`` / ``CLICKUP_TEAM_ID`` 同名可覆盖（优先级更高）。
+# 凭据来源（本机，优先级从高到低）：
+#   1. 环境变量 / 仓库根 ``.env``（``CLICKUP_API_KEY`` / ``CLICKUP_TEAM_ID``，M16 Settings）
+#   2. ``~/.workbuddy/mcp.json`` → ``mcpServers.clickup.env``（兼容旧路径）
 # ⛔ 本仓库入 git，**token 绝不写在这里**，运行时现读。
 CLICKUP_MCP_PATH = os.path.join(os.path.expanduser("~"), ".workbuddy", "mcp.json")
 

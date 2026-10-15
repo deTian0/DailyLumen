@@ -162,7 +162,16 @@ agent_created: true
 - **四层架构（v1.5.0）**：`core`（零 I/O 纯规则）→ `storage`（SQLite 唯一出入口）→
   `pipeline`（md ↔ 库）→ `reports`（读库产出）。依赖**只能自上而下**，
   由 `tests/test_architecture.py` 用 ast 强制；`import sqlite3` 只准出现在 storage；
-  `config.py` 留包根（可配置层，历史文档引用不失效）。新增模块必须归入对应层。
+  `config.py` / `settings.py` 留包根（可配置层，历史文档引用不失效）。新增模块必须归入对应层。
+- **配置分层（v1.20.0 / M16）** —— 四层不许混：
+  | 层 | 放哪 | 例 |
+  | --- | --- | --- |
+  | **凭据** | 仓库根 `.env`（gitignore；模板见 `.env.example`） | `KEEPSTRONG_API_KEY` / `CLICKUP_API_KEY` |
+  | **环境差异** | `.env` 可覆盖，代码给默认值（`settings.Settings`） | baseUrl / timeout / `DAILYLUMEN_DB_PATH` |
+  | **个人参数** | `config.PROFILE` 等（**入 git**） | 身高 / 宏量目标 / 训练日 |
+  | **业务规则** | 代码 | `SCORE_THRESHOLDS` / `FOOD_LIB` / `COACH_RULES` |
+  ⛔ **不引 Pydantic / python-dotenv** —— `review_tool/settings.py` 用标准库
+  `dataclass` + `os.environ`；`config.py` 是门面（既有名字全保留）。
 - **CLI 参数单一来源**：`__main__.py` 是**纯路由**（`ROUTES` 表 + 原样透传 argv），
   参数只在各模块 `main(argv)` 里定义一次；顶层统一拦截 `<子命令> -h`
   （否则 `ingest -h` 会真的跑一遍入库）。
