@@ -24,7 +24,7 @@
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md + 迁移指南.md + 路线图.md(M1-M8)
 │                                     #   + 生活管家需求文档.md + 生活管家路线图.md(M9-M15) + 能力图谱.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，400 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，412 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
