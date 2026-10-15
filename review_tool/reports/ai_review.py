@@ -19,7 +19,12 @@ from __future__ import annotations
 import sys
 from datetime import date as _date
 
-from ..config import PROFILE, SCORE_THRESHOLDS
+from ..config import SCORE_THRESHOLDS
+from ..core.nutrition import (
+    extreme_kcal_streak,
+    format_extreme_flag,
+    format_macro_below_flags,
+)
 from ..core.score import compute_scores, system_score_from
 from ..core.util import is_late_bedtime, minutes_to_clock
 from ..storage.db import init_db
@@ -38,9 +43,6 @@ _LABELS = {
 # 四维展示顺序
 _DIMS = [("health_score", "健康"), ("work_score", "工作"),
          ("learn_score", "学习"), ("life_score", "生活")]
-
-# 关注点里使用的无单位简称（避免「碳水(g) 160g」这类冗余）
-_FLAG_LABELS = {"carbs_g": "碳水", "protein_g": "蛋白质", "fat_g": "脂肪"}
 
 # 兼容旧调用方的别名
 clock = minutes_to_clock
@@ -136,18 +138,14 @@ def attention_flags(day: dict, recent: list[dict],
             f"运动 {ex}min 由「三件事」描述折算得到（非计时记录）"
         )
 
-    # --- 饮食 / 宏量 ---
+    # --- 饮食 / 宏量（宏量低于目标 → core.nutrition，R1 同源）---
     dk = day.get("diet_kcal")
     if dk is not None:
         if dk < T["diet"]["good_low"]:
             flags.append(f"饮食 {dk}kcal 低于 {T['diet']['good_low']} 下限")
         elif dk > T["diet"]["good_high"]:
             flags.append(f"饮食 {dk}kcal 高于 {T['diet']['good_high']} 上限")
-    mt = macro_targets if macro_targets is not None else (PROFILE.get("macro_targets") or {})
-    for col, tgt in mt.items():
-        v = day.get(col)
-        if v is not None and v < tgt:
-            flags.append(f"{_FLAG_LABELS.get(col, _LABELS.get(col, col))} {v}g 低于目标 {tgt}g")
+    flags.extend(format_macro_below_flags(day, macro_targets))
 
     # --- 屏幕 ---
     ph = day.get("phone_h")
@@ -170,6 +168,10 @@ def attention_flags(day: dict, recent: list[dict],
     s_phone = _streak(recent, lambda r: (r.get("phone_h") or 0) > T["phone"]["bad"])
     if s_phone >= 3:
         flags.append(f"连续 {s_phone} 天屏幕超过 {T['phone']['bad']:g}h")
+    # 极端节食：连续 N 天 < 1000 kcal（勿当「做得好」）
+    ext_msg = format_extreme_flag(extreme_kcal_streak(recent))
+    if ext_msg:
+        flags.append(ext_msg)
     return flags
 
 
@@ -268,6 +270,8 @@ def render_markdown(ctx: dict) -> str:
 
     lines.append("> 撰写要求：先给「评价」（做得好 / 需留意，2–3 条，引用上面的数字），")
     lines.append("> 再给「建议」（2–4 条可执行动作，带具体时间锚点或目标值）。不要编造未列出的数据。")
+    if any("极端偏低" in f for f in ctx.get("flags") or []):
+        lines.append("> ⚠ 存在连续极低热量：评价里**不要**把「吃得少」算作做得好。")
     return "\n".join(lines)
 
 

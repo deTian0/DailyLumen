@@ -25,7 +25,7 @@ reports   ->  pipeline  ->  storage  ->  core
 ### 包根
 | 模块 | 职责 |
 | --- | --- |
-| `config.py` | 路径常量（全靠 `__file__` 推导，无硬编码绝对路径）+ 可配置层：`PROFILE` / `PERSONAL_ITEMS` / `HABITS` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` / `TRAINING_MOVES` / `COACH_RULES` |
+| `config.py` | 路径常量（全靠 `__file__` 推导，无硬编码绝对路径）+ 可配置层：`PROFILE` / `PERSONAL_ITEMS` / `HABITS` / `FOOD_LIB` / `NUTRITION_RULES` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` / `TRAINING_MOVES` / `COACH_RULES` |
 | `schema.sql` | 建表语句（含 CHECK 约束），与 `reviews*.db` 同在包根 |
 | `__init__.py` | 包公共 API（对外唯一契约，`__all__`） |
 | `__main__.py` | **纯路由**：只派发子命令，参数由各模块自己解析（单一来源，杜绝静默丢参） |
@@ -39,6 +39,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `body.py` | 体征纯规则：BMI / 分档 / 7 日均 / 周变化 / 距目标 / 外推周数（零 I/O） |
 | `training.py` | 训练明细行解析 + 合计 + 推荐规则纯函数（零 I/O） |
 | `habits.py` | 行为习惯：归一化 / 依从率 / streak / 断更（零 I/O；与 tracks 隔离） |
+| `nutrition.py` | 营养缺口：宏量判定（与 ai_review 同源）/ 贪心组合 / 三餐结构 / 极端值（零 I/O） |
 | `score.py` | 四维评分规则（健康加权子项；工作/学习/生活时长分档） |
 
 ### storage/ —— 持久化层
@@ -68,9 +69,10 @@ reports   ->  pipeline  ->  storage  ->  core
 | `body.py` | 体征趋势：最新值 + BMI + 7 日均 + 周变化 + 距目标（`--json`） |
 | `coach.py` | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据；`--json`） |
 | `habits.py` | 行为习惯报告：依从率 / streak / 断更；`--sync` 调 `habit_sync` |
+| `nutrition.py` | 营养缺口报告：当日/近窗缺口 + FOOD_LIB ≤3 种具体动作（`--json`） |
 | `doctor.py` | 数据体检：schema / 对账 / 熔断 / 体征 / **R3 习惯隔离** / **习惯断更**（建议性） |
 | `fuse.py` | 熔断检测：单维度连续走低（绝对）+ 近 7 日 vs 前 28 日均值漂移（相对） |
-| `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则） |
+| `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则；宏量判定复用 core.nutrition） |
 | `recompute.py` | 按当前规则重算库中四维 / 系统分（默认只试算，`--apply` 落库） |
 
 ## 命令行速查
@@ -89,6 +91,7 @@ python -m review_tool doctor                           # 数据体检（exit≠0
 python -m review_tool body [--json]                    # 体征趋势（BMI / 均线 / 距目标）
 python -m review_tool coach [YYYY-MM-DD] [--json]      # 训练教练建议（达标 / 渐进 / 恢复 / 轮换）
 python -m review_tool habits [--json] [--sync ...]     # 行为习惯报告 / ClickUp→habit_logs
+python -m review_tool nutrition [YYYY-MM-DD] [--json]  # 营养缺口 + FOOD_LIB 建议
 python -m review_tool fuse                             # 熔断检测（有绝对熔断时 exit=1）
 python -m review_tool sync-docs [--check]              # 库中分数回写到 md（--check 仅报告）
 python -m review_tool recompute-scores [--apply]       # 按规则重算四维/系统分（默认试算）

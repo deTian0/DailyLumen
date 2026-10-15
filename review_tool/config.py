@@ -105,6 +105,157 @@ PROFILE = {
     "height_cm": None,
 }
 
+# ---------------------------------------------------------------------------
+# 常吃食物库（M12 · 建议侧静态配置，不做记录表）
+#
+# 每项宏量相对 ``per``（默认 100）：建议克数 = amount，贡献 = 宏量 × (amount/per)。
+# 可数单位（个 / 份）时 ``per`` 通常为 1。aliases 仅供人读 / 未来解析，报告按 key 引用。
+# ---------------------------------------------------------------------------
+
+FOOD_LIB = [
+    # —— 蛋白主源 ——
+    {
+        "key": "chicken_breast", "name": "鸡胸肉", "unit": "g", "per": 100,
+        "kcal": 133, "carbs": 0, "protein": 23.1, "fat": 5,
+        "aliases": ["鸡胸", "鸡胸肉"],
+    },
+    {
+        "key": "egg", "name": "鸡蛋", "unit": "个", "per": 1,
+        "kcal": 72, "carbs": 0.4, "protein": 6.3, "fat": 5,
+        "aliases": ["鸡蛋", "蛋"],
+    },
+    {
+        "key": "milk", "name": "牛奶", "unit": "ml", "per": 100,
+        "kcal": 54, "carbs": 5, "protein": 3.2, "fat": 3.2,
+        "aliases": ["牛奶", "全脂牛奶"],
+    },
+    {
+        "key": "greek_yogurt", "name": "希腊酸奶", "unit": "g", "per": 100,
+        "kcal": 97, "carbs": 3.6, "protein": 9, "fat": 5,
+        "aliases": ["希腊酸奶", "酸奶"],
+    },
+    {
+        "key": "tofu", "name": "北豆腐", "unit": "g", "per": 100,
+        "kcal": 76, "carbs": 1.9, "protein": 8.1, "fat": 4.8,
+        "aliases": ["豆腐", "北豆腐"],
+    },
+    {
+        "key": "shrimp", "name": "虾仁", "unit": "g", "per": 100,
+        "kcal": 93, "carbs": 0.2, "protein": 18.6, "fat": 1.4,
+        "aliases": ["虾仁", "虾"],
+    },
+    {
+        "key": "lean_beef", "name": "瘦牛肉", "unit": "g", "per": 100,
+        "kcal": 125, "carbs": 0, "protein": 20.2, "fat": 4.4,
+        "aliases": ["瘦牛肉", "牛肉"],
+    },
+    {
+        "key": "salmon", "name": "三文鱼", "unit": "g", "per": 100,
+        "kcal": 208, "carbs": 0, "protein": 20, "fat": 13,
+        "aliases": ["三文鱼", "鲑鱼"],
+    },
+    {
+        "key": "whey", "name": "乳清蛋白粉", "unit": "g", "per": 30,
+        "kcal": 120, "carbs": 2, "protein": 24, "fat": 1.5,
+        "aliases": ["蛋白粉", "乳清", "whey"],
+    },
+    {
+        "key": "cottage_cheese", "name": "低脂奶酪", "unit": "g", "per": 100,
+        "kcal": 98, "carbs": 3.4, "protein": 11, "fat": 4.3,
+        "aliases": ["低脂奶酪", "cottage cheese"],
+    },
+    # —— 碳水主源 ——
+    {
+        "key": "rice", "name": "米饭", "unit": "g", "per": 100,
+        "kcal": 116, "carbs": 26, "protein": 2.6, "fat": 0.3,
+        "aliases": ["米饭", "白米饭", "米饭（熟）"],
+    },
+    {
+        "key": "oats", "name": "燕麦片", "unit": "g", "per": 100,
+        "kcal": 367, "carbs": 66, "protein": 13, "fat": 7,
+        "aliases": ["燕麦", "燕麦片"],
+    },
+    {
+        "key": "whole_bread", "name": "全麦面包", "unit": "g", "per": 100,
+        "kcal": 247, "carbs": 41, "protein": 13, "fat": 4.2,
+        "aliases": ["全麦面包", "全麦吐司"],
+    },
+    {
+        "key": "sweet_potato", "name": "红薯", "unit": "g", "per": 100,
+        "kcal": 99, "carbs": 24, "protein": 1.6, "fat": 0.2,
+        "aliases": ["红薯", "地瓜"],
+    },
+    {
+        "key": "potato", "name": "土豆", "unit": "g", "per": 100,
+        "kcal": 77, "carbs": 17, "protein": 2, "fat": 0.1,
+        "aliases": ["土豆", "马铃薯"],
+    },
+    {
+        "key": "pasta", "name": "意面", "unit": "g", "per": 100,
+        "kcal": 131, "carbs": 25, "protein": 5, "fat": 1.1,
+        "aliases": ["意面", "意大利面", "意面（熟）"],
+    },
+    {
+        "key": "banana", "name": "香蕉", "unit": "个", "per": 1,
+        "kcal": 107, "carbs": 27, "protein": 1.3, "fat": 0.4,
+        "aliases": ["香蕉"],
+    },
+    {
+        "key": "apple", "name": "苹果", "unit": "个", "per": 1,
+        "kcal": 104, "carbs": 28, "protein": 0.5, "fat": 0.3,
+        "aliases": ["苹果"],
+    },
+    # —— 蔬果 / 脂肪 ——
+    {
+        "key": "broccoli", "name": "西兰花", "unit": "g", "per": 100,
+        "kcal": 34, "carbs": 7, "protein": 2.8, "fat": 0.4,
+        "aliases": ["西兰花", "花椰菜"],
+    },
+    {
+        "key": "spinach", "name": "菠菜", "unit": "g", "per": 100,
+        "kcal": 23, "carbs": 3.6, "protein": 2.9, "fat": 0.4,
+        "aliases": ["菠菜"],
+    },
+    {
+        "key": "cucumber", "name": "黄瓜", "unit": "g", "per": 100,
+        "kcal": 15, "carbs": 3.6, "protein": 0.7, "fat": 0.1,
+        "aliases": ["黄瓜"],
+    },
+    {
+        "key": "avocado", "name": "牛油果", "unit": "g", "per": 100,
+        "kcal": 160, "carbs": 8.5, "protein": 2, "fat": 15,
+        "aliases": ["牛油果", "鳄梨"],
+    },
+    {
+        "key": "peanut", "name": "花生", "unit": "g", "per": 100,
+        "kcal": 567, "carbs": 16, "protein": 26, "fat": 49,
+        "aliases": ["花生", "花生米"],
+    },
+    {
+        "key": "walnut", "name": "核桃", "unit": "g", "per": 100,
+        "kcal": 654, "carbs": 14, "protein": 15, "fat": 65,
+        "aliases": ["核桃"],
+    },
+    {
+        "key": "olive_oil", "name": "橄榄油", "unit": "g", "per": 10,
+        "kcal": 90, "carbs": 0, "protein": 0, "fat": 10,
+        "aliases": ["橄榄油"],
+    },
+    {
+        "key": "soy_milk", "name": "原味豆浆", "unit": "ml", "per": 100,
+        "kcal": 31, "carbs": 1.2, "protein": 3, "fat": 1.6,
+        "aliases": ["豆浆", "原味豆浆"],
+    },
+]
+
+# 营养报告规则（阈值是配置，不进表 —— G4）
+NUTRITION_RULES = {
+    "extreme_kcal": 1000,       # 连续低于此热量 → 强提示
+    "extreme_streak_days": 3,   # 连续天数门槛
+    "max_suggest_foods": 3,     # 贪心组合上限
+    "expected_meals": 3,        # 三餐结构预期餐次
+}
+
 # 体征目标带（配置不是数据，不进表 —— G4）。未配置时报告显示「未配置」。
 BODY_TARGETS = {
     "weight_kg_low": None,
