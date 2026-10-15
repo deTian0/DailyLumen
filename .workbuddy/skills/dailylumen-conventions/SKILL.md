@@ -147,7 +147,8 @@ agent_created: true
 - **`reviews.example.db` 必须与当前 schema 同版**（`tests/test_example_db.py` 守卫），
   否则新用户复制后首次 ingest 会被 CHECK 拒绝。
 - schema 外的遗留列迁移时按**列交集**搬运，数据留档 `.workbuddy/backup/`；不存中间计算产物。
-- **`reviews.db` 可从 git 里的 md 100% 重建**（实测 49 天 / 343 打卡逐字段 0 差异）——
+- **`reviews.db` 可从 git 里的 md 100% 重建**（实测 72 天 / 504 打卡逐字段 0 差异，
+  2026-10-15 于 M9–M15 收口后复验；唯一例外是 `ingested_at` 这类「入库时刻」元数据列）——
   所以库里出现疑问时，最有用的动作是"从零重建再逐字段比对"，而不是盯着真库猜。
 
 ---
