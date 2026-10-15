@@ -13,6 +13,11 @@
    四维分只由 ``config.SCORE_THRESHOLDS`` + 复盘 md 的数据块决定。
 2. **日期看 ``date_closed``**。「某天完成了什么」按**实际完成时刻**（东八区）归日，
    不看 ``due_date``（那是计划日）—— 否则「今天做完的昨天到期任务」会被算到昨天。
+   唯一例外是 **「次日早上补勾」回拨**（v1.12.0，见 ``config.CLICKUP_REBATE``）：
+   前一天到期、次日早上才勾掉的那几条，归到 ``due_date`` 那天 —— 因为用户的实际
+   习惯是「当天做完、次日早上一起勾」，纯按 ``date_closed`` 会把前一天的事
+   系统性记到第二天。回拨条件很窄（早上窗口 + due 恰在前 N 天内），
+   不会把迁移时整批关闭的历史任务拉回来。素材里回拨过的条目会**显式标注**。
 3. **两套打卡体系不许混**。ClickUp「习惯与打卡」的勾选是**行为习惯**，与复盘 md
    「一、日常打卡」的补剂 / 护肤（``config.PERSONAL_ITEMS``）不是一回事。
    本模块产出的素材**故意不使用 ``- [x]`` 勾选语法**，从格式上杜绝被误读成打卡。
@@ -36,6 +41,7 @@ from ..config import (
     CLICKUP_INBOX_PREFIX,
     CLICKUP_LIST_META,
     CLICKUP_MCP_PATH,
+    CLICKUP_REBATE,
     CLICKUP_TZ_HOURS,
     INBOX_DIR,
     WEEKDAY_CN,
@@ -71,6 +77,43 @@ def day_of(ms, *, tz_hours: int | None = None) -> str:
 def clock_of(ms, *, tz_hours: int | None = None) -> str:
     """同 ``day_of``，但输出 ``HH:MM``（素材里标完成时刻用）。"""
     return datetime.datetime.fromtimestamp(int(ms) / 1000, _tz(tz_hours)).strftime("%H:%M")
+
+
+# --------------------------------------------------- 归日：「次日早上补勾」回拨
+def _rebate_rule(rule: dict | None = None) -> dict:
+    return CLICKUP_REBATE if rule is None else rule
+
+
+def rebate_target(t: dict, *, tz_hours: int | None = None, rule: dict | None = None) -> str | None:
+    """若该任务属「次日早上补勾」，返回应归入的日期（``due_date`` 那天）；否则 ``None``。
+
+    三条全满足才回拨（宁少勿多，理由见 ``config.CLICKUP_REBATE``）：
+    ① 完成时刻早于当天 ``morning_hour`` 点；② 有 ``due_date``；
+    ③ ``due`` 的日期 = 完成日 − N 天且 ``1 <= N <= lookback_days``。
+    ``morning_hour`` 或 ``lookback_days`` 设为 0 = 关闭回拨。
+    """
+    r = _rebate_rule(rule)
+    hour = int(r.get("morning_hour") or 0)
+    back = int(r.get("lookback_days") or 0)
+    if hour <= 0 or back <= 0:
+        return None
+    closed, due = t.get("date_closed"), t.get("due_date")
+    if not closed or not due:
+        return None
+    c = datetime.datetime.fromtimestamp(int(closed) / 1000, _tz(tz_hours))
+    d = datetime.datetime.fromtimestamp(int(due) / 1000, _tz(tz_hours))
+    if c.hour >= hour:
+        return None
+    gap = (c.date() - d.date()).days
+    if 1 <= gap <= back:
+        return d.strftime("%Y-%m-%d")
+    return None
+
+
+def completion_day(t: dict, *, tz_hours: int | None = None, rule: dict | None = None) -> str:
+    """已完成任务的**归属日**：默认 ``date_closed`` 那天，命中回拨则取 ``due_date`` 那天。"""
+    return rebate_target(t, tz_hours=tz_hours, rule=rule) or day_of(
+        t["date_closed"], tz_hours=tz_hours)
 
 
 # ----------------------------------------------------------------- 凭据 / 网络
@@ -159,10 +202,13 @@ def _status_type(t: dict) -> str:
     return ""
 
 
-def select_completed(tasks: list[dict], day: str, *, tz_hours: int | None = None) -> list[dict]:
-    """当日完成：``date_closed`` 落在 ``day``（东八区），按完成时刻升序。"""
+def select_completed(tasks: list[dict], day: str, *, tz_hours: int | None = None,
+                     rule: dict | None = None) -> list[dict]:
+    """当日完成：归属日（``date_closed``，含「次日早上补勾」回拨）落在 ``day``，
+    按完成时刻升序。"""
     hit = [t for t in tasks
-           if t.get("date_closed") and day_of(t["date_closed"], tz_hours=tz_hours) == day]
+           if t.get("date_closed")
+           and completion_day(t, tz_hours=tz_hours, rule=rule) == day]
     return sorted(hit, key=lambda t: int(t["date_closed"]))
 
 
@@ -287,7 +333,9 @@ def render(day: str, groups: list[dict], *, generated_at: str | None = None,
         "**不参与四维评分、不落库**。",
         "> ⛔ 「习惯与打卡」的勾选属**行为习惯**，**不得**写进复盘 md 的「一、日常打卡」"
         "（那一节只收补剂 / 护肤，混进去会污染 `personal_tracks` 依从率）。",
-        "> 归日口径：按 `date_closed`（实际完成时刻，东八区），不是 `due_date`。",
+        "> 归日口径：按 `date_closed`（实际完成时刻，东八区）归日；"
+        "**「次日早上补勾」的条目回拨到 `due_date` 那天**（条件见 `config.CLICKUP_REBATE`），"
+        "回拨过的条目标注「次日补勾」。",
         "",
         f"- 生成时间：{stamp}",
     ]
@@ -307,8 +355,13 @@ def render(day: str, groups: list[dict], *, generated_at: str | None = None,
     lines += [
         "",
         f"- **当日完成合计**：{sum(len(g['done']) for g in groups)} 条",
-        "",
     ]
+    rebated = [t for g in groups for t in g["done"] if rebate_target(t)]
+    if rebated:
+        lines.append(
+            f"  - 其中 **{len(rebated)} 条为「次日早上补勾」回拨**"
+            "（当天做的、次日早上才勾，已归到 `due_date` 那天）")
+    lines += [""]
 
     hint = bulk_hint(groups)
     if hint:
@@ -333,9 +386,14 @@ def render(day: str, groups: list[dict], *, generated_at: str | None = None,
             lines.append("")
             for t in g["done"]:
                 when = clock_of(t["date_closed"])
+                reb = rebate_target(t)
                 st = _status(t)
-                tail = f"（完成 {when}" + (f" · {st}" if st and st.lower() != "complete" else "") + "）"
-                lines.append(f"- {_name(t)}{tail}")
+                parts = [f"完成 {when}"]
+                if reb:
+                    parts = [f"完成 {day_of(t['date_closed'])} {when} → 归 {reb} · 次日补勾"]
+                if st and st.lower() != "complete":
+                    parts.append(st)
+                lines.append(f"- {_name(t)}（{' · '.join(parts)}）")
             lines.append("")
         else:
             lines += ["**当日完成 0 条**（ClickUp 侧无记录）", ""]

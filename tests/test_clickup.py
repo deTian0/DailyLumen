@@ -4,6 +4,8 @@
 
 锁死三条口径：
 1. 按 ``date_closed`` 归日，**不是** ``due_date``（否则「今天做完的昨天到期任务」算到昨天）；
+   **唯一例外** = 「次日早上补勾」回拨（v1.12.0）：前一天到期、次日早上才勾的归回 due 那天
+   （条件见 ``TestRebate`` —— 放宽一点就会把迁移整批关闭的历史任务拉回几个月前）。
 2. 素材里**不得出现** ``- [x]`` / ``- [ ]`` 勾选语法 —— ClickUp 习惯与复盘 md
    「一、日常打卡」的补剂 / 护肤是两套体系，格式上必须一眼可分；
 3. 缺凭据 / 取数失败要给可读报错 + 明确退出码，不抛裸异常、不写坏文件。
@@ -86,6 +88,97 @@ class TestTimeBucket(unittest.TestCase):
     def test_clock_of(self):
         self.assertEqual(cu.clock_of(_ms("2026-10-14T21:32")), "21:32")
         self.assertEqual(cu.clock_of(_ms("2026-10-14T07:05")), "07:05")
+
+
+class TestRebate(unittest.TestCase):
+    """「次日早上补勾」回拨（v1.12.0）：前一天到期、次日早上才勾的，归到 due 那天。
+
+    反面样本必须一起锁住 —— 回拨条件放宽一点就会把「迁移时整批关闭的历史任务」
+    拉回几个月前，那种错误比少归一天严重得多。
+    """
+
+    def _t(self, name, *, closed, due=None):
+        return _task(name, name, closed=closed, due=due)
+
+    def test_next_morning_checkoff_rebates_to_due_day(self):
+        """核心场景：10-14 到期、10-15 08:41 才勾 —— 算 10-14。"""
+        t = self._t("整理代办清单", closed="2026-10-15T08:41", due="2026-10-14T00:00")
+        self.assertEqual(cu.rebate_target(t), "2026-10-14")
+        self.assertEqual(cu.completion_day(t), "2026-10-14")
+
+    def test_same_day_evening_stays_put(self):
+        """当天晚上做完就勾 → 不回拨（旧口径的正面样本仍成立）。"""
+        t = self._t("昨天到期今天做完", closed="2026-10-14T21:32", due="2026-10-13T09:00")
+        self.assertIsNone(cu.rebate_target(t))
+        self.assertEqual(cu.completion_day(t), "2026-10-14")
+
+    def test_afternoon_checkoff_not_rebated(self):
+        """下午才补勾（>12:00）= 不是「次日早上」，不回拨。"""
+        t = self._t("下午才勾", closed="2026-10-15T13:00", due="2026-10-14T00:00")
+        self.assertIsNone(cu.rebate_target(t))
+        self.assertEqual(cu.completion_day(t), "2026-10-15")
+
+    def test_same_day_due_not_rebated(self):
+        """due 就是完成当天 → gap=0，不回拨。"""
+        t = self._t("当天到期当天勾", closed="2026-10-15T08:00", due="2026-10-15T00:00")
+        self.assertIsNone(cu.rebate_target(t))
+
+    def test_no_due_date_not_rebated(self):
+        """没有 due_date 就没有参照物 —— 留在完成日。"""
+        t = self._t("无截止日", closed="2026-10-15T08:41")
+        self.assertIsNone(cu.rebate_target(t))
+        self.assertEqual(cu.completion_day(t), "2026-10-15")
+
+    def test_old_backlog_due_not_rebated(self):
+        """迁移整批关闭的历史任务（due 在 6 月、10-13 早上集中关）不得被拉回去。"""
+        t = self._t("历史任务", closed="2026-10-13T11:18", due="2026-06-24T00:00")
+        self.assertIsNone(cu.rebate_target(t))
+        self.assertEqual(cu.completion_day(t), "2026-10-13")
+
+    def test_lookback_window_is_enforced(self):
+        """due 在 3 天前 → 超出默认 lookback=1，不回拨。"""
+        t = self._t("拖了三天", closed="2026-10-15T09:00", due="2026-10-12T00:00")
+        self.assertIsNone(cu.rebate_target(t))
+        wide = {"morning_hour": 12, "lookback_days": 3}
+        self.assertEqual(cu.rebate_target(t, rule=wide), "2026-10-12")
+
+    def test_rule_can_be_disabled(self):
+        """morning_hour=0 或 lookback_days=0 = 关闭回拨（回退到纯 date_closed）。"""
+        t = self._t("整理代办清单", closed="2026-10-15T08:41", due="2026-10-14T00:00")
+        for off in ({"morning_hour": 0, "lookback_days": 1},
+                    {"morning_hour": 12, "lookback_days": 0}):
+            self.assertIsNone(cu.rebate_target(t, rule=off), off)
+
+    def test_select_completed_moves_rebated_item(self):
+        """回拨必须体现在 select_completed：10-14 有它、10-15 没有它。"""
+        tasks = [self._t("整理代办清单", closed="2026-10-15T08:41", due="2026-10-14T00:00")]
+        self.assertEqual([t["name"] for t in cu.select_completed(tasks, DAY)],
+                         ["整理代办清单"])
+        self.assertEqual(cu.select_completed(tasks, "2026-10-15"), [])
+
+    def test_open_items_unaffected(self):
+        """回拨只管已完成项 —— 未完成任务仍按 due 判「当日到期」。"""
+        t = _task("o", "今天到期没做", due="2026-10-14T09:00", status="to do")
+        self.assertEqual([x["name"] for x in cu.select_due_open([t], DAY)], ["今天到期没做"])
+
+    def test_render_marks_rebated_item(self):
+        tasks = [self._t("整理代办清单", closed="2026-10-15T08:41", due="2026-10-14T00:00"),
+                 self._t("晚上做的", closed="2026-10-14T21:32")]
+        groups = [{"id": "L", "name": "日常事务", "role": "", "done": tasks, "open": []}]
+        text = cu.render(DAY, groups, generated_at="T")
+        self.assertIn("次日补勾", text)
+        self.assertIn("完成 2026-10-15 08:41 → 归 2026-10-14", text)
+        self.assertIn("其中 **1 条为「次日早上补勾」回拨**", text)
+        self.assertIn("- 晚上做的（完成 21:32）", text)
+        self.assertNotIn("- [x]", text)
+
+    def test_render_without_rebate_has_no_line(self):
+        tasks = [self._t("晚上做的", closed="2026-10-14T21:32")]
+        groups = [{"id": "L", "name": "日常事务", "role": "", "done": tasks, "open": []}]
+        text = cu.render(DAY, groups, generated_at="T")
+        # 表头恒有口径说明；这里断言的是**没有被回拨的条目**、也没有回拨计数行
+        self.assertNotIn("→ 归 ", text)
+        self.assertNotIn("条为「次日早上补勾」回拨", text)
 
 
 class TestSelect(unittest.TestCase):
