@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.20.0**（配置归一化 / 零依赖 Settings 层；schema v8）
+> 当前版本 **1.21.0**（练练健身只读接入；schema v8）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -98,6 +98,7 @@
 | `import-history [--check] [--src DIR]`               | 语雀历史文件转换为标准格式                          |
 | `clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--with-habits]` | 拉 ClickUp 当日素材；`--with-habits` 附习惯段并同步 `habit_logs` |
 | `clickup-push [YYYY-MM-DD] [--apply]`                | 复盘已入库 → 勾 ClickUp「每日复盘总结」（**默认 dry-run**） |
+| `keepstrong [--date D] [--range S E] [--stdout]`     | 练练健身只读素材（训练/体征/计划 → 收件箱） |
 | `doctor`                                             | 数据体检：对账 / R3 习惯隔离 / 习惯断更 / 体征 / 熔断… |
 | `body [--json]`                                      | 体征趋势：最新体重 / BMI / 7 日均 / 周变化 / 距目标（独立指标区） |
 | `coach [YYYY-MM-DD] [--json]`                        | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据数字） |
@@ -151,7 +152,7 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 587 项，零依赖
+python -m unittest discover -s tests -t .      # 见变更日志测试数，零依赖
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  
