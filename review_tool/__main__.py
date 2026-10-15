@@ -7,11 +7,12 @@
     python -m review_tool month      [YYYYMM] [--json] [--write] [--force] [--check]
     python -m review_tool ai-context [YYYY-MM-DD]
     python -m review_tool import-history [--check] [--src DIR]
-    python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID]
+    python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID] [--with-habits]
     python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
     python -m review_tool doctor
     python -m review_tool body       [--json]
     python -m review_tool coach      [YYYY-MM-DD] [--json]
+    python -m review_tool habits     [--json] [--sync ...]
     python -m review_tool fuse
     python -m review_tool sync-docs  [--check]
     python -m review_tool recompute-scores [--apply] [--db PATH]
@@ -56,6 +57,7 @@ from .reports.chart import main as chart_main
 from .reports.coach import main as coach_main
 from .reports.doctor import main as doctor_main
 from .reports.fuse import main as fuse_main
+from .reports.habits import main as habits_main
 from .reports.recompute import main as recompute_main
 
 
@@ -97,13 +99,16 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "ai-context": (ai_context_main, "ai-context [YYYY-MM-DD]"),
     "import-history": (
         import_history_main, "import-history [--check] [--src DIR]"),
-    "clickup": (clickup_main, "clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID]"),
+    "clickup": (
+        clickup_main,
+        "clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID] [--with-habits]"),
     "clickup-push": (
         clickup_push_main,
         "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]"),
     "doctor": (doctor_main, "doctor"),
     "body": (body_main, "body [--json]"),
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),
+    "habits": (habits_main, "habits [--json] [--sync [YYYY-MM-DD] [--dry-run]]"),
     "fuse": (fuse_main, "fuse"),
     "sync-docs": (sync_docs_main, "sync-docs [--check]"),
     "recompute-scores": (

@@ -18,7 +18,7 @@ from ..config import DB_PATH, SCHEMA_PATH
 from ..core.tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
@@ -84,6 +84,8 @@ _INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_ts_date ON training_sessions(date)",
     "CREATE INDEX IF NOT EXISTS idx_ti_date ON training_items(date)",
     "CREATE INDEX IF NOT EXISTS idx_ti_item ON training_items(item_key)",
+    "CREATE INDEX IF NOT EXISTS idx_hl_date ON habit_logs(date)",
+    "CREATE INDEX IF NOT EXISTS idx_hl_habit ON habit_logs(habit_key)",
 ]
 
 # 体征表（v5）：与 schema.sql 对齐；迁移路径在 schema 未跑时也能建表
@@ -142,6 +144,25 @@ SESSION_COLUMNS = [
 ]
 ITEM_COLUMNS = [
     "date", "session_key", "item_key", "item", "sets", "reps", "minutes", "load_kg",
+]
+
+# 行为习惯（v7）
+_HABIT_LOGS_DDL = """
+CREATE TABLE IF NOT EXISTS habit_logs (
+    date      TEXT NOT NULL,
+    habit_key TEXT NOT NULL,
+    category  TEXT NOT NULL,
+    item      TEXT NOT NULL,
+    done      INTEGER
+        CHECK (done IS NULL OR done IN (0, 1)),
+    src       TEXT,
+    note      TEXT,
+    PRIMARY KEY (date, habit_key)
+)
+"""
+
+HABIT_COLUMNS = [
+    "date", "habit_key", "category", "item", "done", "src", "note",
 ]
 
 
@@ -324,11 +345,19 @@ def _migrate_training(conn: sqlite3.Connection) -> bool:
     return created
 
 
+def _migrate_habit_logs(conn: sqlite3.Connection) -> bool:
+    """v6 → v7：建 ``habit_logs``（幂等）。返回是否新创建了表。"""
+    if "habit_logs" in _table_names(conn):
+        return False
+    conn.execute(_HABIT_LOGS_DDL)
+    return True
+
+
 def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     """执行全部增量迁移（幂等）。返回本次迁移动作摘要。
 
     顺序：补列 -> 建表 -> 重建 personal_tracks -> body_metrics ->
-    training_* -> 建索引 -> 记录版本。
+    training_* -> habit_logs -> 建索引 -> 记录版本。
     """
     version_before = conn.execute("PRAGMA user_version").fetchone()[0]
     _migrate_daily_reviews(conn)
@@ -338,6 +367,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     tracks_rows = _migrate_personal_tracks(conn)
     body_created = _migrate_body_metrics(conn)
     training_created = _migrate_training(conn)
+    habits_created = _migrate_habit_logs(conn)
     _create_indexes(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     if verbose:
@@ -354,6 +384,8 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
             print("  body_metrics: 新建体征表（v5）")
         if training_created:
             print("  training_sessions/items: 新建训练表（v6）")
+        if habits_created:
+            print("  habit_logs: 新建行为习惯表（v7）")
     return {
         "version_before": version_before,
         "version_after": SCHEMA_VERSION,
@@ -361,6 +393,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
         "columns_dropped": rebuilt,
         "body_metrics_created": body_created,
         "training_created": training_created,
+        "habit_logs_created": habits_created,
     }
 
 
@@ -591,6 +624,73 @@ def load_training(
         params,
     ).fetchall()
     return {"sessions": sessions, "items": items}
+
+
+def upsert_habit_log(conn: sqlite3.Connection, row: dict,
+                     *, overwrite: bool = False) -> None:
+    """按 ``(date, habit_key)`` 写入行为习惯快照。
+
+    默认**不改写已有 ``done``**（幂等：重复同步不翻转完成态）；
+    传 ``overwrite=True`` 时 ``done`` 跟新值走。
+    """
+    date = row.get("date")
+    habit_key = row.get("habit_key")
+    if not date or not habit_key:
+        raise ValueError("habit_logs upsert 需要 date 与 habit_key")
+    done_assign = (
+        "excluded.done" if overwrite
+        else "COALESCE(habit_logs.done, excluded.done)"
+    )
+    sql = f"""
+        INSERT INTO habit_logs (date, habit_key, category, item, done, src, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(date, habit_key) DO UPDATE SET
+            category=excluded.category,
+            item=excluded.item,
+            done={done_assign},
+            src=COALESCE(excluded.src, habit_logs.src),
+            note=COALESCE(excluded.note, habit_logs.note)
+    """
+    conn.execute(sql, (
+        date,
+        habit_key,
+        row.get("category") or "行为习惯",
+        row.get("item") or habit_key,
+        row.get("done"),
+        row.get("src"),
+        row.get("note"),
+    ))
+
+
+def load_habit_logs(
+    conn: sqlite3.Connection,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+    date: str | None = None,
+    habit_key: str | None = None,
+) -> list:
+    """按日期 / habit_key 升序返回习惯日志；可选用区间或单日过滤。"""
+    clauses: list[str] = []
+    params: list[str] = []
+    if date is not None:
+        clauses.append("date = ?")
+        params.append(date)
+    else:
+        if start is not None:
+            clauses.append("date >= ?")
+            params.append(start)
+        if end is not None:
+            clauses.append("date <= ?")
+            params.append(end)
+    if habit_key is not None:
+        clauses.append("habit_key = ?")
+        params.append(habit_key)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    return conn.execute(
+        f"SELECT * FROM habit_logs {where} ORDER BY date ASC, habit_key ASC",
+        params,
+    ).fetchall()
 
 
 def upsert_personal_track(conn: sqlite3.Connection, date: str, track_key: str,

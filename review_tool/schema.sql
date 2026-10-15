@@ -143,4 +143,19 @@ CREATE TABLE IF NOT EXISTS training_items (
     PRIMARY KEY (date, session_key, item_key)
 );
 
+-- 行为习惯（ClickUp「习惯与打卡」快照）：独立指标区，不参与四维评分
+-- 与 personal_tracks（补剂/护肤）物理隔离，永不合并（R3）
+-- 权威：ClickUp 执行层 → 本表快照（唯一 ClickUp→库写方向）；可从 ClickUp 快照重建
+CREATE TABLE IF NOT EXISTS habit_logs (
+    date      TEXT NOT NULL,
+    habit_key TEXT NOT NULL,        -- 归一化 key（在 config.HABITS 里）
+    category  TEXT NOT NULL,        -- 行为习惯（固定值，便于与 personal_tracks 区分）
+    item      TEXT NOT NULL,        -- 展示名
+    done      INTEGER
+        CHECK (done IS NULL OR done IN (0, 1)),
+    src       TEXT,                 -- 'clickup'
+    note      TEXT,
+    PRIMARY KEY (date, habit_key)
+);
+
 -- 索引见文件开头说明，由 db.py 统一创建。

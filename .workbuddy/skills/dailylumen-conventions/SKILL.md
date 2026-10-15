@@ -23,9 +23,11 @@ agent_created: true
 - **本项目 = 个人健康 / 复盘系统**：md 复盘 → `review_tool` → `reviews.db` → 评分 / 熔断 / 报告。
 - ⛔ **不混"重装备份 / win-reinstall-toolkit"那套** —— 那是跨项目基础设施，与本系统**相互独立**。
   不要在本仓库文档里引用备份脚本，也不要把本仓库内容写进备份清单。
-- **行为跟踪执行层在 ClickUp**（个人行为 / 习惯 / 年度目标 / 书单）：与本系统是**单向素材供给**
-  关系 —— ClickUp **不参与评分、不落库**。空间结构、list ID、映射口径、日期归属（`date_closed`，
-  含「次日早上补勾」回拨）与「两套打卡体系不许混」的边界，见 skill **`clickup-tracking`**。
+- **行为跟踪执行层在 ClickUp**（个人行为 / 习惯 / 年度目标 / 书单）：素材仍单向供给复盘；
+  **v1.15.0 / M11 起**，「习惯与打卡」另有一条受控写库：ClickUp → `habit_logs` 快照
+  （**唯一 ClickUp→库写方向**，不参与四维评分）。空间结构、list ID、映射口径、日期归属
+  （`date_closed`，含「次日早上补勾」回拨）与「两套打卡体系不许混」的边界，见 skill
+  **`clickup-tracking`**。
 - **不在本仓库的资产**：助手人格 / 协作准则在用户级记忆 `~/.workbuddy/MEMORY.md`；
   跨项目通用 SOP 在用户级 `~/.workbuddy/skills/`（`sqlite-safe-migration`、`nmpa-cosmetic-record`）。
   用户级资产怎么保管**不属本仓库职责**，本仓库只保证项目级 skill 随代码入库。
@@ -137,7 +139,7 @@ agent_created: true
 
 ## 5. 数据库规约
 
-- **SQLite `reviews.db` 是唯一数据源**；schema 走 `PRAGMA user_version` 幂等迁移（当前 **v6**）。
+- **SQLite `reviews.db` 是唯一数据源**；schema 走 `PRAGMA user_version` 幂等迁移（当前 **v7**）。
   v1.9.0 决断：`energy` / `mood` / `commute_done` **保留**（模板提醒 / 通勤默认「是」），
   不做破坏性删列；三者**不参与四维评分**。
 - **改 CHECK 只能重建表**，重建必须走全覆盖流程：
@@ -152,7 +154,7 @@ agent_created: true
 
 ## 6. 工程约定
 
-- **零依赖**：纯标准库。测试用 `unittest`（**17** 子命令；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
+- **零依赖**：纯标准库。测试用 `unittest`（**18** 子命令；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
 - **CI 是阻塞的**：从仓库内 md 从零重建数据库 → `doctor` / `recompute-scores` / `sync-docs --check`
   **阻塞**（对账干净、分数与字段重算一致、md 无需回写）；`fuse` 不阻塞（人生指标告警）。
   矩阵 3.10–3.13。

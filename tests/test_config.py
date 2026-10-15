@@ -10,6 +10,7 @@ import unittest
 from review_tool import __version__
 from review_tool.config import (
     BODYWEIGHT_MOVES,
+    HABITS,
     PERSONAL_ITEMS,
     PROFILE,
     SCORE_THRESHOLDS,
@@ -18,6 +19,7 @@ from review_tool.config import (
     TRAINING_MOVES,
     WEEKDAY_CN,
 )
+from review_tool.core.habits import resolve_habit
 from review_tool.core.tracks import resolve_item
 from review_tool.core.training import resolve_move
 
@@ -127,6 +129,50 @@ class TestPersonalItems(unittest.TestCase):
     def test_slot_maps_are_consistent(self):
         for key, cn in SLOT_CN.items():
             self.assertEqual(SLOT_BY_CN[cn], key)
+
+
+class TestHabitsCatalog(unittest.TestCase):
+    """HABITS 目录守卫（M11）：结构 + 与 PERSONAL_ITEMS aliases 不冲突。"""
+
+    def test_keys_unique_and_fields(self):
+        keys = [h["key"] for h in HABITS]
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertEqual(len(HABITS), 6)
+        for h in HABITS:
+            for field in ("key", "label", "aliases", "target_per_week", "alert_days"):
+                self.assertIn(field, h, f"{h.get('key')} 缺 {field}")
+            self.assertTrue(h["aliases"])
+            self.assertGreater(h["target_per_week"], 0)
+            self.assertGreater(h["alert_days"], 0)
+
+    def test_aliases_resolve_back_to_owner(self):
+        for h in HABITS:
+            for alias in h["aliases"]:
+                got = resolve_habit(alias)
+                self.assertIsNotNone(got, f"alias {alias!r} 无法解析")
+                self.assertEqual(
+                    got["key"], h["key"],
+                    f"alias {alias!r} 被 {got['key']} 抢走了",
+                )
+
+    def test_aliases_no_conflict_with_personal_items(self):
+        """HABITS aliases 与 PERSONAL_ITEMS aliases 不得冲突（R3）。"""
+        personal = {
+            a for item in PERSONAL_ITEMS for a in item["aliases"]
+        }
+        habit = {a for h in HABITS for a in h["aliases"]}
+        clash = personal & habit
+        self.assertFalse(
+            clash,
+            f"HABITS 与 PERSONAL_ITEMS aliases 冲突: {clash}",
+        )
+        # key 本身也不得交叉
+        pkeys = {i["key"] for i in PERSONAL_ITEMS}
+        hkeys = {h["key"] for h in HABITS}
+        self.assertFalse(
+            pkeys & hkeys,
+            f"HABITS key 与 PERSONAL_ITEMS key 冲突: {pkeys & hkeys}",
+        )
 
 
 class TestTrainingMovesCatalog(unittest.TestCase):

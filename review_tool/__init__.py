@@ -7,16 +7,16 @@
     from review_tool import parse_text, compute_scores, init_db, upsert
     from review_tool import ingest_all, report_month
 
-命令行入口（17 子命令，详见 ``python -m review_tool -h``）:
+命令行入口（18 子命令，详见 ``python -m review_tool -h``）:
     new-day / ingest / week / month / ai-context / import-history /
-    clickup / clickup-push / doctor / body / coach / fuse / sync-docs /
+    clickup / clickup-push / doctor / body / coach / habits / fuse / sync-docs /
     recompute-scores / export / chart / version
 
 分层（依赖只能自上而下，由 tests/test_architecture.py 强制）:
-    core      领域层（零 I/O）：tracks / bodyweight / body / training / score / util
+    core      领域层（零 I/O）：tracks / bodyweight / body / training / habits / score / util
     storage   持久化层：SQLite 唯一出入口 —— db（连接 / 迁移 / 读写 / 打卡对账）
-    pipeline  数据流转层（md <-> 库）：parse / ingest / sync_docs / import_history / new_day / export / clickup*
-    reports   产出层（读库面向人）：analyze / doctor / body / coach / fuse / ai_review / recompute / streak / chart
+    pipeline  数据流转层（md <-> 库）：parse / ingest / sync_docs / import_history / new_day / export / clickup* / habit_sync
+    reports   产出层（读库面向人）：analyze / doctor / body / coach / habits / fuse / ai_review / recompute / streak / chart
     config    包根可配置层（唯一要改的文件）；__main__ 纯路由
 
 """
@@ -30,6 +30,7 @@ from .config import (
     DB_PATH,
     DIMENSIONS,
     GENERATED_DIR,
+    HABITS,
     HISTORY_SRC_DIR,
     INBOX_DIR,
     INPUT_DIR,
@@ -50,7 +51,7 @@ from .core.score import (
     compute_work_score,
     system_score_from,
 )
-from .core.tracks import normalize_legacy_item, resolve_item, resolve_track
+from .core.tracks import normalize_item, normalize_legacy_item, resolve_item, resolve_track
 from .core.util import (
     clock_to_minutes,
     is_late_bedtime,
@@ -78,28 +79,31 @@ from .storage.db import (
     fetch_all,
     get_conn,
     init_db,
+    load_habit_logs,
     migrate,
     upsert,
+    upsert_habit_log,
     upsert_personal_track,
 )
 
-__version__ = "1.14.0"
+__version__ = "1.15.0"
 
 __all__ = [
     # config
     "BASE_DIR", "PACKAGE_DIR", "DB_PATH", "SCHEMA_PATH", "INPUT_DIR",
     "GENERATED_DIR", "INBOX_DIR", "ARCHIVE_SRC_DIR",
     "TEMPLATE_PATH", "HISTORY_SRC_DIR", "DIMENSIONS",
-    "PROFILE", "PERSONAL_ITEMS", "SCORE_THRESHOLDS",
+    "PROFILE", "PERSONAL_ITEMS", "HABITS", "SCORE_THRESHOLDS",
     "BODYWEIGHT_MOVES", "BODYWEIGHT_RULES",
     # util
     "clock_to_minutes", "minutes_to_clock", "to_int", "to_float", "to_bool",
     "is_late_bedtime", "slugify",
     # tracks / bodyweight
-    "resolve_item", "resolve_track", "normalize_legacy_item",
+    "normalize_item", "resolve_item", "resolve_track", "normalize_legacy_item",
     "bodyweight_minutes", "bodyweight_extract",
     # db
     "get_conn", "init_db", "migrate", "upsert", "upsert_personal_track",
+    "upsert_habit_log", "load_habit_logs",
     "fetch_all", "count", "count_tracks", "COLUMNS", "SCHEMA_VERSION",
     # parse / score
     "parse_text", "parse_file",
