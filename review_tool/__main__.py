@@ -15,6 +15,7 @@
     python -m review_tool habits     [--json] [--sync ...]
     python -m review_tool nutrition  [YYYY-MM-DD] [--json]
     python -m review_tool tutor      [YYYY-MM-DD] [--json]
+    python -m review_tool steward    --slot morning|evening|week […]
     python -m review_tool fuse
     python -m review_tool sync-docs  [--check]
     python -m review_tool recompute-scores [--apply] [--db PATH]
@@ -62,6 +63,7 @@ from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
 from .reports.nutrition import main as nutrition_main
 from .reports.recompute import main as recompute_main
+from .reports.steward import main as steward_main
 from .reports.tutor import main as tutor_main
 
 
@@ -115,6 +117,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "habits": (habits_main, "habits [--json] [--sync [YYYY-MM-DD] [--dry-run]]"),
     "nutrition": (nutrition_main, "nutrition [YYYY-MM-DD] [--json]"),
     "tutor": (tutor_main, "tutor [YYYY-MM-DD] [--json]"),
+    "steward": (
+        steward_main,
+        "steward --slot morning|evening|week [日期|ISO周] [--json] [--todo TEXT]"),
     "fuse": (fuse_main, "fuse"),
     "sync-docs": (sync_docs_main, "sync-docs [--check]"),
     "recompute-scores": (

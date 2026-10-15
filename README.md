@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.17.0**（学习记录 + 间隔重复队列；schema v8）
+> 当前版本 **1.18.0**（总管家编排：晨间 / 夜间 / 周度；schema v8）
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -24,12 +24,13 @@
 │   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
 ├── docs/                             # 设计说明.md + 迁移指南.md + 路线图.md(M1-M8)
 │                                     #   + 生活管家需求文档.md + 生活管家路线图.md(M9-M15) + 能力图谱.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，540 项）
+├── tests/                            # 测试套件（标准库 unittest，零依赖，552 项）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
 │   │   ├── dailylumen-conventions/   # 项目总纲：口径 / 权威归属 / 规约 / 工程约定 ★
 │   │   ├── daily-review-intake/      # 素材 → 成品复盘（发截图 / 发文档 / 总结对话）★
+│   │   ├── life-steward-daily/       # 总管家三段 SOP（晨间 / 夜间 / 周度）★
 │   │   ├── doc-corpus-normalize/     # 文档批量标准化 SOP（可证明无损）
 │   │   └── clickup-tracking/         # ClickUp 行为跟踪 ↔ 复盘衔接（结构 / 映射 / 口径）
 │   ├── memory/                       # 本机日志 + 环境坑（不入 git，换机不迁移）
@@ -70,6 +71,7 @@
         ├── habits.py                 #   行为习惯依从率 / streak / 断更报告 ★
         ├── nutrition.py              #   营养缺口报告（FOOD_LIB 具体动作）★
         ├── tutor.py                  #   学习/复习报告（待复习 + 本周主题/投入/产出）★
+        ├── steward.py                #   总管家编排（晨间 brief / 夜间指引 / 周度六段）★
         ├── streak.py                 #   正向连续天数（复盘 / 训练 / 打卡）
         ├── chart.py                  #   离线趋势 SVG（零依赖）
         ├── doctor.py                 #   数据体检（对账 / R3 隔离 / 习惯断更 / 体征…）★
@@ -101,6 +103,7 @@
 | `habits [--json] [--sync …]`                         | 行为习惯报告；`--sync` 从 ClickUp 写入 `habit_logs` |
 | `nutrition [YYYY-MM-DD] [--json]`                    | 营养缺口：当日/近窗 vs macro_targets + FOOD_LIB 具体动作 |
 | `tutor [YYYY-MM-DD] [--json]`                        | 学习/复习：今日待复习 + 本周主题/投入/产出物（独立指标区） |
+| `steward --slot morning\|evening\|week […]`          | 总管家编排：晨间 brief / 夜间复盘指引 / 周度六段合一（只调用既有模块） |
 | `fuse`                                               | 熔断检测：单维度持续走低 + 相对基线偏离                  |
 | `sync-docs [--check]`                                | 把库里的四维分回写到复盘 md（数据块 + 六章表格）            |
 | `recompute-scores [--apply]`                         | 按当前规则重算库中四维 / 系统分（默认只试算）               |
@@ -146,7 +149,7 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 394 项，零依赖
+python -m unittest discover -s tests -t .      # 552 项，零依赖
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  
