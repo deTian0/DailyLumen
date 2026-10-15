@@ -23,5 +23,6 @@ exports/
 #   仓库里只允许出现变量名（如 CLICKUP_API_KEY），不允许出现 pk_ 明文值。
 .env
 .env.*
+!.env.example
 *.env
 mcp.json
