@@ -63,6 +63,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `clickup_sync.py` | **复盘入库 → 勾「每日复盘总结」**（默认 dry-run；`--apply` 真写 + GET 回读） |
 | `keepstrong.py` | 练练健身只读客户端（错误契约 / 分页 / URL 编码 / 缓存） |
 | `keepstrong_render.py` | 练练记录 → 素材 md（纯函数、零 I/O） |
+| `keepstrong_sync.py` | 练练素材 → 复盘 md 附录（幂等标记块）+ 可选 ingest |
 | `export.py` | 导出 CSV / JSON（含依从率表） |
 | `streak.py`（reports） | 正向连续：复盘 / 训练 / 打卡 |
 

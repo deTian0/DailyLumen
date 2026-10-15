@@ -9,7 +9,7 @@
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID] [--with-habits]
     python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
-    python -m review_tool keepstrong [--date D] [--range S E] [--type …] [--stdout]
+    python -m review_tool keepstrong [--date D] [--write] [--ingest] [--stdout]
     python -m review_tool doctor
     python -m review_tool body       [--json]
     python -m review_tool coach      [YYYY-MM-DD] [--json]
@@ -117,8 +117,8 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
         "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]"),
     "keepstrong": (
         keepstrong_main,
-        "keepstrong [--date D] [--range S E] [--type records,body,plan] "
-        "[--out DIR] [--stdout]"),
+        "keepstrong [--date D] [--range S E] [--type …] "
+        "[--write] [--ingest] [--stdout]"),
     "doctor": (doctor_main, "doctor"),
     "body": (body_main, "body [--json]"),
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),

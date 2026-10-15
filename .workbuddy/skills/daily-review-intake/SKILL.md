@@ -142,7 +142,12 @@ agent_created: true
 
 ### 3.6 训练截图 / 明细回填规则
 
-练练 App / 自记训练截图是**输入通道**，不是数据源（G1）。流程：
+练练 App / API / 自记训练截图是**输入通道**，不是数据源（G1）。
+
+**优先（v1.22.0）**：`python -m review_tool keepstrong --date YYYY-MM-DD --write --ingest`
+（默认 dry-run；`--write` 幂等写入 keepstrong 标记块，再 ingest）。无 API 记录时不造空章节。
+
+截图补录流程：
 
 1. 从截图读出课名 / 动作 / 组次 → 写入当日 md **「附录 · 训练明细」**（在「附录 · 系统数据」之前）：
 

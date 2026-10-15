@@ -70,6 +70,10 @@ KS_DEFAULTS = {
     "cache_dir": SETTINGS.keepstrong_cache_dir,
 }
 
+# 练练动作名 / actionId → item_key（M18）。未命中则走 TRAINING_MOVES，再 slugify。
+# 例：{"act_0ef8…": "goblet_squat", "壶铃深蹲": "goblet_squat"}
+KS_ACTION_MAP: dict[str, str] = {}
+
 # ---------------------------------------------------------------------------
 # 字段类型（解析时按此转换）
 # ---------------------------------------------------------------------------
