@@ -9,6 +9,7 @@
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID] [--with-habits]
     python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
+    python -m review_tool keepstrong [--date D] [--range S E] [--type …] [--stdout]
     python -m review_tool doctor
     python -m review_tool body       [--json]
     python -m review_tool coach      [YYYY-MM-DD] [--json]
@@ -51,6 +52,7 @@ from .pipeline.clickup_sync import main as clickup_push_main
 from .pipeline.export import main as export_main
 from .pipeline.import_history import main as import_history_main
 from .pipeline.ingest import main as ingest_main
+from .pipeline.keepstrong import main as keepstrong_main
 from .pipeline.new_day import is_enabled as _new_day_enabled
 from .pipeline.new_day import main as new_day_main
 from .pipeline.sync_docs import main as sync_docs_main
@@ -113,6 +115,10 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "clickup-push": (
         clickup_push_main,
         "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]"),
+    "keepstrong": (
+        keepstrong_main,
+        "keepstrong [--date D] [--range S E] [--type records,body,plan] "
+        "[--out DIR] [--stdout]"),
     "doctor": (doctor_main, "doctor"),
     "body": (body_main, "body [--json]"),
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),

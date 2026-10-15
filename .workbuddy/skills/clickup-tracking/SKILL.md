@@ -10,6 +10,9 @@ agent_created: true
 > **DailyLumen = 评价层**（这一天值几分、要不要熔断）。
 > 素材供给仍是 ClickUp → 复盘；另有一条**受控回写**（复盘库 → 勾「每日复盘总结」）。
 > ClickUp **不直接决定任何分数**。
+>
+> **并列数据源（v1.21.0）**：运动走「练练健身」API（`python -m review_tool keepstrong`，
+> 只读 → 收件箱），与 ClickUp **互不替代**；两者都是输入通道，须先落 md 再 ingest（G1）。
 
 ## 0. 三条边界（先看这个）
 
