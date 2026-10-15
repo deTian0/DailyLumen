@@ -10,6 +10,7 @@
     python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID]
     python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
     python -m review_tool doctor
+    python -m review_tool body       [--json]
     python -m review_tool fuse
     python -m review_tool sync-docs  [--check]
     python -m review_tool recompute-scores [--apply] [--db PATH]
@@ -49,6 +50,7 @@ from .pipeline.new_day import main as new_day_main
 from .pipeline.sync_docs import main as sync_docs_main
 from .reports.ai_review import main as ai_context_main
 from .reports.analyze import main as analyze_main
+from .reports.body import main as body_main
 from .reports.chart import main as chart_main
 from .reports.doctor import main as doctor_main
 from .reports.fuse import main as fuse_main
@@ -98,6 +100,7 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
         clickup_push_main,
         "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]"),
     "doctor": (doctor_main, "doctor"),
+    "body": (body_main, "body [--json]"),
     "fuse": (fuse_main, "fuse"),
     "sync-docs": (sync_docs_main, "sync-docs [--check]"),
     "recompute-scores": (

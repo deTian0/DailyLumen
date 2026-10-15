@@ -60,6 +60,20 @@ class TestExampleDb(unittest.TestCase):
             self.conn.execute("SELECT COUNT(*) FROM daily_reviews").fetchone()[0], 0)
         self.assertEqual(
             self.conn.execute("SELECT COUNT(*) FROM personal_tracks").fetchone()[0], 0)
+        self.assertEqual(
+            self.conn.execute("SELECT COUNT(*) FROM body_metrics").fetchone()[0], 0)
+
+    def test_body_metrics_table_present(self):
+        """v5：空模板必须带 body_metrics（含 CHECK）。"""
+        cols = [r[1] for r in self.conn.execute("PRAGMA table_info(body_metrics)")]
+        self.assertEqual(
+            cols,
+            ["date", "weight_kg", "body_fat_pct", "waist_cm", "src", "note"],
+        )
+        ddl = _ddl(self.conn, "body_metrics")
+        self.assertIn("weight_kg", ddl)
+        self.assertIn("'scale'", ddl)
+        self.assertIn("'manual'", ddl)
 
     def test_integrity_ok(self):
         self.assertEqual(

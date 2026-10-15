@@ -100,6 +100,26 @@ PROFILE = {
     "macro_targets": {"carbs_g": 220, "protein_g": 82, "fat_g": 46},
     # 训练日约定：0=周一 … 6=周日。用于 import-history 推算 / ingest 对空值兜底。
     "training_weekdays": [0, 1, 2, 4, 5],
+    # 身高 (cm)：供 BMI 渲染；未配置时 body 报告显示「未配置身高」，不报错（M9）。
+    "height_cm": None,
+}
+
+# 体征目标带（配置不是数据，不进表 —— G4）。未配置时报告显示「未配置」。
+BODY_TARGETS = {
+    "weight_kg_low": None,
+    "weight_kg_high": None,
+}
+
+# 体征字段登记（侧车 → body_metrics）。⛔ 禁止并入 FLOAT_FIELDS / daily_reviews COLUMNS。
+BODY_FLOAT_FIELDS = {"weight_kg", "body_fat_pct", "waist_cm"}
+BODY_TEXT_FIELDS = {"src", "note"}
+# md 数据块字段名 → body_metrics 列名
+BODY_FIELD_MAP = {
+    "weight_kg": "weight_kg", "体重_kg": "weight_kg", "体重": "weight_kg",
+    "body_fat_pct": "body_fat_pct", "体脂率": "body_fat_pct", "体脂": "body_fat_pct",
+    "waist_cm": "waist_cm", "腰围_cm": "waist_cm", "腰围": "waist_cm",
+    "body_src": "src", "体征来源": "src",
+    "body_note": "note", "体征备注": "note",
 }
 
 # 打卡时段（模板里的小节标题 -> 时段 key）

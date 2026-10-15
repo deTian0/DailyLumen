@@ -18,7 +18,7 @@ from ..config import DB_PATH, SCHEMA_PATH
 from ..core.tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
@@ -80,7 +80,30 @@ _INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_month ON daily_reviews(month)",
     "CREATE INDEX IF NOT EXISTS idx_pt_date ON personal_tracks(date)",
     "CREATE INDEX IF NOT EXISTS idx_pt_item ON personal_tracks(item_key)",
+    "CREATE INDEX IF NOT EXISTS idx_body_date ON body_metrics(date)",
 ]
+
+# 体征表（v5）：与 schema.sql 对齐；迁移路径在 schema 未跑时也能建表
+_BODY_METRICS_DDL = """
+CREATE TABLE IF NOT EXISTS body_metrics (
+    date         TEXT PRIMARY KEY,
+    weight_kg    REAL
+        CHECK (weight_kg IS NULL OR (weight_kg > 0 AND weight_kg < 400)),
+    body_fat_pct REAL
+        CHECK (body_fat_pct IS NULL OR (body_fat_pct BETWEEN 0 AND 70)),
+    waist_cm     REAL
+        CHECK (waist_cm IS NULL OR (waist_cm > 0 AND waist_cm < 300)),
+    src          TEXT
+        CHECK (src IS NULL OR src IN ('scale', 'manual')),
+    note         TEXT
+)
+"""
+
+BODY_COLUMNS = [
+    "date", "weight_kg", "body_fat_pct", "waist_cm", "src", "note",
+]
+# src 跟着新值走（与 exercise_src 同理）；用户填报的数值走 COALESCE
+_BODY_ALWAYS_OVERWRITE = {"src"}
 
 
 def _create_indexes(conn: sqlite3.Connection) -> None:
@@ -238,10 +261,18 @@ def _migrate_personal_tracks(conn: sqlite3.Connection) -> int:
     return len(merged)
 
 
+def _migrate_body_metrics(conn: sqlite3.Connection) -> bool:
+    """v4 → v5：建 ``body_metrics``（幂等）。返回是否新创建了表。"""
+    if "body_metrics" in _table_names(conn):
+        return False
+    conn.execute(_BODY_METRICS_DDL)
+    return True
+
+
 def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     """执行全部增量迁移（幂等）。返回本次迁移动作摘要。
 
-    顺序：补列 -> 建表 -> 重建 personal_tracks -> 建索引 -> 记录版本。
+    顺序：补列 -> 建表 -> 重建 personal_tracks -> body_metrics -> 建索引 -> 记录版本。
     """
     version_before = conn.execute("PRAGMA user_version").fetchone()[0]
     _migrate_daily_reviews(conn)
@@ -249,6 +280,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     # 断点续迁恢复的旧表可能缺列（如 exercise_src），补列是幂等的，再跑一次
     _migrate_daily_reviews(conn)
     tracks_rows = _migrate_personal_tracks(conn)
+    body_created = _migrate_body_metrics(conn)
     _create_indexes(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     if verbose:
@@ -261,11 +293,14 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
             print("  daily_reviews 重建: exercise_src 约束放行 'zero'")
         if tracks_rows:
             print(f"  personal_tracks 归一化: {tracks_rows} 条规范记录")
+        if body_created:
+            print("  body_metrics: 新建体征表（v5）")
     return {
         "version_before": version_before,
         "version_after": SCHEMA_VERSION,
         "tracks_migrated": tracks_rows,
         "columns_dropped": rebuilt,
+        "body_metrics_created": body_created,
     }
 
 
@@ -343,6 +378,60 @@ def upsert(conn: sqlite3.Connection, row: dict, *, overwrite: bool = False) -> N
         row["month"] = d.year * 100 + d.month
     row.setdefault("ingested_at", datetime.now().isoformat(timespec="seconds"))
     conn.execute(_upsert_sql(overwrite), [row.get(c) for c in COLUMNS])
+
+
+def _upsert_body_sql(overwrite: bool) -> str:
+    """生成 body_metrics upsert。默认 COALESCE 保护用户填报值。"""
+    if overwrite:
+        assigns = [f"{c}=excluded.{c}" for c in BODY_COLUMNS if c != "date"]
+    else:
+        assigns = [
+            f"{c}=excluded.{c}" if c in _BODY_ALWAYS_OVERWRITE
+            else f"{c}=COALESCE(excluded.{c}, body_metrics.{c})"
+            for c in BODY_COLUMNS if c != "date"
+        ]
+    return (
+        f"INSERT INTO body_metrics ({', '.join(BODY_COLUMNS)}) "
+        f"VALUES ({', '.join(['?'] * len(BODY_COLUMNS))}) "
+        f"ON CONFLICT(date) DO UPDATE SET {', '.join(assigns)}"
+    )
+
+
+def upsert_body_metrics(conn: sqlite3.Connection, row: dict,
+                        *, overwrite: bool = False) -> None:
+    """按 date 主键写入或更新一条体征。row 必须含 date。
+
+    默认**不擦除**库中已有值（新值为 None 时保留旧值），与 ``upsert`` 一致；
+    需要真正清空时传 ``overwrite=True``。
+    """
+    if not row.get("date"):
+        raise ValueError("body_metrics upsert 需要 date")
+    conn.execute(
+        _upsert_body_sql(overwrite),
+        [row.get(c) for c in BODY_COLUMNS],
+    )
+
+
+def load_body_metrics(
+    conn: sqlite3.Connection,
+    *,
+    start: str | None = None,
+    end: str | None = None,
+) -> list:
+    """按日期升序返回体征行；可选用 ``start`` / ``end``（含端点）过滤。"""
+    clauses: list[str] = []
+    params: list[str] = []
+    if start is not None:
+        clauses.append("date >= ?")
+        params.append(start)
+    if end is not None:
+        clauses.append("date <= ?")
+        params.append(end)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    cur = conn.execute(
+        f"SELECT * FROM body_metrics {where} ORDER BY date ASC", params
+    )
+    return cur.fetchall()
 
 
 def upsert_personal_track(conn: sqlite3.Connection, date: str, track_key: str,

@@ -17,6 +17,7 @@
 11. 打卡对账：库里每条打卡能否在源 md 找到对应勾选（陈旧/重复条目）
 12. 熔断检测：单维度连续低分 + 相对基线漂移
 13. 打卡依从率骤降：近 N 日完成率相对此前基线骤降（建议性，不影响 is_healthy）
+14. 体征：最新体征距今 / 体重单周突变 > 1.5kg（建议性，不影响 is_healthy）
 """
 from __future__ import annotations
 
@@ -40,9 +41,12 @@ from ..core.score import (
     compute_work_score,
     system_score_from,
 )
-from ..storage.db import SCHEMA_VERSION, init_db
+from ..storage.db import SCHEMA_VERSION, init_db, load_body_metrics
 from .analyze import completeness
 from .fuse import find_fuses
+
+# 体征：单周体重突变阈值（kg）；建议性提示，不参与 is_healthy
+_BODY_WEEKLY_SPIKE_KG = 1.5
 
 # 只认可「文件名主干 = 纯日期」的日复盘。历史上用 ``search`` 抓文件名里第一段日期，
 # 会把 ``周总结-W36-2026-08-31_09-06.md`` 误当成 08-31 的日复盘 —— 于是当 08-31
@@ -169,6 +173,57 @@ def history_gaps(dates: list[str] | set[str]) -> list[dict]:
         if missing > 0:
             out.append({"prev": a, "next": b, "missing": missing})
     return out
+
+
+def body_status(conn, *, today: str) -> dict:
+    """体征建议性体检：最新记录距今 + 体重单周突变。
+
+    不参与 ``is_healthy``。返回::
+
+        {
+          "count": int,
+          "latest_date": str|None,
+          "stale_days": int|None,
+          "spikes": [{"prev":..,"next":..,"delta":..}, ...],
+        }
+    """
+    rows = load_body_metrics(conn)
+    latest_date = rows[-1]["date"] if rows else None
+    stale_days = None
+    if latest_date:
+        stale_days = (
+            datetime.strptime(today, "%Y-%m-%d")
+            - datetime.strptime(latest_date, "%Y-%m-%d")
+        ).days
+
+    # 体重序列：按日期对齐，找「约 7 日历日」跨度上的突变
+    weights = [
+        (r["date"], r["weight_kg"]) for r in rows if r["weight_kg"] is not None
+    ]
+    spikes: list[dict] = []
+    for i, (d2, w2) in enumerate(weights):
+        t2 = datetime.strptime(d2, "%Y-%m-%d").date()
+        for j in range(i - 1, -1, -1):
+            d1, w1 = weights[j]
+            t1 = datetime.strptime(d1, "%Y-%m-%d").date()
+            span = (t2 - t1).days
+            if span > 7:
+                break
+            if span < 1:
+                continue
+            delta = round(w2 - w1, 2)
+            if abs(delta) > _BODY_WEEKLY_SPIKE_KG:
+                spikes.append({
+                    "prev": d1, "next": d2,
+                    "delta": delta, "span_days": span,
+                })
+                break  # 每个终点只报最近一次超阈突变
+    return {
+        "count": len(rows),
+        "latest_date": latest_date,
+        "stale_days": stale_days,
+        "spikes": spikes,
+    }
 
 
 def _track_rate(conn, start: str, end: str) -> tuple[float | None, int, int]:
@@ -382,6 +437,9 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
         result["track_adherence_cliff"] = (
             track_adherence_cliff(conn, as_of=cliff_as_of) if cliff_as_of else None
         )
+
+        # 体征（建议性：最新距今 / 单周突变；不影响 is_healthy）
+        result["body"] = body_status(conn, today=today)
     finally:
         conn.close()
     return result
@@ -558,6 +616,33 @@ def render(result: dict, *, encoding: str | None = None) -> str:
             f"（降幅 {cliff['delta'] * 100:.1f}pp，未达阈值）"
         )
 
+    L.append("")
+    L.append("[体征]")
+    body = result.get("body") or {}
+    if not body.get("count"):
+        L.append(f"  {ok} 尚无体征记录（建议性；填 体重_kg 后 ingest）")
+    else:
+        stale_b = body.get("stale_days")
+        latest_b = body.get("latest_date")
+        if stale_b is None:
+            L.append(f"  {warn} 有体征行但无最新日期")
+        elif stale_b <= 7:
+            L.append(f"  {ok} 最新体征 {latest_b}（距今 {stale_b} 天）"
+                     f" · 共 {body['count']} 条")
+        else:
+            L.append(f"  {warn} 最新体征 {latest_b}（距今 {stale_b} 天）"
+                     f" · 共 {body['count']} 条"
+                     "（建议性，不影响数据健康）")
+        spikes = body.get("spikes") or []
+        if spikes:
+            L.append(f"  {warn} {len(spikes)} 处体重单周突变"
+                     f" > {_BODY_WEEKLY_SPIKE_KG}kg（建议性，不影响数据健康）:")
+            for sp in spikes[:5]:
+                L.append(f"    - {sp['prev']} → {sp['next']}"
+                         f"（{sp['span_days']} 天）{sp['delta']:+.2f} kg")
+            if len(spikes) > 5:
+                L.append(f"    … 其余 {len(spikes) - 5} 处省略")
+
     if result["inbox_files"]:
         L.append("")
         L.append(f"[收件箱] {result['inbox_files']} 个待处理素材")
@@ -606,8 +691,8 @@ def is_healthy(result: dict) -> bool:
     - ``training_day`` 与星期约定不符：可能只是临时调整训练日，属合理的个人差异；
     - 新鲜度（距上次复盘超过 1 天）：属「该补录了」的建议，CI 里历史库必然过期；
     - 历史断更（相邻入库日空洞）：属可见性提示，不代表库坏了；
-    - 分数一致性 / 打卡对账 / 熔断 / 打卡依从率骤降：手填覆盖合法、陈旧打卡由
-      ``--prune-tracks`` 处理、熔断与依从率属「人生指标」告警，都不代表数据本身坏了。
+    - 分数一致性 / 打卡对账 / 熔断 / 打卡依从率骤降 / 体征：手填覆盖合法、陈旧打卡由
+      ``--prune-tracks`` 处理、熔断与依从率与体征属「人生指标」告警，都不代表数据本身坏了。
 
     真正算故障的是：库损坏、schema 版本不符、md 与库的日期集合对不上、库里一条记录都没有。
     """

@@ -100,4 +100,20 @@ CREATE TABLE IF NOT EXISTS personal_tracks (
     PRIMARY KEY (date, track_key)
 );
 
+-- 体征（体重 / 体脂 / 腰围）：独立指标区，不参与四维评分
+-- BMI 不入源、不进库 —— 由 config.PROFILE["height_cm"] + weight_kg 在渲染时算
+-- 不设对 daily_reviews 的外键：允许「只称了体重、没写复盘」的日子独立存在
+CREATE TABLE IF NOT EXISTS body_metrics (
+    date         TEXT PRIMARY KEY,              -- 与 daily_reviews.date 同口径
+    weight_kg    REAL
+        CHECK (weight_kg IS NULL OR (weight_kg > 0 AND weight_kg < 400)),
+    body_fat_pct REAL
+        CHECK (body_fat_pct IS NULL OR (body_fat_pct BETWEEN 0 AND 70)),
+    waist_cm     REAL
+        CHECK (waist_cm IS NULL OR (waist_cm > 0 AND waist_cm < 300)),
+    src          TEXT
+        CHECK (src IS NULL OR src IN ('scale', 'manual')),  -- 体脂秤截图 / 手填
+    note         TEXT
+);
+
 -- 索引见文件开头说明，由 db.py 统一创建。

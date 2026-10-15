@@ -573,8 +573,41 @@ class TestRender(_Fixture):
         text = doctor.render(self._run(today="2026-09-22"), encoding="utf-8")
         for token in ("DailyLumen 体检报告", "[数据库]", "[新鲜度]", "[历史断更]",
                       "[文件 <-> 数据库对账]", "[数据完整度]", "[打卡归一化]",
-                      "[运动时长来源]", "[训练日口径]", "[打卡依从率]", "结论:"):
+                      "[运动时长来源]", "[训练日口径]", "[打卡依从率]", "[体征]",
+                      "结论:"):
             self.assertIn(token, text)
+
+
+class TestBodyAdvisory(_Fixture):
+    """体征段建议性：有/无记录都不影响 is_healthy。"""
+
+    def test_body_section_empty_still_healthy_when_rest_ok(self):
+        upsert(self.conn, {"date": "2026-09-21"})
+        self.conn.commit()
+        self._md("复盘/2026-09/2026-09-21.md")
+        r = self._run(today="2026-09-21")
+        self.assertEqual(r["body"]["count"], 0)
+        self.assertTrue(doctor.is_healthy(r))
+        text = doctor.render(r, encoding="utf-8")
+        self.assertIn("[体征]", text)
+        self.assertIn("尚无体征记录", text)
+
+    def test_body_spike_advisory_not_unhealthy(self):
+        from review_tool.storage.db import upsert_body_metrics
+        upsert(self.conn, {"date": "2026-09-21"})
+        upsert_body_metrics(self.conn, {
+            "date": "2026-09-14", "weight_kg": 70.0, "src": "manual",
+        })
+        upsert_body_metrics(self.conn, {
+            "date": "2026-09-21", "weight_kg": 72.0, "src": "manual",
+        })
+        self.conn.commit()
+        self._md("复盘/2026-09/2026-09-21.md")
+        r = self._run(today="2026-09-21")
+        self.assertTrue(r["body"]["spikes"])
+        self.assertTrue(doctor.is_healthy(r))
+        text = doctor.render(r, encoding="utf-8")
+        self.assertIn("单周突变", text)
 
 
 if __name__ == "__main__":
