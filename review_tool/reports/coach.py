@@ -14,7 +14,7 @@ import json
 import sys
 from datetime import date, timedelta
 
-from ..config import COACH_RULES, PROFILE, TRAINING_MOVES, TRAINING_PLAN
+from ..config import COACH_RULES, TRAINING_MOVES, TRAINING_PLAN
 from ..core.training import (
     hours_between,
     needs_recovery,
@@ -25,11 +25,15 @@ from ..core.training import (
 from ..storage.db import init_db, load_training
 
 
-def _planned_sessions() -> int:
-    """本周计划课次：有 TRAINING_PLAN 用其长度，否则用 training_weekdays。"""
+def _planned_sessions() -> int | None:
+    """本周计划课次。
+
+    ``TRAINING_PLAN`` 非空 → 其长度。为空 → ``None``（M21：不再用
+    ``len(training_weekdays)`` 冒充计划）。``None`` 时只报告完成课次，不判加量。
+    """
     if TRAINING_PLAN:
         return len(TRAINING_PLAN)
-    return len(PROFILE.get("training_weekdays") or [])
+    return None
 
 
 def _iso_week_bounds(as_of: str) -> tuple[str, str]:
@@ -93,9 +97,16 @@ def collect(conn, *, as_of: str | None = None) -> dict:
     )
 
     suggestions: list[dict] = []
+    unplanned = completion["planned"] is None
 
-    # 1) 达标线
-    if completion["ok"]:
+    # 1) 达标线（没有计划课次时不判加量）
+    if unplanned:
+        suggestions.append({
+            "kind": "volume",
+            "title": "计划课次未配置，仅报告完成课次",
+            "evidence": completion["evidence"],
+        })
+    elif completion["ok"]:
         suggestions.append({
             "kind": "volume",
             "title": "课次达标，可考虑加量",
@@ -121,12 +132,13 @@ def collect(conn, *, as_of: str | None = None) -> dict:
             add_sets=int(COACH_RULES["add_sets"]),
             add_reps=int(COACH_RULES["add_reps"]),
         )
-        if not completion["ok"]:
-            # 课次不达标时渐进也只维持（规则 1 优先）
+        if unplanned or not completion["ok"]:
+            # 没有计划课次，或课次未达标：渐进只维持（规则 1 优先）
+            why = "计划课次未配置" if unplanned else "课次未达加量门槛"
             suggestions.append({
                 "kind": "progression",
                 "item_key": key,
-                "title": f"{key}：维持（课次未达加量门槛）",
+                "title": f"{key}：维持（{why}）",
                 "evidence": prog["evidence"] + "；" + completion["evidence"],
             })
         elif prog["action"] == "increase":
@@ -146,20 +158,23 @@ def collect(conn, *, as_of: str | None = None) -> dict:
                 "evidence": prog["evidence"],
             })
 
-    # 3) 恢复
+    # 3) 恢复（依据是已完成训练日的日期，不把星期约定印成课表）
+    run_n = int(recovery["consecutive"])
+    tail = all_dates[-run_n:] if run_n else []
+    recovery_ev = recovery["evidence"]
+    if tail:
+        recovery_ev = recovery_ev + "；日期=" + ",".join(tail)
     if recovery["needed"]:
         suggestions.append({
             "kind": "recovery",
             "title": "强制建议：插入 1 天恢复",
-            "evidence": recovery["evidence"] + (
-                f"；训练日约定={PROFILE.get('training_weekdays')}"
-            ),
+            "evidence": recovery_ev,
         })
     else:
         suggestions.append({
             "kind": "recovery",
             "title": "恢复窗口正常",
-            "evidence": recovery["evidence"],
+            "evidence": recovery_ev,
         })
 
     # 4) 部位轮换：相对 as_of，检查最近主项
@@ -215,12 +230,20 @@ def render(data: dict) -> str:
     L.append("=" * 52)
     L.append("")
     L.append(f"[基准日] {data['as_of']}")
-    L.append(
-        f"[本周] {data['week']['start']} ~ {data['week']['end']} ｜ "
-        f"完成 {data['completion']['completed']}/"
-        f"{data['completion']['planned']} 课"
-        f"（比率 {data['completion']['ratio']}）"
-    )
+    planned = data["completion"]["planned"]
+    if planned is None:
+        week_line = (
+            f"[本周] {data['week']['start']} ~ {data['week']['end']} ｜ "
+            f"完成 {data['completion']['completed']} 课"
+            f"（计划课次未配置，不判加量）"
+        )
+    else:
+        week_line = (
+            f"[本周] {data['week']['start']} ~ {data['week']['end']} ｜ "
+            f"完成 {data['completion']['completed']}/{planned} 课"
+            f"（比率 {data['completion']['ratio']}）"
+        )
+    L.append(week_line)
     L.append(
         f"[窗口] sessions={data['sessions_in_window']} ｜ "
         f"items={data['items_in_window']}"

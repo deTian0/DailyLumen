@@ -212,6 +212,14 @@ class TestCoachHelpers(unittest.TestCase):
         no = week_completion_ok(2, 5, min_ratio=0.8)
         self.assertFalse(no["ok"])
 
+    def test_unplanned_never_unlocks_volume(self):
+        """没有计划课次时，完成再多也不判加量。"""
+        for planned in (None, 0):
+            got = week_completion_ok(3, planned, min_ratio=0.8)
+            self.assertFalse(got["ok"])
+            self.assertIsNone(got["planned"])
+            self.assertIn("不判加量", got["evidence"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -378,17 +378,29 @@ def hours_between(d0: str, d1: str) -> float:
 
 def week_completion_ok(
     completed: int,
-    planned: int,
+    planned: int | None,
     *,
     min_ratio: float = 0.8,
 ) -> dict:
-    """本周课次是否达加量门槛。"""
-    if planned <= 0:
-        ratio = 1.0 if completed > 0 else 0.0
-        ok = completed > 0
-    else:
-        ratio = completed / planned
-        ok = ratio >= min_ratio
+    """本周课次是否达加量门槛。
+
+    ``planned is None`` 或 ``planned <= 0``：没有计划课次。只报告完成数，
+    **不判加量**（M21）。此前 ``planned <= 0`` 且 ``completed > 0`` 会把 ``ok``
+    设为真，等于「没有计划反而更容易加量」。
+    """
+    if planned is None or planned <= 0:
+        return {
+            "ok": False,
+            "completed": completed,
+            "planned": None,
+            "ratio": None,
+            "min_ratio": min_ratio,
+            "evidence": (
+                f"本周完成 {completed} 课（计划课次未配置，不判加量）"
+            ),
+        }
+    ratio = completed / planned
+    ok = ratio >= min_ratio
     return {
         "ok": ok,
         "completed": completed,

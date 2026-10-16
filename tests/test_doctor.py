@@ -228,10 +228,16 @@ class TestTrackNormalization(_Fixture):
 
 class TestTrainingDayDrift(_Fixture):
     def test_detects_drift(self):
-        upsert(self.conn, {"date": "2026-09-21", "training_day": 0})  # 周一应为训练日
+        upsert(self.conn, {"date": "2026-09-21", "training_day": 0})  # 周一，与离线兜底不同
         self.conn.commit()
         r = self._run(today="2026-09-22")
-        self.assertTrue(any(d == "2026-09-21" for d, _ in r["training_day_drift"]))
+        hit = [w for d, w in r["training_day_drift"] if d == "2026-09-21"]
+        self.assertTrue(hit)
+        self.assertNotIn("应为", hit[0])
+        self.assertIn("离线兜底", hit[0])
+        text = doctor.render(r)
+        self.assertIn("与离线兜底不同（非故障）", text)
+        self.assertNotIn("应为", text)
 
     def test_detects_missing(self):
         upsert(self.conn, {"date": "2026-09-21"})

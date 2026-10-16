@@ -38,8 +38,9 @@ $PY -m review_tool steward --slot week [ISO周|YYYY-MM-DD]
    或在回复里直接摘 clickup 前 3 条（**不要编造任务**）。
 3. 按输出四段口头复述给用户：
    - 昨日四维 + 熔断（`fuse` 同源）
-   - 今日训练课（**以练练健身 App 为准**，M20 起；`TRAINING_PLAN` / `training_weekdays`
-     仅在拉不到练练数据时离线兜底 + 本周 `coach` 完成度）
+   - 今日训练课（M21：默认**不判断**今天练不练，不把星期说成休息日；要课名先
+     `keepstrong --type plan`，再用 `steward --slot morning --plan 课名`。
+     本周完成课次来自 `coach`；`TRAINING_PLAN` 为空时不判加量）
    - 饮食目标（`PROFILE.macro_targets` / `nutrition`）
    - 待办 Top 3
 
@@ -57,7 +58,7 @@ $PY -m review_tool steward --slot week [ISO周|YYYY-MM-DD]
 2. **整段交给** skill **`daily-review-intake`**（本 skill 不重复其细则）。
 3. 回填指引（与 intake 章节对齐，命令见 evening 输出）：
    - 体征 → intake §3.5 → `body`
-   - 训练 → intake §3.6 → `coach`
+   - 训练 → intake §3.6 → `keepstrong --date <被复盘日> --write --ingest`
    - 饮食 → intake §3.6 → `nutrition`
    - 学习 → intake §3.7 → `tutor`
 4. 收尾：`doctor`（写「七、AI 评价」前看熔断段）；再 `ingest` 兜底 summary。

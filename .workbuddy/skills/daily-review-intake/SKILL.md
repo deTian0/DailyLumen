@@ -150,6 +150,7 @@ agent_created: true
 只取练练 `status=="completed"`；有 completed → `是`，成功拉到空 → `否`；
 API 失败**不写「否」**（CLI 明示离线兜底，留给 `fill_training_day`）。
 无 API 记录时不造空训练明细章节。对象日 = **被复盘日**（执行日的昨日）。
+`steward --slot evening` 的训练步就是这条命令，`--date` = 该次复盘的归属日。
 
 截图补录流程：
 
