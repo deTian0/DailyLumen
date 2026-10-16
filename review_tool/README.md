@@ -61,9 +61,9 @@ reports   ->  pipeline  ->  storage  ->  core
 | `clickup.py` | **ClickUp → 素材简报**（按 `date_closed` 归日；`--with-habits` 附习惯段并同步 `habit_logs`） |
 | `habit_sync.py` | **ClickUp 习惯 → habit_logs**（唯一 ClickUp→库写方向；幂等；不改写已有 done） |
 | `clickup_sync.py` | **复盘入库 → 勾「每日复盘总结」**（默认 dry-run；`--apply` 真写 + GET 回读） |
-| `keepstrong.py` | 练练健身只读客户端（错误契约 / 分页 / URL 编码 / 缓存） |
+| `keepstrong.py` | 练练健身客户端（读 + 受控写）；M20 起 records 只留 `completed` |
 | `keepstrong_render.py` | 练练记录 → 素材 md（纯函数、零 I/O） |
-| `keepstrong_sync.py` | 练练素材 → 复盘 md 附录（幂等标记块）+ 可选 ingest |
+| `keepstrong_sync.py` | 练练 → 复盘 md（幂等标记块 + `训练日:`/`体重_kg`）+ 可选 ingest |
 | `export.py` | 导出 CSV / JSON（含依从率表） |
 | `streak.py`（reports） | 正向连续：复盘 / 训练 / 打卡 |
 
@@ -137,6 +137,7 @@ python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（�
 ## 测试与代码风格
 
 ```bash
-python -m unittest discover -s tests -t .   # 全量，标准库零依赖（见 README 头测试数）
+python -m unittest discover -s tests -t .   # 全量 645 项，标准库零依赖
 ruff check .                                # 静态检查（CI 同款）
 ```
+

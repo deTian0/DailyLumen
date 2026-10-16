@@ -127,9 +127,19 @@ class TestClientErrors(unittest.TestCase):
 class TestClientReads(unittest.TestCase):
     def test_records_pagination(self):
         pages = {
-            1: {"list": [{"dayStr": "20261001", "durationSeconds": 161, "actions": []}],
+            1: {"list": [{
+                "dayStr": "20261001",
+                "status": "completed",
+                "durationSeconds": 161,
+                "actions": [],
+            }],
                 "hasMore": True},
-            2: {"list": [{"dayStr": "20261002", "durationSeconds": 10, "actions": []}],
+            2: {"list": [{
+                "dayStr": "20261002",
+                "status": "completed",
+                "durationSeconds": 10,
+                "actions": [],
+            }],
                 "hasMore": False},
         }
 

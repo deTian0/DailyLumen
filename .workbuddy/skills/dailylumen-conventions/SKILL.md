@@ -23,7 +23,7 @@ agent_created: true
 - **本项目 = 个人健康 / 复盘系统**：md 复盘 → `review_tool` → `reviews.db` → 评分 / 熔断 / 报告。
 - ⛔ **不混"重装备份 / win-reinstall-toolkit"那套** —— 那是跨项目基础设施，与本系统**相互独立**。
   不要在本仓库文档里引用备份脚本，也不要把本仓库内容写进备份清单。
-- **运动主数据源（v1.21.0–v1.23.0 / M17–M19）**：练练健身 API → `keepstrong` 素材 → `--write` 落 md → `ingest`（G1）；写回（`--set-weight` / `--log-body` / `--schedule`）须 `--yes`，不落库。
+- **运动主数据源（v1.21.0–v1.26.0 / M17–M20）**：练练健身 API → `keepstrong` 素材 → `--write` 落 md → `ingest`（G1）；写回（`--set-weight` / `--log-body` / `--schedule`）须 `--yes`，不落库。**M20 起**训练日主判据 = 被复盘日 `status=="completed"`（`training_weekdays` 仅离线兜底）。
 - **行为跟踪执行层在 ClickUp**（个人行为 / 习惯 / 年度目标 / 书单）：素材仍单向供给复盘；
   **v1.15.0 / M11 起**，「习惯与打卡」另有一条受控写库：ClickUp → `habit_logs` 快照
   （**唯一 ClickUp→库写方向**，不参与四维评分）。空间结构、list ID、映射口径、日期归属

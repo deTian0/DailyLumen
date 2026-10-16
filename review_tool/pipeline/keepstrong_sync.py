@@ -1,9 +1,11 @@
-"""练练健身素材 → 当日复盘 md（M18 · 打通 G1）。
+"""练练健身素材 → 当日复盘 md（M18 落 md / M20 训练日）。
 
-流程：API/素材 dict → 写入「附录 · 训练明细」+ 可选数据块体重 →（可选）``ingest``。
-⛔ 禁止只进库不落 md。幂等：重复同步只**替换** ``<!-- keepstrong:begin/end -->`` 块。
+流程：API/素材 dict → 写入「附录 · 训练明细」+ 数据块体重 / 训练日 →（可选）``ingest``。
+⛔ 禁止只进库不落 md。幂等：重复同步只**替换** ``<!-- keepstrong:begin/end -->`` 块
+与数据块 ``训练日:`` / ``体重_kg:`` 行。
 
 ``keepstrong --write`` 才落盘；默认 dry-run 只打印将要写入的内容。
+同日多条已完成记录 → 合并为一条 ``session_key='main'``（``total_min`` 求和）。
 """
 from __future__ import annotations
 
@@ -25,6 +27,9 @@ _SECTION_RE = re.compile(
 _DATA_BLOCK_RE = re.compile(r"(```data\s*\n)(.*?)(```)", re.S)
 _WEIGHT_LINE_RE = re.compile(
     r"^([ \t]*(?:体重_kg|体重|weight_kg)\s*[:：]\s*)(.*)$", re.M
+)
+_TRAINING_DAY_LINE_RE = re.compile(
+    r"^([ \t]*(?:训练日|training_day)\s*[:：]\s*)(.*)$", re.M
 )
 
 
@@ -69,6 +74,78 @@ def seconds_to_min(seconds: Any) -> int | None:
     return max(1, int(round(sec / 60.0)))
 
 
+def _plan_name_of(rec: dict, *, plan_fallback: str = "练练训练") -> str:
+    ttype = rec.get("trainingType") or rec.get("type") or ""
+    return (
+        rec.get("name")
+        or rec.get("planName")
+        or ("临时训练" if ttype in ("temp", "temporary") else "")
+        or ttype
+        or plan_fallback
+    )
+
+
+def sum_records_total_min(records: list[dict] | None) -> int | None:
+    """各条 ``durationSeconds`` → 分钟后求和；``None`` 按 0 跳过；全空返回 None。"""
+    total = 0
+    any_min = False
+    for rec in records or []:
+        m = seconds_to_min(rec.get("durationSeconds"))
+        if m is not None:
+            total += m
+            any_min = True
+    return total if any_min else None
+
+
+def merge_day_records(
+    records: list[dict] | None,
+    *,
+    plan_fallback: str = "练练训练",
+) -> list[dict]:
+    """同日多条 → 一条（供 ``session_key='main'``）。
+
+    - ``plan_name``：首个非空
+    - ``durationSeconds``：各条分钟求和后再 ×60（无有效分钟则不写该字段）
+    - ``actions``：按出现顺序拼接
+    空输入 → ``[]``。
+    """
+    rows = [r for r in (records or []) if isinstance(r, dict)]
+    if not rows:
+        return []
+    if len(rows) == 1:
+        return [dict(rows[0])]
+
+    plan = ""
+    for r in rows:
+        name = _plan_name_of(r, plan_fallback="")
+        if name:
+            plan = name
+            break
+    if not plan:
+        plan = plan_fallback
+
+    actions: list[dict] = []
+    for r in rows:
+        acts = r.get("actions") or []
+        if isinstance(acts, list):
+            actions.extend(a for a in acts if isinstance(a, dict))
+
+    merged: dict[str, Any] = {
+        "name": plan,
+        "planName": plan,
+        "actions": actions,
+        "source": rows[0].get("source") or "lianlian",
+        "status": "completed",
+    }
+    day = rows[0].get("dayStr") or rows[0].get("date")
+    if day:
+        merged["dayStr"] = day
+    total_min = sum_records_total_min(rows)
+    if total_min is not None:
+        merged["durationSeconds"] = int(total_min) * 60
+    return [merged]
+
+
 def format_action_line(action: dict, *, action_map: dict | None = None) -> str | None:
     name = action.get("name") or action.get("actionName")
     aid = action.get("actionId") or action.get("id")
@@ -103,38 +180,33 @@ def records_to_block(
     action_map: dict | None = None,
     plan_fallback: str = "练练训练",
 ) -> str | None:
-    """多条记录 → keepstrong 标记块正文；无记录返回 ``None``（不造空章节）。"""
-    if not records:
+    """多条记录 → keepstrong 标记块正文；无记录返回 ``None``（不造空章节）。
+
+    M20：同日多条先 ``merge_day_records`` 成一条，再写块（``session_key='main'``）。
+    """
+    merged = merge_day_records(records, plan_fallback=plan_fallback)
+    if not merged:
         return None
-    chunks: list[str] = []
-    for i, rec in enumerate(records):
-        ttype = rec.get("trainingType") or rec.get("type") or ""
-        plan = (
-            rec.get("name")
-            or rec.get("planName")
-            or ("临时训练" if ttype in ("temp", "temporary") else "")
-            or ttype
-            or plan_fallback
-        )
-        if len(records) > 1:
-            plan = f"{plan}#{i + 1}"
-        lines = [f"- 计划：{plan}｜来源：练练"]
-        actions = rec.get("actions") or []
-        if isinstance(actions, list) and actions:
-            for a in actions:
-                if isinstance(a, dict):
-                    line = format_action_line(a, action_map=action_map)
-                    if line:
-                        lines.append(line)
+    rec = merged[0]
+    plan = _plan_name_of(rec, plan_fallback=plan_fallback)
+    lines = [f"- 计划：{plan}｜来源：练练"]
+    actions = rec.get("actions") or []
+    if isinstance(actions, list) and actions:
+        for a in actions:
+            if isinstance(a, dict):
+                line = format_action_line(a, action_map=action_map)
+                if line:
+                    lines.append(line)
+    else:
+        mins = seconds_to_min(rec.get("durationSeconds"))
+        if mins is None:
+            # 合并后仍可能只有「全 0 秒」——用求和结果兜底
+            mins = sum_records_total_min(records)
+        if mins is not None:
+            lines.append(f"- 训练 {mins}min")
         else:
-            mins = seconds_to_min(rec.get("durationSeconds"))
-            if mins is not None:
-                lines.append(f"- 训练 {mins}min")
-            else:
-                # 有记录但无时长无动作 —— 仍写一行占位，避免丢 session
-                lines.append("- 训练（无明细）")
-        chunks.append("\n".join(lines))
-    inner = "\n\n".join(chunks)
+            lines.append("- 训练（无明细）")
+    inner = "\n".join(lines)
     return f"{BEGIN}\n{inner}\n{END}"
 
 
@@ -254,6 +326,38 @@ def apply_weight_kg(md_text: str, weight: float | None) -> str:
     return _DATA_BLOCK_RE.sub(_sub_block, text, count=1)
 
 
+def apply_training_day(md_text: str, is_training: bool | None) -> str:
+    """写入 / 更新数据块 ``训练日: 是/否``；``is_training is None`` 则不动（API 失败路径）。
+
+    两种取值都显式写、不留空 —— 成功拉到空结果写「否」，有 completed 写「是」。
+    """
+    if is_training is None:
+        return md_text
+    text = md_text.replace("\r\n", "\n")
+    val = "是" if is_training else "否"
+
+    def _sub_block(m: re.Match) -> str:
+        body = m.group(2)
+        if _TRAINING_DAY_LINE_RE.search(body):
+            body2 = _TRAINING_DAY_LINE_RE.sub(rf"\g<1>{val}", body, count=1)
+        else:
+            if re.search(r"^日期\s*[:：].*$", body, re.M):
+                body2 = re.sub(
+                    r"^(日期\s*[:：].*)$",
+                    rf"\1\n训练日: {val}",
+                    body,
+                    count=1,
+                    flags=re.M,
+                )
+            else:
+                body2 = f"训练日: {val}\n" + body
+        return m.group(1) + body2 + m.group(3)
+
+    if not _DATA_BLOCK_RE.search(text):
+        return text
+    return _DATA_BLOCK_RE.sub(_sub_block, text, count=1)
+
+
 def review_md_path(day_iso: str, *, root: str | None = None) -> str:
     """``YYYY-MM-DD`` → ``复盘/YYYY-MM/YYYY-MM-DD.md``。"""
     day = day_iso.strip()
@@ -272,17 +376,29 @@ def sync_markdown(
     body_profile: dict | None = None,
     day_str: str | None = None,
     action_map: dict | None = None,
+    training_day: bool | None = None,
 ) -> tuple[str, dict[str, Any]]:
-    """纯函数：md + 练练数据 → 新 md + 摘要。"""
+    """纯函数：md + 练练数据 → 新 md + 摘要。
+
+    ``training_day``：``True``/``False`` 显式写「是/否」；``None`` 不碰该字段
+    （API 失败 / 未同步时留给 ``fill_training_day`` 离线兜底）。
+    若未传 ``training_day`` 但传了 ``records``（含空列表），则按是否有记录推断。
+    """
+    td = training_day
+    if td is None and records is not None:
+        td = bool(records)
     block = records_to_block(records, action_map=action_map)
     out = apply_training_block(md_text, block)
     weight = pick_weight_kg(body_logs, body_profile, day_str=day_str)
-    out2 = apply_weight_kg(out, weight)
+    out_w = apply_weight_kg(out, weight)
+    out2 = apply_training_day(out_w, td)
     summary = {
         "training_written": block is not None,
         "training_replaced": BEGIN in md_text and block is not None,
+        "training_day": td,
+        "training_day_written": td is not None and out2 != out_w,
         "weight_kg": weight,
-        "weight_written": weight is not None and out2 != out,
+        "weight_written": weight is not None and out_w != out,
         "changed": out2 != md_text.replace("\r\n", "\n"),
     }
     return out2, summary
@@ -296,6 +412,7 @@ def write_sync(
     body_profile: dict | None = None,
     day_str: str | None = None,
     action_map: dict | None = None,
+    training_day: bool | None = None,
     dry_run: bool = True,
 ) -> dict[str, Any]:
     """读 md → sync →（可选）写回。返回摘要。"""
@@ -308,6 +425,7 @@ def write_sync(
         body_profile=body_profile,
         day_str=day_str,
         action_map=action_map,
+        training_day=training_day,
     )
     summary["path"] = path
     summary["dry_run"] = dry_run

@@ -1,4 +1,4 @@
-"""练练健身（KeepStrong）管道（M17 只读 / M18 落 md / M19 受控写回）。
+"""练练健身（KeepStrong）管道（M17 只读 / M18 落 md / M19 受控写回 / M20 训练日）。
 
 用法::
 
@@ -43,6 +43,15 @@ RECORDS_PAGE_SIZE = 50
 BODY_LOGS_PAGE_SIZE = 100
 ACTIONS_PAGE_SIZE = 200
 MAX_PAGES = 40
+
+# M20：训练日 / 训练明细只认已完成记录（其余状态一律排除，不做延期补偿）
+COMPLETED_STATUS = "completed"
+
+# API 失败时 CLI 明示：勿误写「训练日: 否」，留给 ingest.fill_training_day 离线兜底
+OFFLINE_FALLBACK_HINT = (
+    "训练日将走离线兜底（config.PROFILE['training_weekdays']）；"
+    "未写入「训练日」字段，避免把「拉不到」误记成「没练」。"
+)
 
 KeyGuidance = (
     f"请打开「{PRODUCT_CN}」App → 我的 → 连接 AI → 生成新 API Key → "
@@ -98,6 +107,21 @@ def iso_weekday_cn(iso_day: str) -> str:
         return WEEKDAY_CN[datetime.date.fromisoformat(iso_day).weekday()]
     except ValueError:
         return ""
+
+
+def is_completed_record(rec: dict | None) -> bool:
+    """``status == "completed"`` 才算已完成；缺失 / 未知取值一律排除。"""
+    if not isinstance(rec, dict):
+        return False
+    status = rec.get("status")
+    if status is None:
+        return False
+    return str(status).strip() == COMPLETED_STATUS
+
+
+def filter_completed_records(records: list | None) -> list[dict]:
+    """只保留已完成训练记录（M20 安全侧默认）。"""
+    return [r for r in (records or []) if is_completed_record(r)]
 
 
 # --------------------------------------------------------------------- 凭据
@@ -324,17 +348,18 @@ class Client:
         ) or {}
 
     def iter_training_records(self, start_date: str, end_date: str) -> list[dict]:
-        """跟 ``hasMore`` 翻页，合并为 list。"""
+        """跟 ``hasMore`` 翻页，合并为 list；**只保留** ``status == completed``（M20）。"""
         out: list[dict] = []
         for page in range(1, MAX_PAGES + 1):
             data = self.training_records_page(start_date, end_date, page=page)
             items = data.get("list") or data.get("records") or data.get("data") or []
             if isinstance(items, dict):
                 items = items.get("list") or []
-            out.extend(items if isinstance(items, list) else [])
+            if isinstance(items, list):
+                out.extend(items)
             if not data.get("hasMore"):
                 break
-        return out
+        return filter_completed_records(out)
 
     def running_plans(self) -> Any:
         return self.get("/api/v1/ai/training/running-plans")
@@ -616,7 +641,10 @@ def collect(
         "plan": None,
     }
     if "records" in types:
-        records = client.iter_training_records(start_s, end_s)
+        # iter_training_records 已过滤；再滤一次防注入/旧客户端绕过
+        records = filter_completed_records(
+            client.iter_training_records(start_s, end_s)
+        )
         bundle["records"] = records
         for rec in records:
             acts = rec.get("actions") or []
@@ -937,15 +965,19 @@ def main(
         )
     except ApiKeyExpired as e:
         print(f"认证失败: {e}", file=sys.stderr)
+        print(f"离线兜底: {OFFLINE_FALLBACK_HINT}", file=sys.stderr)
         return 1
     except SkillUpdateRequired as e:
         print(f"技能过期: {e}", file=sys.stderr)
+        print(f"离线兜底: {OFFLINE_FALLBACK_HINT}", file=sys.stderr)
         return 1
     except RateLimited as e:
         print(f"限流: {e}", file=sys.stderr)
+        print(f"离线兜底: {OFFLINE_FALLBACK_HINT}", file=sys.stderr)
         return 1
     except KeepStrongError as e:
         print(f"取数失败: {e}", file=sys.stderr)
+        print(f"离线兜底: {OFFLINE_FALLBACK_HINT}", file=sys.stderr)
         return 1
 
     stamp = now() if callable(now) else datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -985,7 +1017,8 @@ def main(
             if str(r.get("dayStr") or r.get("date") or "").replace("-", "")
             == opts["start"]
         ]
-        # 若 API 未按日过滤干净，上面筛一遍；空列表 → 不写空章节
+        # 成功拉到（含空）：显式写训练日 是/否；API 失败不会走到这里（见上方 except）
+        training_day = bool(day_records)
         try:
             summary = write_sync(
                 md_path,
@@ -993,6 +1026,7 @@ def main(
                 body_logs=bundle.get("body_logs") or [],
                 body_profile=bundle.get("body_profile"),
                 day_str=opts["start"],
+                training_day=training_day,
                 dry_run=not opts["write"],
             )
         except OSError as e:
@@ -1001,9 +1035,15 @@ def main(
         mode = "已写入" if opts["write"] and summary.get("changed") else (
             "dry-run" if not opts["write"] else "无变更"
         )
+        td_label = summary.get("training_day")
+        td_s = (
+            "是" if td_label is True
+            else ("否" if td_label is False else "未写")
+        )
         print(
             f"同步复盘 md（{mode}）: {md_path}；"
             f"训练块={'是' if summary.get('training_written') else '否'}；"
+            f"训练日={td_s}；"
             f"体重={summary.get('weight_kg')}"
         )
         if opts["ingest"]:

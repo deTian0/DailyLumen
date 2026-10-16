@@ -39,7 +39,7 @@
 
 | 方法 | 路径 | 参数 | 返回要点 |
 | --- | --- | --- | --- |
-| GET | `/api/v1/ai/training/records` | `startDate, endDate, page, pageSize<=50` | 力量 / 计划 / 手动 / 外部导入四类记录 |
+| GET | `/api/v1/ai/training/records` | `startDate, endDate, page, pageSize<=50` | 力量 / 计划 / 手动 / 外部导入四类记录；**每条含 `status`**（见 §5） |
 | GET | `/api/v1/ai/training/running-plans` | — | 跑（训练）计划 + 日程 + 今日课 + 循环设置 |
 | GET | `/api/v1/ai/training/actions` | `keyword, page, pageSize<=200` | 动作库搜索 |
 | GET | `/api/v1/ai/training/actions/{actionId}/history` | `startDate, endDate, page, pageSize<=50` | 单个动作的组 / 次 / 重量历史 |
@@ -94,6 +94,8 @@
 | 端点 | 实测结果 |
 | --- | --- |
 | `training/records` 20260101–20261015 | ✅ 有记录（如 `20261001` strength，`durationSeconds=161`，`calorie=9`，`actions: []`） |
+| `training/records` **`status` 字段**（2026-10-16 再测） | ✅ 每条记录带 **`status`**；实测值为 **`"completed"`**。样本：`{"id":"temp:bqf4tB1Ajd",…,"status":"completed","dayStr":"20261001","durationSeconds":161,…}`。DailyLumen **只取 `completed`**（M20）；缺失 / 未知取值一律排除，不做延期补偿 |
+| `training/records` 同日多条（2026-10-01） | ✅ 两条 completed：`161s` + `0s` → 合并后 `total_min=3`（`seconds_to_min(161)=3`，`0→None` 跳过） |
 | `training/records` 20261008–20261015 | ⚠️ **空** —— 与复盘「训练日连续挂零」互相印证，**不是数据缺失** |
 | `training/running-plans` | ✅ 存在计划「一分化」`planId=9vMyLd`，6 天循环：全身A / 休息日 / 全身B / 休息 / 全身C / 空 |
 | `training/actions` | ✅ 可用；`act_` + 24 位十六进制（如 `act_0ef816635ec333cfc6bf0527` 壶铃深蹲） |
@@ -129,6 +131,8 @@
    - 体重 / 体脂 → `body_metrics`（`src='scale'` 或 `manual`）
 4. **R2 不破**：`exercise_min` 仍是健康分的唯一运动输入；练练的 `durationSeconds` 只在
    字段为空时用于填 `运动时长_min`（标 `derived`），**不与已有字段叠加**。
-5. 动作库缓存是**纯性能缓存**（丢了能重拉）→ 不算「无法从 md 重建的状态」，放
+5. **训练日（M20 / v1.26.0）**：只认 `status == "completed"` → md `训练日: 是/否` → ingest；
+   API 失败不写「否」（留给 `training_weekdays` 离线兜底，CLI 明示）。
+6. 动作库缓存是**纯性能缓存**（丢了能重拉）→ 不算「无法从 md 重建的状态」，放
    `.workbuddy/cache/`（不入 git）。
-6. 写回练练（POST）是**外部副作用**：只在用户明确要求时执行，**不落库、不作系统状态**。
+7. 写回练练（POST）是**外部副作用**：只在用户明确要求时执行，**不落库、不作系统状态**。
