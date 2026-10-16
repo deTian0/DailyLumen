@@ -84,6 +84,18 @@ class TestStewardMorning(unittest.TestCase):
         self.assertIn("1. A", text)
         self.assertIn("3. C", text)
         self.assertNotIn("4. D", text)
+        self.assertNotIn("休息日", text)
+        self.assertIn("不判断", text)
+        self.assertIn("keepstrong --type plan", text)
+
+    def test_morning_prints_passed_plan_name(self):
+        data = collect_morning(
+            self.conn, as_of=self.today, today_plan="全身A",
+        )
+        text = render(data)
+        self.assertIn("全身A", text)
+        self.assertNotIn("不判断", text)
+        self.assertNotIn("休息日", text)
 
     def test_morning_todo_hint_when_empty(self):
         data = collect_morning(self.conn, as_of=self.today)
@@ -125,6 +137,12 @@ class TestStewardEvening(unittest.TestCase):
         self.assertIn("daily-review-intake", text)
         self.assertIn("夜间复盘", text)
         self.assertIn("python -m review_tool body", text)
+        train = next(s for s in data["steps"] if s["id"] == "training")
+        self.assertEqual(
+            train["cmd"],
+            "python -m review_tool keepstrong --date 2026-10-15 --write --ingest",
+        )
+        self.assertIn(train["cmd"], text)
         self.assertIn("source=", text)
 
 

@@ -11,7 +11,7 @@
 5. 归档来源：哪些记录只存在于「历史源复盘」，建议跑 import-history 升级
 6. 完整度：核心字段缺失统计
 7. 打卡归一化：是否还有未收敛到规范项的 other:* 记录
-8. 训练日口径：training_day 与「按星期推算」不一致的天数
+8. 训练日口径：缺失提示；与星期兜底不同只标「非故障」，不写「应为」
 9. 运动时长来源：填报 / 描述折算 / 训练日未记录按 0 计 / 未记录 四者的天数分布
 10. 分数一致性：库中四维/系统分与「按字段重算」的结果是否相符
 11. 打卡对账：库里每条打卡能否在源 md 找到对应勾选（陈旧/重复条目）
@@ -456,7 +456,10 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
             if td is None:
                 drift.append((d, "缺失"))
             elif td != _expected_training_day(d):
-                drift.append((d, f"{td}→应为{_expected_training_day(d)}"))
+                drift.append((
+                    d,
+                    f"记录 {td}，离线兜底 {_expected_training_day(d)}（非故障）",
+                ))
         result["training_day_drift"] = drift
 
         # 收件箱
@@ -601,13 +604,21 @@ def render(result: dict, *, encoding: str | None = None) -> str:
 
     L.append("")
     L.append("[训练日口径]")
-    if result["training_day_drift"]:
-        L.append(f"  提示: {len(result['training_day_drift'])} 天与「按星期推算」不一致"
-                 f"（可能是临时调整，非故障）:")
-        for d, why in result["training_day_drift"][:8]:
+    notes = result["training_day_drift"]
+    missing = [(d, w) for d, w in notes if w == "缺失"]
+    differ = [(d, w) for d, w in notes if w != "缺失"]
+    if missing:
+        L.append(f"  提示: {len(missing)} 天 training_day 缺失:")
+        for d, why in missing[:8]:
             L.append(f"    - {d}: {why}")
-    else:
-        L.append(f"  {ok} training_day 与星期推算一致")
+    if differ:
+        L.append(
+            f"  提示: {len(differ)} 天与离线兜底不同（非故障）:"
+        )
+        for d, why in differ[:8]:
+            L.append(f"    - {d}: {why}")
+    if not missing and not differ:
+        L.append(f"  {ok} training_day 均已填写，且与离线兜底一致")
 
     L.append("")
     L.append("[分数一致性]")

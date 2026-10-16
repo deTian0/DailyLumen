@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from review_tool.reports.coach import collect, render
 from review_tool.storage.db import init_db, upsert_training
@@ -72,6 +73,23 @@ class TestCoach(unittest.TestCase):
         self.assertIn("recovery", kinds)
         self.assertTrue(data["recovery"]["needed"])
         self.assertIn("连续训练", kinds["recovery"]["evidence"])
+        self.assertIn("日期=", kinds["recovery"]["evidence"])
+        self.assertNotIn("training_weekdays", kinds["recovery"]["evidence"])
+
+    def test_empty_plan_does_not_suggest_volume(self):
+        data = collect(self.conn, as_of="2026-10-14")
+        self.assertIsNone(data["completion"]["planned"])
+        self.assertNotEqual(data["completion"]["planned"], 5)
+        self.assertFalse(data["completion"]["ok"])
+        titles = [s["title"] for s in data["suggestions"]]
+        self.assertNotIn("课次达标，可考虑加量", titles)
+        self.assertTrue(any("计划课次未配置" in t for t in titles))
+
+    def test_explicit_plan_uses_its_length(self):
+        plan = {0: "全身A", 2: "全身B", 4: "全身C"}
+        with patch("review_tool.reports.coach.TRAINING_PLAN", plan):
+            data = collect(self.conn, as_of="2026-10-14")
+        self.assertEqual(data["completion"]["planned"], 3)
 
     def test_empty_db_still_renders(self):
         path = os.path.join(self.root, "empty.db")

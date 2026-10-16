@@ -137,7 +137,7 @@ python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（�
 ## 测试与代码风格
 
 ```bash
-python -m unittest discover -s tests -t .   # 全量 645 项，标准库零依赖
+python -m unittest discover -s tests -t .   # 全量 649 项，标准库零依赖
 ruff check .                                # 静态检查（CI 同款）
 ```
 

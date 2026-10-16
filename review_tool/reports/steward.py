@@ -20,7 +20,6 @@ import json
 import sys
 from datetime import date, timedelta
 
-from ..config import PROFILE, TRAINING_PLAN
 from ..storage.db import init_db
 from . import analyze, body, coach, fuse, habits, nutrition, tutor
 from .ai_review import fetch_day
@@ -44,7 +43,7 @@ _WEEKDAY_CN = ("一", "二", "三", "四", "五", "六", "日")
 _SRC = {
     "scores": "ai_review.fetch_day / fuse.find_fuses",
     "fuse": "fuse.find_fuses（等同 CLI fuse）",
-    "training": "config.TRAINING_PLAN|training_weekdays + coach.collect",
+    "training": "调用方传入的今日课名；未传入则不判断（不打网、不按星期）",
     "diet": "nutrition.collect → config.PROFILE[macro_targets]",
     "todos": "clickup（进行中；CLI: clickup --stdout）",
     "intake": "skill daily-review-intake",
@@ -84,27 +83,35 @@ def _resolve_iso_week(conn, token: str | None) -> int:
         raise ValueError(f"无法解析 ISO 周: {token!r}") from exc
 
 
-def _today_training(as_of: str) -> dict:
-    """今日课次标签：读配置，不做推荐计算（推荐交给 coach.collect）。"""
+def _today_training(as_of: str, today_plan: str | None = None) -> dict:
+    """晨间「今天练什么」。
+
+    当天的 completed 往往还不存在，禁止用「还没完成记录」或星期推出休息/训练。
+    只有调用方传入已拉取的今日课名称时才打印课名；默认不打网。
+    """
     d = date.fromisoformat(as_of)
     wd = d.weekday()
-    plan = TRAINING_PLAN.get(wd)
-    weekdays = list(PROFILE.get("training_weekdays") or [])
-    is_td = wd in weekdays
-    if plan:
-        label = plan
-    elif is_td:
-        label = "训练日（未配置 TRAINING_PLAN 课名）"
+    name = (today_plan or "").strip() or None
+    if name:
+        label = name
+        judged = True
+        hint = None
+        source = "调用方传入的今日课名"
     else:
-        label = "休息日"
+        label = "今日是否训练：未同步练练计划，不判断"
+        judged = False
+        hint = "python -m review_tool keepstrong --type plan"
+        source = _SRC["training"]
     return {
         "date": as_of,
         "weekday": wd,
         "weekday_cn": f"星期{_WEEKDAY_CN[wd]}",
-        "is_training_day": is_td,
-        "plan_name": plan,
+        "is_training_day": None,
+        "judged": judged,
+        "plan_name": name,
         "label": label,
-        "source": _SRC["training"],
+        "hint": hint,
+        "source": source,
     }
 
 
@@ -113,6 +120,7 @@ def collect_morning(
     *,
     as_of: str | None = None,
     todos: list[str] | None = None,
+    today_plan: str | None = None,
 ) -> dict:
     """晨间 brief 数据：昨日四维+熔断 → 今日训练 → 饮食目标 → 待办 Top 3。"""
     as_of = _resolve_as_of(conn, as_of)
@@ -121,7 +129,7 @@ def collect_morning(
     fuse_data = fuse.find_fuses(conn)
     coach_data = coach.collect(conn, as_of=as_of)
     nutri = nutrition.collect(conn, as_of=as_of)
-    training = _today_training(as_of)
+    training = _today_training(as_of, today_plan)
 
     scores = None
     if day:
@@ -203,10 +211,16 @@ def collect_evening(conn, *, as_of: str | None = None) -> dict:
         },
         {
             "id": "training",
-            "title": "训练明细回填",
-            "cmd": f"python -m review_tool coach {as_of}",
-            "note": "附录 · 训练明细 → ingest（见 intake §3.6）",
-            "source": _SRC["coach"],
+            "title": "练练同步训练日与明细",
+            "cmd": (
+                f"python -m review_tool keepstrong --date {as_of}"
+                " --write --ingest"
+            ),
+            "note": (
+                "对象日=被复盘日（执行日的昨日）。只取 completed；"
+                "先落 md 再入库（见 intake §3.6）"
+            ),
+            "source": "CLI keepstrong",
         },
         {
             "id": "nutrition",
@@ -315,11 +329,14 @@ def collect(
     as_of: str | None = None,
     iso_week: int | None = None,
     todos: list[str] | None = None,
+    today_plan: str | None = None,
 ) -> dict:
     if slot not in SLOTS:
         raise ValueError(f"未知 slot: {slot!r}（须为 {'|'.join(SLOTS)}）")
     if slot == "morning":
-        return collect_morning(conn, as_of=as_of, todos=todos)
+        return collect_morning(
+            conn, as_of=as_of, todos=todos, today_plan=today_plan,
+        )
     if slot == "evening":
         return collect_evening(conn, as_of=as_of)
     return collect_week(conn, iso_week=iso_week, as_of=as_of)
@@ -369,16 +386,20 @@ def render_morning(data: dict) -> str:
     L.append("---- 2. 今日训练课 ----")
     tr = data["training"]
     L.append(f"  source={tr['source']}")
-    L.append(
-        f"  {tr['weekday_cn']} · {tr['label']}"
-        f"（训练日={'是' if tr['is_training_day'] else '否'}）"
-    )
+    L.append(f"  {tr['weekday_cn']} · {tr['label']}")
+    if tr.get("hint"):
+        L.append(f"  {tr['hint']}")
     cc = data["coach_completion"]
     L.append(f"  source={cc['source']}")
-    L.append(
-        f"  本周完成 {cc['completed']}/{cc['planned']} 课"
-        f"（比率 {cc['ratio']}）"
-    )
+    if cc["planned"] is None:
+        L.append(
+            f"  本周完成 {cc['completed']} 课（计划课次未配置，不判加量）"
+        )
+    else:
+        L.append(
+            f"  本周完成 {cc['completed']}/{cc['planned']} 课"
+            f"（比率 {cc['ratio']}）"
+        )
     L.append("")
 
     L.append("---- 3. 饮食目标 ----")
@@ -475,10 +496,16 @@ def render_week(data: dict) -> str:
     t = data["training"]
     L.append(f"  source={t['source']}")
     cc = t.get("completion") or {}
-    L.append(
-        f"  本周完成 {cc.get('completed', '—')}/{cc.get('planned', '—')} 课"
-        f"（比率 {cc.get('ratio', '—')}）"
-    )
+    if cc.get("planned") is None:
+        L.append(
+            f"  本周完成 {cc.get('completed', '—')} 课"
+            f"（计划课次未配置，不判加量）"
+        )
+    else:
+        L.append(
+            f"  本周完成 {cc.get('completed', '—')}/{cc.get('planned', '—')} 课"
+            f"（比率 {cc.get('ratio', '—')}）"
+        )
     ts = t.get("structure") or {}
     if ts.get("sessions"):
         L.append(f"  明细: {ts['sessions']} 课 / {ts.get('items', 0)} 条")
@@ -559,7 +586,7 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if any(a in ("-h", "--help") for a in argv):
         print("用法: python -m review_tool steward --slot morning|evening|week")
-        print("      [YYYY-MM-DD|ISO周] [--json] [--todo TEXT]...")
+        print("      [YYYY-MM-DD|ISO周] [--json] [--todo TEXT]... [--plan 课名]")
         print("  morning  昨日四维+熔断 → 今日训练 → 饮食目标 → 待办 Top 3")
         print("  evening  挂 daily-review-intake + 体征/训练/饮食回填指引")
         print("  week     四维+体征+训练+饮食+习惯+学习 六段合一")
@@ -569,6 +596,7 @@ def main(argv: list[str] | None = None) -> int:
     as_json = "--json" in argv
     slot = None
     todos: list[str] = []
+    today_plan = None
     positional: list[str] = []
     i = 0
     while i < len(argv):
@@ -587,6 +615,14 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if a.startswith("--todo="):
             todos.append(a.split("=", 1)[1])
+            i += 1
+            continue
+        if a == "--plan" and i + 1 < len(argv):
+            today_plan = argv[i + 1]
+            i += 2
+            continue
+        if a.startswith("--plan="):
+            today_plan = a.split("=", 1)[1]
             i += 1
             continue
         if a in ("--json",):
@@ -631,6 +667,7 @@ def main(argv: list[str] | None = None) -> int:
                 slot=slot,
                 as_of=as_of,
                 todos=todos or None,
+                today_plan=today_plan,
             )
     finally:
         conn.close()
