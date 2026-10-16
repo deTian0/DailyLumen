@@ -5,7 +5,7 @@
     python -m review_tool clickup 2026-10-14         # 取指定日期
     python -m review_tool clickup 2026-10-14 --stdout   # 只打印，不落文件
     python -m review_tool clickup --out DIR          # 换输出目录
-    python -m review_tool clickup --list <CLICKUP_LIST_ID>   # 只取指定 list（可重复）
+    python -m review_tool clickup --list ***REMOVED***   # 只取指定 list（可重复）
     python -m review_tool clickup --with-habits      # 素材附习惯状态，并同步 habit_logs
 
 三条边界（改本模块前先看）

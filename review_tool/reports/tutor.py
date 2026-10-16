@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     if any(a in ("-h", "--help") for a in argv):
         print("用法: python -m review_tool tutor [YYYY-MM-DD] [--json]")
         print("      今日待复习 + 本周主题/投入/产出物（独立指标区）")
-        print("      证据链: clickup --list <CLICKUP_LIST_ID> --list <CLICKUP_LIST_ID>")
+        print("      证据链: clickup --list ***REMOVED***   # v1.24.0 起并入日常事务")
         return 0
 
     as_json = "--json" in argv
