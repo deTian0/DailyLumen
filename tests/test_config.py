@@ -10,6 +10,7 @@ import unittest
 from review_tool import __version__
 from review_tool.config import (
     BODYWEIGHT_MOVES,
+    CLICKUP_LISTS,
     FOOD_LIB,
     HABITS,
     LEARNING_LIST_IDS,
@@ -252,9 +253,15 @@ class TestLearningCatalog(unittest.TestCase):
         self.assertTrue(all(isinstance(x, int) and x > 0 for x in iv))
 
     def test_learning_list_ids(self):
-        self.assertEqual(len(LEARNING_LIST_IDS), 2)
-        self.assertIn("901422213142", LEARNING_LIST_IDS)
-        self.assertIn("901422213140", LEARNING_LIST_IDS)
+        # v1.24.0：成长课/阅读与学习两个 list 并入日常事务，证据链收敛到单一 list
+        self.assertEqual(LEARNING_LIST_IDS, ("901422213138",))
+
+    def test_clickup_lists_merged(self):
+        """v1.24.0：被并入日常事务的两个旧 list 不得残留在注册表里。"""
+        ids = {item["id"] for item in CLICKUP_LISTS}
+        self.assertNotIn("901422213140", ids)
+        self.assertNotIn("901422213142", ids)
+        self.assertIn("901422213138", ids)
 
 
 class TestVersionConsistency(unittest.TestCase):
