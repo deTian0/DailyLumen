@@ -144,8 +144,12 @@ agent_created: true
 
 练练 App / API / 自记训练截图是**输入通道**，不是数据源（G1）。
 
-**优先（v1.22.0）**：`python -m review_tool keepstrong --date YYYY-MM-DD --write --ingest`
-（默认 dry-run；`--write` 幂等写入 keepstrong 标记块，再 ingest）。无 API 记录时不造空章节。
+**优先（v1.22.0 / M20 起一并写训练日）**：
+`python -m review_tool keepstrong --date YYYY-MM-DD --write --ingest`
+（默认 dry-run；`--write` 幂等写入 keepstrong 标记块 + 数据块 `训练日: 是/否`，再 ingest）。
+只取练练 `status=="completed"`；有 completed → `是`，成功拉到空 → `否`；
+API 失败**不写「否」**（CLI 明示离线兜底，留给 `fill_training_day`）。
+无 API 记录时不造空训练明细章节。对象日 = **被复盘日**（执行日的昨日）。
 
 截图补录流程：
 
