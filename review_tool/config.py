@@ -17,7 +17,7 @@
 - ``FEATURES``     功能开关：默认关闭你用不到的子命令（当前只有 ``new_day``）
 - ``CLICKUP_LISTS`` 外部素材源（可选）：ClickUp list → 中文名 / 用途的一处定义
 - ``CLICKUP_REVIEW_TASK`` 回写通道（可选）：「每日复盘总结」元任务的定位信息
-- 凭据 / 路径覆盖 / 练练 API 默认值 → 见 ``settings.py`` + 仓库根 ``.env``
+- 凭据 / 路径覆盖 / 两源 API 端点与超时（练练 + ClickUp）→ 见 ``settings.py`` + 仓库根 ``.env``
 
 改这几处即可，无需改动模板与其余代码。
 """
@@ -91,6 +91,25 @@ TEXT_FIELDS = {"weekday", "energy", "mood", "summary"}
 
 # 星期中文（0=周一），new-day 与历史导入共用
 WEEKDAY_CN = ["一", "二", "三", "四", "五", "六", "日"]
+
+# ---------------------------------------------------------------------------
+# ClickUp list ID —— **单一事实源**（v1.25.0 收口）
+#
+# ⛔ 不要在别处再写字面量：``CLICKUP_LISTS`` / ``HABITS_LIST_ID`` /
+# ``LEARNING_LIST_IDS`` / ``CLICKUP_REVIEW_TASK`` 全部引用这里。
+# 换 list / 改名 / 删 list 只改这一处 —— 此前 ``901422213139`` 在同一文件里
+# 出现 4 次，改一次要改四处，漏一处就静默指向错 list。
+# ---------------------------------------------------------------------------
+
+LIST_DAILY = "901422213138"       # 日常事务（行为流水 + 学习进度 + 读书进度）
+LIST_HABITS = "901422213139"      # 习惯与打卡
+LIST_WORK = "901410092299"        # 工作（工时 / 工单记录）
+LIST_INCUBATOR = "901422213132"   # 项目孵化
+LIST_ANNUAL = "901422213133"      # 2026 年度目标
+
+# 时区口径**单一来源**：东八区。ClickUp 时间戳按小时算、练练 API 的
+# ``X-Timezone-Offset`` 按分钟算 —— 量纲各自换算，事实只此一处。
+TZ_OFFSET_HOURS = 8
 
 # ---------------------------------------------------------------------------
 # 功能开关（可配置层）
@@ -416,7 +435,7 @@ HABITS = [
 ]
 
 # ClickUp「习惯与打卡」list id（select_habits / habit_sync 默认源）
-HABITS_LIST_ID = "901422213139"
+HABITS_LIST_ID = LIST_HABITS
 
 
 # ---------------------------------------------------------------------------
@@ -464,7 +483,7 @@ SPACED_REPEAT = {
 # 学习证据链 ClickUp list；素材用 clickup --list 组合即可。
 # v1.24.0：「成长课 · 14周计划」与「阅读与学习」两个 list 已整体并入「日常事务」
 # （原 901422213140 / 901422213142 已删除），课程与读书完成记录随日常事务日采。
-LEARNING_LIST_IDS = ("901422213138",)
+LEARNING_LIST_IDS = (LIST_DAILY,)
 
 
 # ---------------------------------------------------------------------------
@@ -705,10 +724,15 @@ TRACK_ADHERENCE_ALERT = {
 #   1. 环境变量 / 仓库根 ``.env``（``CLICKUP_API_KEY`` / ``CLICKUP_TEAM_ID``，M16 Settings）
 #   2. ``~/.workbuddy/mcp.json`` → ``mcpServers.clickup.env``（兼容旧路径）
 # ⛔ 本仓库入 git，**token 绝不写在这里**，运行时现读。
+# ClickUp 端点与超时 —— v1.25.0 起纳入 Settings（与 KeepStrong 对称）：
+# 代码给默认值，``.env`` / 环境变量可覆盖，测试可注入假端点。
+CLICKUP_BASE_URL = SETTINGS.clickup_base_url
+CLICKUP_TIMEOUT_S = SETTINGS.clickup_timeout_s
+
 CLICKUP_MCP_PATH = os.path.join(os.path.expanduser("~"), ".workbuddy", "mcp.json")
 
 # ClickUp 的时间戳是 UTC 毫秒；「某天完成了什么」按东八区归日。
-CLICKUP_TZ_HOURS = 8
+CLICKUP_TZ_HOURS = TZ_OFFSET_HOURS  # 单一来源见文件顶部 TZ_OFFSET_HOURS
 
 # 「隔天早上补勾」回拨（v1.12.0）
 #
@@ -736,15 +760,15 @@ CLICKUP_LISTS = [
     # v1.24.0：原「成长课 · 14周计划」(901422213140) 与「阅读与学习」(901422213142)
     # 两个 list 已并入本 list（原 list 已删除）—— 行为流水 + 学习进度 + 读书进度同源，
     # 课程/书名靠 ``core/learning.py`` 的主题别名分类，不再依赖独立 list。
-    {"id": "901422213138", "name": "日常事务", "role": "行为流水", "daily": True},
-    {"id": "901422213139", "name": "习惯与打卡", "role": "长期习惯", "daily": True},
+    {"id": LIST_DAILY, "name": "日常事务", "role": "行为流水", "daily": True},
+    {"id": LIST_HABITS, "name": "习惯与打卡", "role": "长期习惯", "daily": True},
     # v1.11.0：工作改为默认采集 —— 它是**当天工作产出的唯一来源**
     # （形如「李扬-2h-修复…」的工时/工单记录，含请假等工时填报）。
     # 此前 daily=False，导致 10-13（9 条）/ 10-14（2 条）等工作记录
     # 全部缺席每日素材，复盘叙事的「工作」栏只能靠用户自报。
-    {"id": "901410092299", "name": "工作", "role": "工作产出", "daily": True},
-    {"id": "901422213132", "name": "项目孵化", "role": "副业产出", "daily": False},
-    {"id": "901422213133", "name": "2026 年度目标", "role": "长期方向", "daily": False},
+    {"id": LIST_WORK, "name": "工作", "role": "工作产出", "daily": True},
+    {"id": LIST_INCUBATOR, "name": "项目孵化", "role": "副业产出", "daily": False},
+    {"id": LIST_ANNUAL, "name": "2026 年度目标", "role": "长期方向", "daily": False},
 ]
 
 # 不传 ``--list`` 时采哪些（顺序即素材简报里的分组顺序）
@@ -760,7 +784,7 @@ CLICKUP_INBOX_PREFIX = "clickup-素材"
 # ``task_id`` 留空则按 list + 名字**唯一定位**；名字不唯一时再把 id 写死。
 # 权威方向：复盘库 → ClickUp 下游；默认 dry-run，显式 ``--apply`` 才真写。
 CLICKUP_REVIEW_TASK = {
-    "list_id": "901422213139",   # 习惯与打卡
+    "list_id": LIST_HABITS,   # 习惯与打卡
     "name": "每日复盘总结",
     "task_id": None,
 }

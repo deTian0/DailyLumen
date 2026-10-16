@@ -27,7 +27,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from ..config import CLICKUP_REVIEW_TASK, DB_PATH
+from ..config import CLICKUP_REVIEW_TASK, CLICKUP_TIMEOUT_S, DB_PATH
 from ..storage.db import init_db
 from .clickup import (
     API_BASE,
@@ -99,7 +99,7 @@ def review_exists(conn, day: str) -> bool:
 
 
 # ------------------------------------------------------------------ HTTP PUT
-def http_put(path: str, key: str, body: dict, *, timeout: int = 60) -> dict:
+def http_put(path: str, key: str, body: dict, *, timeout: float = CLICKUP_TIMEOUT_S) -> dict:
     """PUT 一个 ClickUp API 路径，返回解析后的 JSON。"""
     data = json.dumps(body, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(API_BASE + path, data=data, method="PUT")
@@ -110,7 +110,7 @@ def http_put(path: str, key: str, body: dict, *, timeout: int = 60) -> dict:
 
 
 def mark_complete(task_id: str, key: str, *, put=None, fetch=None,
-                  timeout: int = 60) -> dict:
+                  timeout: float = CLICKUP_TIMEOUT_S) -> dict:
     """PUT 置 complete，再 GET 回读校验；不符则再试一次。
 
     ``put`` / ``fetch`` 可注入（测试离线）。成功返回回读到的任务 dict；
@@ -134,7 +134,7 @@ def mark_complete(task_id: str, key: str, *, put=None, fetch=None,
 
 # ----------------------------------------------------------------------- 核心
 def plan_push(day: str, *, list_id: str, name: str, task_id: str | None,
-              key: str, fetch=None, timeout: int = 60) -> dict:
+              key: str, fetch=None, timeout: float = CLICKUP_TIMEOUT_S) -> dict:
     """只读规划：取任务、判状态。不写。
 
     返回 ``{task_id, name, closed, action}``，``action`` 为
@@ -156,7 +156,7 @@ def plan_push(day: str, *, list_id: str, name: str, task_id: str | None,
 def run_push(day: str, *, apply: bool, list_id: str | None = None,
              db_path: str | None = None, key: str = "",
              fetch=None, put=None, env=None, creds_path: str | None = None,
-             timeout: int = 60) -> tuple[int, str]:
+             timeout: float = CLICKUP_TIMEOUT_S) -> tuple[int, str]:
     """执行一次 clickup-push。返回 ``(exit_code, message)``。
 
     不直接读 ``sys.argv`` —— CLI 与测试都走这里。

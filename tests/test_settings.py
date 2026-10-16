@@ -8,6 +8,8 @@ import unittest
 
 from review_tool import config
 from review_tool.settings import (
+    DEFAULT_CLICKUP_BASE_URL,
+    DEFAULT_CLICKUP_TIMEOUT_S,
     DEFAULT_KEEPSTRONG_BASE_URL,
     DEFAULT_KEEPSTRONG_SKILL_VERSION,
     DEFAULT_KEEPSTRONG_TIMEOUT_S,
@@ -18,6 +20,7 @@ from review_tool.settings import (
 
 PKG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "review_tool")
 SETTINGS_PATH = os.path.join(PKG, "settings.py")
+CONFIG_PATH = os.path.join(PKG, "config.py")
 
 
 def _write_env(dirpath: str, text: str) -> str:
@@ -60,6 +63,9 @@ class TestLoadSettingsThreeStates(unittest.TestCase):
         self.assertEqual(s.keepstrong_timeout_s, DEFAULT_KEEPSTRONG_TIMEOUT_S)
         self.assertTrue(s.db_path.endswith("reviews.db"))
         self.assertIsNone(s.history_src_dir)
+        # v1.25.0：ClickUp 端点与超时同样纳管（此前写死在 pipeline.clickup）
+        self.assertEqual(s.clickup_base_url, DEFAULT_CLICKUP_BASE_URL)
+        self.assertEqual(s.clickup_timeout_s, DEFAULT_CLICKUP_TIMEOUT_S)
 
     def test_environ_overrides_defaults(self):
         env = {
@@ -69,6 +75,8 @@ class TestLoadSettingsThreeStates(unittest.TestCase):
             "DAILYLUMEN_HISTORY_SRC": "D:/hist",
             "CLICKUP_API_KEY": "pk_x",
             "CLICKUP_TEAM_ID": "9",
+            "CLICKUP_BASE_URL": "https://cu.example.test/v2",
+            "CLICKUP_TIMEOUT_S": "8",
         }
         s = load_settings(env_path="", environ=env, apply_to_environ=False)
         self.assertEqual(s.keepstrong_api_key, "ks_test_key")
@@ -77,6 +85,8 @@ class TestLoadSettingsThreeStates(unittest.TestCase):
         self.assertEqual(s.history_src_dir, "D:/hist")
         self.assertEqual(s.clickup_api_key, "pk_x")
         self.assertEqual(s.clickup_team_id, "9")
+        self.assertEqual(s.clickup_base_url, "https://cu.example.test/v2")
+        self.assertEqual(s.clickup_timeout_s, 8.0)
 
     def test_dotenv_file_used_when_environ_empty(self):
         with tempfile.TemporaryDirectory() as td:
@@ -133,6 +143,7 @@ class TestConfigFacade(unittest.TestCase):
         for name in (
             "PROFILE", "FEATURES", "DB_PATH", "CLICKUP_LISTS", "FOOD_LIB",
             "SCORE_THRESHOLDS", "HISTORY_SRC_DIR", "KS_DEFAULTS", "SETTINGS",
+            "CLICKUP_BASE_URL", "CLICKUP_TIMEOUT_S", "LIST_DAILY", "LIST_HABITS",
         ):
             self.assertTrue(hasattr(config, name), name)
 
@@ -145,6 +156,63 @@ class TestConfigFacade(unittest.TestCase):
             config.KS_DEFAULTS["skill_version"], config.SETTINGS.keepstrong_skill_version
         )
         self.assertEqual(config.KS_DEFAULTS["timeout_s"], config.SETTINGS.keepstrong_timeout_s)
+
+
+class TestClickUpSingleSource(unittest.TestCase):
+    """v1.25.0：ClickUp list ID / 端点 / 时区收敛为单一来源，防止再散开。"""
+
+    def test_list_constants_are_source_of_truth(self):
+        self.assertEqual(config.HABITS_LIST_ID, config.LIST_HABITS)
+        self.assertEqual(config.LEARNING_LIST_IDS, (config.LIST_DAILY,))
+        self.assertEqual(config.CLICKUP_REVIEW_TASK["list_id"], config.LIST_HABITS)
+        ids = {item["id"] for item in config.CLICKUP_LISTS}
+        for c in (
+            config.LIST_DAILY,
+            config.LIST_HABITS,
+            config.LIST_WORK,
+            config.LIST_INCUBATOR,
+            config.LIST_ANNUAL,
+        ):
+            self.assertIn(c, ids)
+
+    def test_clickup_endpoint_and_timeout_from_settings(self):
+        self.assertEqual(config.CLICKUP_BASE_URL, config.SETTINGS.clickup_base_url)
+        self.assertEqual(config.CLICKUP_TIMEOUT_S, config.SETTINGS.clickup_timeout_s)
+
+    def test_timezone_single_source(self):
+        self.assertEqual(config.CLICKUP_TZ_HOURS, config.TZ_OFFSET_HOURS)
+
+    def test_registry_ids_are_constants_not_literals(self):
+        """AST 守卫：注册表里的 id 必须是 ``LIST_*`` 常量，不能写字面量。"""
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        checked = 0
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            targets = [getattr(t, "id", None) for t in node.targets]
+            if "CLICKUP_LISTS" in targets and isinstance(node.value, ast.List):
+                for elt in node.value.elts:
+                    if not isinstance(elt, ast.Dict):
+                        continue
+                    for k, v in zip(elt.keys, elt.values, strict=True):
+                        if getattr(k, "value", None) == "id":
+                            self.assertIsInstance(
+                                v,
+                                ast.Name,
+                                f"CLICKUP_LISTS 的 id 须引用 LIST_* 常量（第 {v.lineno} 行）",
+                            )
+                            checked += 1
+            if "CLICKUP_REVIEW_TASK" in targets and isinstance(node.value, ast.Dict):
+                for k, v in zip(node.value.keys, node.value.values, strict=True):
+                    if getattr(k, "value", None) == "list_id":
+                        self.assertIsInstance(
+                            v,
+                            ast.Name,
+                            f"CLICKUP_REVIEW_TASK 的 list_id 须引用 LIST_*常量（第 {v.lineno} 行）",
+                        )
+                        checked += 1
+        self.assertEqual(checked, 6, "应检查到 5 个 list id + 1 个回写目标")
 
 
 if __name__ == "__main__":

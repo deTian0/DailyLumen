@@ -5,7 +5,7 @@
 | 层 | 放哪 | 本模块是否管 |
 | --- | --- | --- |
 | **凭据** | ``.env`` only | ✅ ``KEEPSTRONG_API_KEY`` / ``CLICKUP_API_KEY`` |
-| **环境差异** | ``.env`` 可覆盖，代码给默认值 | ✅ baseUrl / timeout / DB 路径等 |
+| **环境差异** | ``.env`` 可覆盖，代码给默认值 | ✅ 两源 baseUrl / timeout / DB 路径等 |
 | **个人参数** | ``config.PROFILE``（入 git） | ⛔ 不进本模块 |
 | **业务规则** | 代码（``SCORE_THRESHOLDS`` / ``FOOD_LIB`` …） | ⛔ 不进本模块 |
 
@@ -29,6 +29,11 @@ DEFAULT_KEEPSTRONG_SKILL_VERSION = "1.28.0"
 DEFAULT_KEEPSTRONG_AGENT_NAME = "WorkBuddy"
 DEFAULT_KEEPSTRONG_TIMEOUT_S = 30.0
 DEFAULT_KEEPSTRONG_CACHE_DIR = os.path.join(_BASE_DIR, ".workbuddy", "cache")
+
+# ClickUp 内置默认 —— v1.25.0 起与 KeepStrong 对称纳管（此前 base_url 写死在
+# ``pipeline/clickup.py``、timeout 默认值散在 7 处函数签名）
+DEFAULT_CLICKUP_BASE_URL = "https://api.clickup.com/api/v2"
+DEFAULT_CLICKUP_TIMEOUT_S = 60.0
 
 
 class SettingsError(ValueError):
@@ -55,6 +60,8 @@ class Settings:
     keepstrong_agent_name: str = DEFAULT_KEEPSTRONG_AGENT_NAME
     keepstrong_timeout_s: float = DEFAULT_KEEPSTRONG_TIMEOUT_S
     keepstrong_cache_dir: str = DEFAULT_KEEPSTRONG_CACHE_DIR
+    clickup_base_url: str = DEFAULT_CLICKUP_BASE_URL
+    clickup_timeout_s: float = DEFAULT_CLICKUP_TIMEOUT_S
 
 
 def parse_env_file(path: str | os.PathLike[str]) -> dict[str, str]:
@@ -194,6 +201,12 @@ def load_settings(
             "KEEPSTRONG_TIMEOUT_S", g("KEEPSTRONG_TIMEOUT_S"), DEFAULT_KEEPSTRONG_TIMEOUT_S
         ),
         keepstrong_cache_dir=cache_dir,
+        clickup_base_url=_as_str(
+            "CLICKUP_BASE_URL", g("CLICKUP_BASE_URL"), DEFAULT_CLICKUP_BASE_URL
+        ) or DEFAULT_CLICKUP_BASE_URL,
+        clickup_timeout_s=_as_float(
+            "CLICKUP_TIMEOUT_S", g("CLICKUP_TIMEOUT_S"), DEFAULT_CLICKUP_TIMEOUT_S
+        ),
     )
 
 

@@ -6,7 +6,7 @@
     python -m review_tool tutor 2026-10-15
 
 不参与四维（G5）。「讲解 / 出题」不写代码——那是 AI 现场能力。
-证据链：``clickup --list 901422213142 --list 901422213140``（阅读与学习 + 成长课）。
+证据链：``clickup --list 901422213138``（日常事务 —— v1.24.0 起阅读与成长课已并入该 list）。
 """
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     if any(a in ("-h", "--help") for a in argv):
         print("用法: python -m review_tool tutor [YYYY-MM-DD] [--json]")
         print("      今日待复习 + 本周主题/投入/产出物（独立指标区）")
-        print("      证据链: clickup --list 901422213138   # v1.24.0 起并入日常事务")
+        print(f"      证据链: clickup --list {LEARNING_LIST_IDS[0]}   # v1.24.0 起并入日常事务")
         return 0
 
     as_json = "--json" in argv

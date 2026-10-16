@@ -5,7 +5,7 @@
     python -m review_tool clickup 2026-10-14         # 取指定日期
     python -m review_tool clickup 2026-10-14 --stdout   # 只打印，不落文件
     python -m review_tool clickup --out DIR          # 换输出目录
-    python -m review_tool clickup --list 901422213133   # 只取指定 list（可重复）
+    python -m review_tool clickup --list 901422213132   # 只取指定 list（可重复，ID 见 config.LIST_*）
     python -m review_tool clickup --with-habits      # 素材附习惯状态，并同步 habit_logs
 
 三条边界（改本模块前先看）
@@ -40,11 +40,13 @@ import urllib.error
 import urllib.request
 
 from ..config import (
+    CLICKUP_BASE_URL,
     CLICKUP_DAILY_IDS,
     CLICKUP_INBOX_PREFIX,
     CLICKUP_LIST_META,
     CLICKUP_MCP_PATH,
     CLICKUP_REBATE,
+    CLICKUP_TIMEOUT_S,
     CLICKUP_TZ_HOURS,
     HABITS,
     HABITS_LIST_ID,
@@ -53,7 +55,8 @@ from ..config import (
 )
 from ..core.habits import resolve_habit
 
-API_BASE = "https://api.clickup.com/api/v2"
+# 端点来自 config（← SETTINGS ← .env），⛔ 不再写死；可用 ``CLICKUP_BASE_URL`` 覆盖
+API_BASE = CLICKUP_BASE_URL
 
 # ClickUp list 任务接口单页上限 100 —— 超过就必须翻页，否则静默少拿
 # （本仓库「日常事务」有 121 条，不翻页会整批漏掉 21 条）
@@ -158,7 +161,7 @@ def load_creds(env=None, path: str | None = None) -> tuple[str, str | None]:
     return key, team
 
 
-def http_get(path: str, key: str, *, timeout: int = 60) -> dict:
+def http_get(path: str, key: str, *, timeout: float = CLICKUP_TIMEOUT_S) -> dict:
     """GET 一个 ClickUp API 路径，返回解析后的 JSON。"""
     req = urllib.request.Request(API_BASE + path)
     req.add_header("Authorization", key)
@@ -166,7 +169,7 @@ def http_get(path: str, key: str, *, timeout: int = 60) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def fetch_tasks(list_id: str, key: str, *, fetch=None, timeout: int = 60) -> list[dict]:
+def fetch_tasks(list_id: str, key: str, *, fetch=None, timeout: float = CLICKUP_TIMEOUT_S) -> list[dict]:
     """拉一个 list 的全部任务（含子任务与**已完成**），按 id 去重。
 
     ⚠️ 两个已知坑，别"简化"掉：
@@ -309,7 +312,7 @@ def select_habits(tasks: list[dict], *, items: list[dict] | None = None) -> list
 
 
 def collect(day: str, list_ids=None, *, key: str = "", fetch=None,
-            meta: dict | None = None, timeout: int = 60) -> list[dict]:
+            meta: dict | None = None, timeout: float = CLICKUP_TIMEOUT_S) -> list[dict]:
     """按 list 汇总某天的素材。
 
     返回 ``[{id, name, role, done, open, in_progress, overdue, cross_day}]``。

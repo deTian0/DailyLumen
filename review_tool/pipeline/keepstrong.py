@@ -31,13 +31,12 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from ..config import INBOX_DIR, KS_DEFAULTS, SETTINGS, WEEKDAY_CN
-from .keepstrong_render import render_material
+from ..config import INBOX_DIR, KS_DEFAULTS, SETTINGS, TZ_OFFSET_HOURS, WEEKDAY_CN
+from .keepstrong_render import PRODUCT_CN, render_material
 
-# 产品名（对外文案）
-PRODUCT_CN = "练练健身"
+# 产品名 PRODUCT_CN 的单一来源在 keepstrong_render（纯模块、零依赖），此处复用
 INBOX_PREFIX = "keepstrong-素材"
-TZ_OFFSET_MIN = 480  # 东八区，分钟，东为正
+TZ_OFFSET_MIN = TZ_OFFSET_HOURS * 60  # 东八区，分钟（API 的 X-Timezone-Offset 要分钟）
 
 # 端点 pageSize 上限（见 API 参考）
 RECORDS_PAGE_SIZE = 50
@@ -191,7 +190,9 @@ def _raise_from_http(code: int, body: Any, headers) -> None:
             f"{PRODUCT_CN} API Key 已失效（401 apiKeyExpired）。\n  → {KeyGuidance}"
         )
     if code == 426 and data.get("skillUpdateRequired"):
-        skill_url = data.get("skillUrl") or "https://lianlian.gzyunke.cn/api/v1/ai/skill"
+        skill_url = data.get("skillUrl") or (
+            SETTINGS.keepstrong_base_url.rstrip("/") + "/api/v1/ai/skill"
+        )
         raise SkillUpdateRequired(
             f"{PRODUCT_CN} 技能文档过期（426 skillUpdateRequired）。\n"
             f"  → 重新拉取 {skill_url}，替换 docs/练练健身-API参考.md，"
