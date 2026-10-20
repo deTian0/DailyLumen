@@ -249,6 +249,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
+| **下一步开发做什么（M22–M27 运营期计划）** | `docs/运营期路线图.md` |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
