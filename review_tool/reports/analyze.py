@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from ..config import DIMENSIONS, GENERATED_DIR
 from ..core.learning import week_rollup
@@ -648,6 +648,7 @@ def report_week(conn, iso_week: int | None = None, *, as_json: bool = False) -> 
         s = collect(conn, "iso_week=?", (wk,), f"ISO 周 {wk}")
         if s is None:
             continue
+        s["highlights"] = week_highlights(conn, wk)
         out.append(s)
         if not as_json:
             print(render_summary(s))
@@ -748,6 +749,149 @@ def _daily_rows(conn, where: str, params: tuple) -> list[dict]:
     )]
 
 
+# ---------------------------------------------------------------------------
+# 数据要点（M24 / v1.32.0）：环比 / 极值 / 连续段，全脚本计算
+# ---------------------------------------------------------------------------
+
+_HL_FIELDS: tuple[tuple[str, str, int], ...] = (
+    ("system_score", "系统分", 2),
+    ("health_score", "健康", 2),
+    ("work_score", "工作", 2),
+    ("learn_score", "学习", 2),
+    ("life_score", "生活", 2),
+    ("sleep_h", "睡眠(h)", 2),
+    ("phone_h", "屏幕(h)", 2),
+    ("deepwork_h", "深度工作(h)", 2),
+    ("diet_kcal", "饮食(kcal)", 1),
+)
+
+
+def _prev_data_week(conn, iso_week: int) -> int | None:
+    """上一个**有数据**的 ISO 周（不一定是 iso_week-1，可能隔了断更）。"""
+    row = conn.execute(
+        "SELECT MAX(iso_week) FROM daily_reviews WHERE iso_week<?", (iso_week,)
+    ).fetchone()
+    return row[0] if row and row[0] is not None else None
+
+
+def week_highlights(conn, iso_week: int) -> dict:
+    """周报数据要点：环比（上一有数据周）/ 周内极值 / 系统分 ≥4.00 连续段。
+
+    连续段：截至本周最后一天可跨周回溯（``streak_from_dates`` 同口径），
+    另计本周内最长连续段与本周达标天数。全只读、无新口径 ——
+    字段与 ``collect`` / ``_daily_rows`` 一致，比较用 ``ROUND(x, 2)``。
+    """
+    rows = _daily_rows(conn, "iso_week=?", (iso_week,))
+    out: dict = {"iso_week": iso_week, "days": len(rows), "prev_week": None,
+                 "deltas": [], "extremes": [], "streak": None}
+
+    prev_wk = _prev_data_week(conn, iso_week)
+    if prev_wk is not None:
+        out["prev_week"] = prev_wk
+        for f, label, _ in _HL_FIELDS:
+            c = _avg(conn, f, "iso_week=?", (iso_week,))
+            p = _avg(conn, f, "iso_week=?", (prev_wk,))
+            if c is None and p is None:
+                continue
+            out["deltas"].append({
+                "field": f, "label": label,
+                "cur": round(c, 2) if c is not None else None,
+                "prev": round(p, 2) if p is not None else None,
+                "delta": round(c - p, 2) if (c is not None and p is not None) else None,
+            })
+
+    for f, label, _ in _HL_FIELDS:
+        vals = [(r["date"], r[f]) for r in rows if r[f] is not None]
+        if not vals:
+            continue
+        lo = min(vals, key=lambda x: x[1])
+        hi = max(vals, key=lambda x: x[1])
+        out["extremes"].append({
+            "field": f, "label": label,
+            "min": {"date": lo[0], "value": lo[1]},
+            "max": {"date": hi[0], "value": hi[1]},
+        })
+
+    if rows:
+        end_date = rows[-1]["date"]
+        ok = {
+            r[0] for r in conn.execute(
+                "SELECT date FROM daily_reviews "
+                "WHERE system_score IS NOT NULL AND ROUND(system_score, 2) >= 4.00"
+            )
+        }
+        n = 0
+        cur = datetime.strptime(end_date, "%Y-%m-%d")
+        while cur.strftime("%Y-%m-%d") in ok:
+            n += 1
+            cur -= timedelta(days=1)
+        week_dates = [r["date"] for r in rows]
+        best = run = 0
+        for d in week_dates:
+            run = run + 1 if d in ok else 0
+            best = max(best, run)
+        out["streak"] = {
+            "threshold": 4.00,
+            "as_of": end_date,
+            "cross_week": n,
+            "in_week_best": best,
+            "in_week_days": sum(1 for d in week_dates if d in ok),
+            "week_days": len(week_dates),
+        }
+    return out
+
+
+def _hl_date(d: str) -> str:
+    return datetime.strptime(d, "%Y-%m-%d").strftime("%m-%d")
+
+
+def _render_highlights(hl: dict) -> list[str]:
+    """把 ``week_highlights`` 的结果渲染成 md 行（每条带依据数字）。"""
+    L: list[str] = []
+    if hl["prev_week"] is None:
+        L.append("> 环比：无上一有数据周（或本周为全库首周），跳过。")
+        L.append("")
+    elif not hl["deltas"]:
+        L.append(f"> 环比：上一有数据周 = ISO 第 {hl['prev_week']} 周，但无可比字段。")
+        L.append("")
+    else:
+        L += [
+            f"**环比**（上一有数据周 = ISO 第 {hl['prev_week']} 周）", "",
+            "| 指标 | 本周 | 上周 | Δ |",
+            "|------|------|------|---|",
+        ]
+        for d in hl["deltas"]:
+            dv = "—" if d["delta"] is None else f"{d['delta']:+.2f}"
+            L.append(
+                f"| {d['label']} | {_fmt_num(d['cur'])} | "
+                f"{_fmt_num(d['prev'])} | {dv} |"
+            )
+        L.append("")
+    if hl["extremes"]:
+        L += ["**极值**（本周内）", ""]
+        if hl["days"] < 7:
+            L += [f"> ⚠️ 本周仅 **{hl['days']}** 天记录，极值为**不完整周**口径，"
+                  "跨周对比时注意。", ""]
+        L += ["| 指标 | 最低 | 最高 |", "|------|------|------|"]
+        for e in hl["extremes"]:
+            mn, mx = e["min"], e["max"]
+            L.append(
+                f"| {e['label']} | {_fmt_num(mn['value'])}（{_hl_date(mn['date'])}） | "
+                f"{_fmt_num(mx['value'])}（{_hl_date(mx['date'])}） |"
+            )
+        L.append("")
+    st = hl["streak"]
+    if st:
+        L += [
+            "**连续段**（系统分 ≥ 4.00）", "",
+            f"- 截至 {_hl_date(st['as_of'])}：连续 **{st['cross_week']}** 天"
+            "（跨周回溯，中断即停）。",
+            f"- 本周内：最长连续 **{st['in_week_best']}** 天；"
+            f"达标 {st['in_week_days']}/{st['week_days']} 天。",
+        ]
+    return L
+
+
 def render_week_md(conn, iso_week: int) -> str | None:
     """渲染单周总结 markdown（结构化骨架）。无区间无数据返回 None。"""
     s = collect(conn, "iso_week=?", (iso_week,), f"ISO 周 {iso_week}")
@@ -843,7 +987,11 @@ def render_week_md(conn, iso_week: int) -> str | None:
             f"{_fmt_num(r['diet_kcal'], 0)} |"
         )
 
-    L += ["", "## 三、个人打卡依从率（不计入四维评分）", ""]
+    hl = week_highlights(conn, iso_week)
+    L += ["", "## 三、数据要点（脚本计算 · 环比 / 极值 / 连续段）", ""]
+    L += _render_highlights(hl)
+
+    L += ["", "## 四、个人打卡依从率（不计入四维评分）", ""]
     if not items:
         L.append("> 本周无 `personal_tracks` 记录。")
     else:
@@ -857,7 +1005,7 @@ def render_week_md(conn, iso_week: int) -> str | None:
 
     hadh = s.get("habit_adherence") or {}
     hitems = hadh.get("items") or []
-    L += ["", "## 四、行为习惯依从率（不计入四维评分 · 与补剂分栏）", ""]
+    L += ["", "## 五、行为习惯依从率（不计入四维评分 · 与补剂分栏）", ""]
     if not hitems:
         L.append("> 本周无 `habit_logs` 记录。")
     else:
@@ -870,7 +1018,7 @@ def render_week_md(conn, iso_week: int) -> str | None:
             )
 
     ts = s.get("training_structure") or {}
-    L += ["", "## 五、训练结构（不计入四维评分）", ""]
+    L += ["", "## 六、训练结构（不计入四维评分）", ""]
     if not ts.get("sessions"):
         L.append("> 本周无 `training_sessions` 记录。")
     else:
@@ -890,7 +1038,7 @@ def render_week_md(conn, iso_week: int) -> str | None:
             )
 
     lw = s.get("learning_week") or {}
-    L += ["", "## 六、学习记录（不计入四维评分）", ""]
+    L += ["", "## 七、学习记录（不计入四维评分）", ""]
     topics = lw.get("topics") or []
     if not topics:
         L.append("> 本周无 `learning_logs` 记录。")
@@ -917,7 +1065,7 @@ def render_week_md(conn, iso_week: int) -> str | None:
 
     L += [
         "",
-        "## 七、自动生成说明",
+        "## 八、自动生成说明",
         "",
         "> 本文件由 CLI `--write` 落盘。关键发现 / 与上周对比 / 行动清单等叙事段"
         "请人工补写，或继续沿用既有手写周总结（默认**不**用本渲染器回填历史件）。",
