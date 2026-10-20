@@ -105,3 +105,28 @@ def eta_weeks(
     if need * weekly_delta_kg <= 0:
         return None
     return round(need / weekly_delta_kg, 1)
+
+
+# 平稳阈值：|周变化| ≤ 此值（kg/周）视为平稳 / 平台期。
+# 依据：家用体秤日波动噪声约 ±0.5 kg，两侧各 7 点均值后抖动收敛到 ~0.1–0.2 kg，
+# 取 0.15 居中（M23）；如需个性化改此处常量即可（未入 config，避免可配置层膨胀）。
+WEIGHT_TREND_THRESHOLD_KG = 0.15
+
+
+def trend_direction(
+    weekly_delta_kg: float | None,
+    *,
+    threshold_kg: float = WEIGHT_TREND_THRESHOLD_KG,
+) -> str | None:
+    """周变化 → 趋势方向：``"down"`` / ``"up"`` / ``"flat"``；缺参 ``None``。
+
+    与 ``weekly_delta`` 配套使用：``weekly_delta`` 负责算数，本函数负责定性 ——
+    报告层据此出建议（M23 体征建议官）。
+    """
+    if weekly_delta_kg is None:
+        return None
+    if weekly_delta_kg < -threshold_kg:
+        return "down"
+    if weekly_delta_kg > threshold_kg:
+        return "up"
+    return "flat"

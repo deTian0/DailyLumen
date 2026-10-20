@@ -130,6 +130,112 @@ class TestBodyReport(unittest.TestCase):
         self.assertIn("weight_kg", raw)
 
 
+class TestTrendDirection(unittest.TestCase):
+    """M23：周变化 → 趋势定性（down / up / flat）。"""
+
+    def test_down(self):
+        self.assertEqual(body_core.trend_direction(-0.40), "down")
+
+    def test_up(self):
+        self.assertEqual(body_core.trend_direction(0.40), "up")
+
+    def test_flat_at_threshold(self):
+        self.assertEqual(body_core.trend_direction(0.15), "flat")
+        self.assertEqual(body_core.trend_direction(-0.15), "flat")
+        self.assertEqual(body_core.trend_direction(0.0), "flat")
+
+    def test_none(self):
+        self.assertIsNone(body_core.trend_direction(None))
+
+    def test_custom_threshold(self):
+        self.assertEqual(body_core.trend_direction(0.30, threshold_kg=0.5), "flat")
+
+
+class TestBodyAdvice(unittest.TestCase):
+    """建议段：每条带依据数字；六类场景（带内×3 / 带上 / 带下 / 样本不足）。
+
+    目标带 patch 成受控值 70–75 kg —— 不依赖个人真实配置（config 可随时改）。
+    """
+
+    BAND = {"weight_kg_low": 70.0, "weight_kg_high": 75.0}
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.db = self.tmp + "/t.db"
+        self.conn = init_db(db_path=self.db)
+        patcher = mock.patch.dict(
+            "review_tool.reports.body.BODY_TARGETS", self.BAND, clear=True
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def tearDown(self):
+        self.conn.close()
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _seed(self, weights, start="2026-09-14"):
+        import datetime as dt
+        d0 = dt.date.fromisoformat(start)
+        for i, w in enumerate(weights):
+            upsert_body_metrics(self.conn, {
+                "date": (d0 + dt.timedelta(days=i)).isoformat(),
+                "weight_kg": w, "src": "manual",
+            })
+        self.conn.commit()
+
+    def _collect_and_text(self):
+        data = body_report.collect(self.conn)
+        return data, body_report.render(data)
+
+    def test_in_band_flat(self):
+        self._seed([72.0] * 14)  # 带内（假设目标带 70–75），delta=0
+        data, text = self._collect_and_text()
+        self.assertEqual(data["trend_direction"], "flat")
+        self.assertIn("趋势平稳（平台期）", text)
+        self.assertIn("保持当前节奏", text)
+
+    def test_in_band_down_warns_lower_bound(self):
+        # 前 7 点 72.0，后 7 点 71.5 → delta = -0.5，下行
+        self._seed([72.0] * 7 + [71.5] * 7)
+        data, text = self._collect_and_text()
+        self.assertEqual(data["trend_direction"], "down")
+        self.assertIn("跌破下限", text)
+        self.assertIn("周变化 -0.50 kg", text)
+
+    def test_above_band_with_eta(self):
+        # 前 7 点 78.0，后 7 点 76.0 → delta = -2.0，高于上限 1 kg，外推 0.5 周
+        self._seed([78.0] * 7 + [76.0] * 7)
+        data, text = self._collect_and_text()
+        self.assertEqual(data["distance_to_target"], 1.0)
+        self.assertIn("高于上限 1.00 kg", text)
+        self.assertIn("周回到目标带", text)
+
+    def test_above_band_wrong_direction(self):
+        self._seed([76.0] * 7 + [78.0] * 7)  # 上行且带外
+        _, text = self._collect_and_text()
+        self.assertIn("先让趋势转向下行", text)
+
+    def test_below_band_wrong_direction(self):
+        self._seed([68.0] * 7 + [66.0] * 7)  # 下行且低于下限
+        _, text = self._collect_and_text()
+        self.assertIn("先让趋势转向上行", text)
+
+    def test_insufficient_samples(self):
+        self._seed([78.0] * 3)  # 无 prior 侧 → delta None；带外
+        data, text = self._collect_and_text()
+        self.assertIsNone(data["weekly_delta"])
+        # 样本不足但带外：仍给位置提醒，不给趋势建议
+        self.assertIn("先攒够两周记录", text)
+        self.assertNotIn("趋势下行", text)
+        self.assertNotIn("趋势上行", text)
+
+    def test_advice_in_json(self):
+        self._seed([72.0] * 14)
+        data = body_report.collect(self.conn)
+        self.assertIn("trend_direction", json.dumps(data, ensure_ascii=False))
+
+
 class TestBodyCheckConstraints(unittest.TestCase):
     """body_metrics CHECK 反面样本（负体重 / 体脂 80%）。"""
 
