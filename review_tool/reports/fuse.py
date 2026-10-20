@@ -37,12 +37,21 @@ DIM_CN = {
 CHECK_DIMS = DIMENSIONS + ["system_score"]
 
 
-def _series(conn) -> list[tuple[str, dict]]:
-    """按日期升序返回 [(date, {dim: value}), ...]，系统分缺失时按四维均值补。"""
-    rows = conn.execute(
+def _series(conn, month: int | None = None) -> list[tuple[str, dict]]:
+    """按日期升序返回 [(date, {dim: value}), ...]，系统分缺失时按四维均值补。
+
+    month（形如 202610）给定时只取该月窗口（M27 深评用）；
+    此时连续段 / 漂移都在**月内**计算，不跨周回溯。
+    """
+    sql = (
         "SELECT date, health_score, work_score, learn_score, life_score, system_score "
-        "FROM daily_reviews ORDER BY date"
-    ).fetchall()
+        "FROM daily_reviews"
+    )
+    params: tuple = ()
+    if month is not None:
+        sql += " WHERE date LIKE ?"
+        params = (f"{month // 100:04d}-{month % 100:02d}-%",)
+    rows = conn.execute(sql + " ORDER BY date", params).fetchall()
     out = []
     for r in rows:
         vals = dict(zip(CHECK_DIMS, r[1:], strict=True))
@@ -81,11 +90,15 @@ def _mean(values: list) -> float | None:
     return round(sum(vals) / len(vals), 2) if vals else None
 
 
-def find_fuses(conn, *, rules: dict | None = None) -> dict:
-    """执行熔断检测，返回结构化结果（不打印，便于测试与复用）。"""
+def find_fuses(conn, *, rules: dict | None = None,
+               month: int | None = None) -> dict:
+    """执行熔断检测，返回结构化结果（不打印，便于测试与复用）。
+
+    month（形如 202610）给定时只在月窗口内计算（M27 深评用）。
+    """
     R = {**FUSE_RULES, **(rules or {})}
     th, days = R["threshold"], R["days"]
-    series = _series(conn)
+    series = _series(conn, month=month)
     result: dict = {
         "as_of": series[-1][0] if series else None,
         "records": len(series),

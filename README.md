@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.32.1**（口述流水 §0.6 · M26；schema v8）｜测试 **675** 项
+> 当前版本 **1.33.0**（月度深评聚合 `month --deep` · M27；schema v8）｜测试 **681** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -94,7 +94,7 @@
 | ---------------------------------------------------- | -------------------------------------- |
 | `new-day [YYYY-MM-DD] [--force]`                     | 按模板生成当天文件 → `复盘/YYYY-MM/`（**默认关闭**）   |
 | `ingest [路径.md] [--overwrite] [--prune-tracks]`      | 解析并入库（默认只补空值，不擦已有数据；`--prune-tracks` 顺带清陈旧打卡） |
-| `week [ISO周] [--json] [--write]` / `month …`         | 周 / 月分析；`--write` 落盘结构化总结（v1.32.0 起含「数据要点」段：环比 / 极值 / 连续段） |
+| `week [ISO周] [--json] [--write]` / `month …`         | 周 / 月分析；`--write` 落盘结构化总结（v1.32.0 起含「数据要点」段）；`month <YYYYMM> --deep` 聚合深评素材（概览 + 月窗图 + 相关 + 熔断 + 快照） |
 | `ai-context [YYYY-MM-DD]`                            | 输出「七、AI 评价与建议」的确定性上下文                  |
 | `import-history [--check] [--src DIR]`               | 语雀历史文件转换为标准格式                          |
 | `clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--with-habits]` | 拉 ClickUp 当日素材；`--with-habits` 附习惯段并同步 `habit_logs` |

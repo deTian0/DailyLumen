@@ -72,8 +72,11 @@ def strength_label(r: float | None) -> str | None:
     return "强"
 
 
-def _aligned_series(conn) -> dict[str, dict[str, float | None]]:
-    """按日对齐多维序列；键为日期。"""
+def _aligned_series(conn, month: int | None = None) -> dict[str, dict[str, float | None]]:
+    """按日对齐多维序列；键为日期。
+
+    month（形如 202610）给定时只保留该月窗口（M27 深评用）。
+    """
     by_date: dict[str, dict[str, float | None]] = {}
     for r in conn.execute(
         "SELECT date, sleep_h, exercise_min, diet_kcal, learn_h "
@@ -103,6 +106,9 @@ def _aligned_series(conn) -> dict[str, dict[str, float | None]]:
             }
         else:
             by_date[d]["weight_kg"] = w
+    if month is not None:
+        prefix = f"{month // 100:04d}-{month % 100:02d}-"
+        by_date = {d: v for d, v in by_date.items() if d.startswith(prefix)}
     return by_date
 
 
@@ -123,9 +129,13 @@ def _pair_samples(
     return xs, ys
 
 
-def collect(conn, *, min_samples: int = MIN_SAMPLES) -> dict:
-    """汇聚跨维关联（结构化，供文本 / JSON 共用）。"""
-    by_date = _aligned_series(conn)
+def collect(conn, *, min_samples: int = MIN_SAMPLES,
+            month: int | None = None) -> dict:
+    """汇聚跨维关联（结构化，供文本 / JSON 共用）。
+
+    month（形如 202610）给定时只在月窗口内计算（M27 深评用）。
+    """
+    by_date = _aligned_series(conn, month=month)
     pairs_out: list[dict] = []
     for left, right, label in PAIRS:
         xs, ys = _pair_samples(by_date, left, right)
