@@ -246,8 +246,8 @@ class TestWeekHabitSection(unittest.TestCase):
         self.assertIn("skincare", text)
         # 分栏：补剂段不含 habit_key 表头语义混用
         md = render_week_md(self.conn, 42)
-        self.assertIn("## 三、个人打卡依从率", md)
-        self.assertIn("## 四、行为习惯依从率", md)
+        self.assertIn("## 四、个人打卡依从率", md)  # M24 起数据要点占三
+        self.assertIn("## 五、行为习惯依从率", md)
         self.assertIn("skincare", md)
         self.assertIn("reading_30", md)
         # 两段分栏：补剂表用 item_key，习惯表用 habit_key

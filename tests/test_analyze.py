@@ -8,13 +8,16 @@ import unittest
 
 from review_tool.reports.analyze import (
     _avg,
+    _prev_data_week,
     collect,
     completeness,
     derived_count,
+    render_week_md,
     report_month,
     report_week,
     track_adherence,
     training_stats,
+    week_highlights,
 )
 from review_tool.storage.db import init_db, upsert, upsert_personal_track
 
@@ -401,6 +404,98 @@ class TestWriteMd(_DB):
         self.assertTrue(path.endswith("月总结-202609.md"))
         with open(path, encoding="utf-8") as f:
             self.assertIn("月度核心数字", f.read())
+
+
+class TestWeekHighlights(_DB):
+    """M24 数据要点：环比 / 极值 / 连续段（全脚本计算）。"""
+
+    def _seed_two_weeks(self):
+        # W38：09-14(一) 09-15(二)；W39：09-21(一) 09-22(二)
+        upsert(self.conn, {"date": "2026-09-14", "system_score": 4.00,
+                           "sleep_h": 7.0, "phone_h": 10.0,
+                           "deepwork_h": 3.0, "diet_kcal": 1800})
+        upsert(self.conn, {"date": "2026-09-15", "system_score": 5.50,
+                           "sleep_h": 6.0, "phone_h": 12.0,
+                           "deepwork_h": 4.0, "diet_kcal": 2000})
+        upsert(self.conn, {"date": "2026-09-21", "system_score": 4.00,
+                           "sleep_h": 8.0, "phone_h": 9.0,
+                           "deepwork_h": 2.0, "diet_kcal": 1500})
+        upsert(self.conn, {"date": "2026-09-22", "system_score": 3.00,
+                           "sleep_h": 7.0, "phone_h": 11.0,
+                           "deepwork_h": 5.0, "diet_kcal": 2100})
+        self.conn.commit()
+
+    def test_prev_data_week_skips_gaps(self):
+        # 隔一周断更：W40 上一有数据周应是 W39 而非 W40-1
+        self._seed_two_weeks()
+        self.assertEqual(_prev_data_week(self.conn, 40), 39)
+        self.assertIsNone(_prev_data_week(self.conn, 38))
+
+    def test_deltas_extremes_streak(self):
+        self._seed_two_weeks()
+        hl = week_highlights(self.conn, 39)
+        self.assertEqual(hl["prev_week"], 38)
+        sys_d = next(d for d in hl["deltas"] if d["field"] == "system_score")
+        self.assertEqual(sys_d["cur"], 3.50)
+        self.assertEqual(sys_d["prev"], 4.75)
+        self.assertEqual(sys_d["delta"], -1.25)
+        sl = next(e for e in hl["extremes"] if e["field"] == "sleep_h")
+        self.assertEqual(sl["min"], {"date": "2026-09-22", "value": 7.0})
+        self.assertEqual(sl["max"], {"date": "2026-09-21", "value": 8.0})
+        st = hl["streak"]
+        self.assertEqual(st["as_of"], "2026-09-22")
+        self.assertEqual(st["cross_week"], 0)      # 09-22 未达标，段长 0
+        self.assertEqual(st["in_week_best"], 1)    # 只有 09-21 单天
+        self.assertEqual(st["in_week_days"], 1)
+        self.assertEqual(st["week_days"], 2)
+
+    def test_streak_cross_week(self):
+        self._seed_two_weeks()
+        upsert(self.conn, {"date": "2026-09-23", "system_score": 4.20})
+        upsert(self.conn, {"date": "2026-09-24", "system_score": 4.50})
+        self.conn.commit()
+        st = week_highlights(self.conn, 39)["streak"]
+        # 截至 09-24 回溯：09-24、09-23 命中，09-22(3.00) 中断 → 2
+        self.assertEqual(st["cross_week"], 2)
+        self.assertEqual(st["in_week_best"], 2)
+        self.assertEqual(st["in_week_days"], 3)
+        self.assertEqual(st["week_days"], 4)
+
+    def test_render_has_section_and_numbers(self):
+        self._seed_two_weeks()
+        text = render_week_md(self.conn, 39)
+        self.assertIn("## 三、数据要点（脚本计算 · 环比 / 极值 / 连续段）", text)
+        self.assertIn("ISO 第 38 周", text)
+        self.assertIn("| 系统分 | 3.5 | 4.75 | -1.25 |", text)
+        self.assertIn("7（09-22）", text)          # 极值带日期
+        self.assertIn("连续 **0** 天", text)
+        # 章节顺延重编号
+        self.assertIn("## 四、个人打卡依从率", text)
+        self.assertIn("## 五、行为习惯依从率", text)
+        self.assertIn("## 六、训练结构", text)
+        self.assertIn("## 七、学习记录", text)
+        self.assertIn("## 八、自动生成说明", text)
+
+    def test_render_first_week_no_prev(self):
+        self._seed_two_weeks()
+        text = render_week_md(self.conn, 38)
+        self.assertIn("无上一有数据周", text)
+
+    def test_json_exposes_highlights(self):
+        self._seed_two_weeks()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            out = report_week(self.conn, 39, as_json=True)
+        hl = out[0]["highlights"]
+        self.assertEqual(hl["prev_week"], 38)
+        self.assertEqual(hl["days"], 2)
+
+    def test_incomplete_week_note(self):
+        upsert(self.conn, {"date": "2026-09-21", "system_score": 4.00,
+                           "sleep_h": 7.0})
+        self.conn.commit()
+        text = render_week_md(self.conn, 39)
+        self.assertIn("不完整周", text)
 
 
 if __name__ == "__main__":
