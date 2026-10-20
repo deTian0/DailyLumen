@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.29.0**（运营期路线图 M22–M27 立项；schema v8）｜测试 **649** 项
+> 当前版本 **1.30.0**（`stats` 一键统计 · M22；schema v8）｜测试 **656** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -111,6 +111,7 @@
 | `sync-docs [--check]`                                | 把库里的四维分回写到复盘 md（数据块 + 六章表格）            |
 | `recompute-scores [--apply]`                         | 按当前规则重算库中四维 / 系统分（默认只试算）               |
 | `export [--format csv\|json] [--out DIR] [--stdout]` | 导出结构化数据                                |
+| `stats [--json]`                                     | 一键统计：md 篇数 / 入库天数 / 打卡行 / 断更空洞（文档取数用） |
 | `chart [--type body\|training\|nutrition\|all] [--out DIR] [--stdout]` | 离线 SVG：默认四维趋势；body/训练柱/热量双轴 |
 | `correlate [--json] [--min-samples N]`               | 跨维关联（睡眠/训练/体重/热量/学习；样本不足 10 仅观察） |
 | `version`                                            | 打印版本号                                  |

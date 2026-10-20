@@ -67,6 +67,7 @@ from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
 from .reports.nutrition import main as nutrition_main
 from .reports.recompute import main as recompute_main
+from .reports.stats import main as stats_main
 from .reports.steward import main as steward_main
 from .reports.tutor import main as tutor_main
 
@@ -132,6 +133,7 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "recompute-scores": (
         recompute_main, "recompute-scores [--apply] [--db PATH]"),
     "export": (export_main, "export [--format csv|json] [--out DIR] [--stdout]"),
+    "stats": (stats_main, "stats [--json]"),
     "chart": (
         chart_main,
         "chart [--type body|training|nutrition|all] [--out DIR] [--stdout]"),
