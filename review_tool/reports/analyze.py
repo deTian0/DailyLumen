@@ -1316,6 +1316,20 @@ def main(argv: list[str] | None = None) -> int:
             report_week(conn, wk, as_json=as_json)
         elif mode == "month":
             mon = int(pos[1]) if len(pos) > 1 else None
+            if "--deep" in argv:
+                if mon is None:
+                    mon = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
+                if mon is None:
+                    print("无任何数据。")
+                    return 1
+                from .monthly import build_month_deep
+                res = build_month_deep(conn, mon)
+                if res is None:
+                    print(f"月份 {mon} 暂无数据。")
+                    return 1
+                print(f"[written] {res['md_path']}")
+                print(f"[chart] {res['chart_path']}")
+                return 0
             if do_write or do_check:
                 if mon is None:
                     mon = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]

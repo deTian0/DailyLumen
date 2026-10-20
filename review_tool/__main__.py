@@ -106,7 +106,7 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "new-day": (new_day_main, "new-day [YYYY-MM-DD] [--force]"),
     "ingest": (ingest_main, "ingest [路径.md] [--overwrite] [--prune-tracks]"),
     "week": (_week, "week [ISO周] [--json] [--write] [--force] [--check]"),
-    "month": (_month, "month [YYYYMM] [--json] [--write] [--force] [--check]"),
+    "month": (_month, "month [YYYYMM] [--json] [--write] [--force] [--check] [--deep]"),
     "ai-context": (ai_context_main, "ai-context [YYYY-MM-DD]"),
     "import-history": (
         import_history_main, "import-history [--check] [--src DIR]"),
