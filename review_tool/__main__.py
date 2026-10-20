@@ -103,7 +103,7 @@ def _version(_rest: list[str]) -> int:
 # 子命令 -> (处理函数, 一行用法)。顺序即帮助里的顺序。
 ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "new-day": (new_day_main, "new-day [YYYY-MM-DD] [--force]"),
-    "ingest": (ingest_main, "ingest [路径.md] [--overwrite]"),
+    "ingest": (ingest_main, "ingest [路径.md] [--overwrite] [--prune-tracks]"),
     "week": (_week, "week [ISO周] [--json] [--write] [--force] [--check]"),
     "month": (_month, "month [YYYYMM] [--json] [--write] [--force] [--check]"),
     "ai-context": (ai_context_main, "ai-context [YYYY-MM-DD]"),
