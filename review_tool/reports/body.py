@@ -19,6 +19,7 @@ from ..core.body import (
     distance_to_target,
     eta_weeks,
     moving_average,
+    trend_direction,
     weekly_delta,
 )
 from ..storage.db import init_db, load_body_metrics
@@ -78,10 +79,75 @@ def collect(conn) -> dict:
         "bmi_band": latest_band,
         "ma7": ma[-1] if ma else None,
         "weekly_delta": delta,
+        "trend_direction": trend_direction(delta),
         "distance_to_target": dist,
         "eta_weeks": eta,
         "series": series,
     }
+
+
+def advice_lines(data: dict) -> list[str]:
+    """确定性建议段（M23）：每条带依据数字，可复算；不下医学结论。
+
+    返回行文本列表；空列表表示「无体重数据可建议」（渲染层给占位说明）。
+    决策仅用 ``weekly_delta`` / ``trend_direction`` / ``distance_to_target`` /
+    ``eta_weeks`` 四个既有派生值 —— 不引入新口径。
+    """
+    out: list[str] = []
+    if data["count"] == 0 or data["latest"]["weight_kg"] is None:
+        return out
+    delta = data["weekly_delta"]
+    trend = data["trend_direction"]
+    dist = data["distance_to_target"]
+    low = data["targets"]["weight_kg_low"]
+    high = data["targets"]["weight_kg_high"]
+    eta = data["eta_weeks"]
+
+    if trend is None or delta is None:
+        # 样本不足以定性趋势；带外位置仍值得提醒一句
+        if dist:
+            side = "低于下限" if dist < 0 else "高于上限"
+            out.append(f"当前{side} {abs(dist):.2f} kg —— 先攒够两周记录，"
+                       "再看趋势与外推")
+        return out
+
+    label = {"down": "下行", "up": "上行", "flat": "平稳（平台期）"}[trend]
+    base = f"趋势{label}：周变化 {delta:+.2f} kg（近 7 点均 vs 前 7 点均）"
+
+    if dist is None:
+        out.append(f"{base}；未配置目标带（config.BODY_TARGETS），仅提示趋势")
+        return out
+    band = f"{low}–{high} kg"
+    if dist == 0:
+        if trend == "down":
+            out.append(f"{base}；已在目标带内（{band}），持续下行会跌破下限 "
+                       f"{low} kg，留意")
+        elif trend == "up":
+            out.append(f"{base}；已在目标带内（{band}），持续上行会突破上限 "
+                       f"{high} kg，留意")
+        else:
+            out.append(f"{base}；已在目标带内（{band}），保持当前节奏即可")
+    elif dist > 0:
+        if trend == "down" and eta is not None:
+            out.append(f"{base}；高于上限 {abs(dist):.2f} kg，按当前速率约 "
+                       f"{eta} 周回到目标带（{high} kg）")
+        elif trend == "down":
+            out.append(f"{base}；高于上限 {abs(dist):.2f} kg，速率尚不足以按周外推，"
+                       "继续观察")
+        else:
+            out.append(f"{base}；高于上限 {abs(dist):.2f} kg —— 先让趋势转向下行，"
+                       "再谈外推")
+    else:  # dist < 0
+        if trend == "up" and eta is not None:
+            out.append(f"{base}；低于下限 {abs(dist):.2f} kg，按当前速率约 "
+                       f"{eta} 周回到目标带（{low} kg）")
+        elif trend == "up":
+            out.append(f"{base}；低于下限 {abs(dist):.2f} kg，速率尚不足以按周外推，"
+                       "继续观察")
+        else:
+            out.append(f"{base}；低于下限 {abs(dist):.2f} kg —— 先让趋势转向上行，"
+                       "再谈外推")
+    return out
 
 
 def render(data: dict) -> str:
@@ -141,6 +207,14 @@ def render(data: dict) -> str:
             L.append("  外推     : 速率不足或方向不符")
         else:
             L.append(f"  外推     : 约 {eta} 周")
+
+    L.append("")
+    L.append("[建议]")
+    lines = advice_lines(data)
+    if lines:
+        L.extend(f"  - {x}" for x in lines)
+    else:
+        L.append("  （暂无：缺体重数据，无可建议项）")
 
     L.append("")
     L.append(f"共 {data['count']} 条体征记录")
