@@ -177,15 +177,28 @@ agent_created: true
 
 ## 5. 数据库规约
 
-- **SQLite `reviews.db` 是唯一数据源**；schema 走 `PRAGMA user_version` 幂等迁移（当前 **v10**）。
-  v1.9.0 决断：`energy` / `mood` / `commute_done` **保留**（模板提醒 / 通勤默认「是」），
-  不做破坏性删列；三者**不参与四维评分**。
+- **SQLite `reviews.db` 是唯一数据源**；schema 走 `PRAGMA user_version` 幂等迁移（当前 **v11**）。
+  v1.9.0 决断：`energy` / `mood` **保留**（不参与四维评分），不做破坏性删列。
+  ⚠️ **v1.37.0：`commute_done` 已废弃**（通勤固定 2×2.4km/日，79 天填 18 天，
+  那个 22.8% 只反映「懒得填」）。模板已删该行、周报月报不再渲染；
+  **列与解析保留**（老 md 仍能入库），⛔ 不要在任何新报告里再引用它。
 - **承诺对账（v10 / M29）的口径是红线**：`promises` 存「改进点 / 明日 Top 3」，
   兑现判定**只认次日结构化字段**（`learn_h`/`exercise_min`/`fat_g`/`bedtime`/
   `deepwork_h`/`phone_h`/`personal_tracks.done`）。判不了记 `unmapped`、
   次日没写复盘记 `no_data` —— **两者都不算未兑现**；兑现率只在可判定子集上算；
   **不进四维评分、不加惩罚**。⛔ 别用「承诺文本里出现某词」当兑现证据（只证明提过）。
   入口：`python -m review_tool promises`；周报第八节；`doctor` 的 `[承诺覆盖]`。
+- **「今天不设」是决定，不是空转**（v1.37.0 / D1）：写 `- 今天不设` → `bucket='declined'`
+  → 状态 `declined`，**不进兑现率分母**，也不判 `no_data`（它是当天的决定，不用等次日）。
+  `doctor` 把「明写不设」与「空白」分开报 —— **别把两者混成一个数**。
+  ⛔ 模板的填写提示必须放 `>` 引用块；写成 `-` 列表项会被当成承诺（42 天数据污染就是这么来的）。
+- **ClickUp 只是旁证，不是判据**（v1.37.0 / M30，schema v11 `clickup_done`）：
+  三条硬约束 —— ① **不看 assignee**（工作 list 704 条任务 assignee 全是本人，
+  团队工时表用本人账号建），归属只看任务名姓名位；② **工时求和 ≠ 工作时长**
+  （任务级估算会重叠，实测一天十条合计 57h），只取最长单条当下界；
+  ③ **不做「承诺文本 ↔ 任务名」语义匹配**（本人工时集中在 2026-08-20 前，
+  与承诺窗口零重叠，硬做只会造出猜出来的兑现率）。
+  入口：`clickup-pull`（写快照）/ `clickup-done`（读某天完成了什么，写复盘时用）。
 - **改 CHECK 只能重建表**，重建必须走全覆盖流程：
   备份 → 副本验证 → 显式事务 → 逐列 diff → 落真库（详见用户级 skill `sqlite-safe-migration`）。
 - **`reviews.example.db` 必须与当前 schema 同版**（`tests/test_example_db.py` 守卫），
