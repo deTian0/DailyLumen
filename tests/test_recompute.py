@@ -29,7 +29,7 @@ class TestTargetRow(unittest.TestCase):
         t = target_row({"date": "2026-09-21", "deepwork_h": 4.0,
                         "learn_h": 1.0, "life_h": 1.0})
         self.assertEqual(t["work_score"], 7)
-        self.assertEqual(t["learn_score"], 5)
+        self.assertEqual(t["learn_score"], 6)   # v1.34.0 锚点：1h=6
         self.assertEqual(t["life_score"], 5)
         self.assertIsNone(t["health_score"])          # 无健康子指标
         self.assertIsNone(t["system_score"])          # 四维不齐 → 系统分 None
@@ -49,17 +49,17 @@ class TestPlanAndApply(_Fixture):
         self.assertEqual(plan(self.conn), [])
 
     def test_detects_and_applies(self):
-        # learn_score 手填 9，但 learn_h=0.5 规则算出 3
+        # learn_score 手填 9，但 learn_h=0.5 规则算出 4（v1.34.0 锚点）
         self._add(learn_h=0.5, learn_score=9)
         changes = plan(self.conn)
         self.assertEqual(len(changes), 1)
         date, col, old, new = changes[0]
-        self.assertEqual((date, col, old, new), ("2026-09-21", "learn_score", 9, 3))
+        self.assertEqual((date, col, old, new), ("2026-09-21", "learn_score", 9, 4))
         self.assertEqual(apply_changes(self.conn, changes), 1)
         stored = self.conn.execute(
             "SELECT learn_score FROM daily_reviews WHERE date='2026-09-21'"
         ).fetchone()[0]
-        self.assertEqual(stored, 3)
+        self.assertEqual(stored, 4)
         self.assertEqual(plan(self.conn), [])   # 幂等
 
     def test_nulls_unsupported_hand_score(self):
@@ -105,7 +105,7 @@ class TestRenderAndMain(_Fixture):
         stored = self.conn.execute(
             "SELECT learn_score FROM daily_reviews WHERE date='2026-09-21'"
         ).fetchone()[0]
-        self.assertEqual(stored, 3)
+        self.assertEqual(stored, 4)
 
 
 if __name__ == "__main__":

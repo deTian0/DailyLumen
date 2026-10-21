@@ -19,12 +19,54 @@ import json
 import os
 from datetime import date
 
-from ..config import DB_PATH, INPUT_DIR
+from ..config import DB_PATH, DIMENSIONS, INPUT_DIR
+from ..core.score import balance_spread, weakest_dimension
 from ..storage.db import SCHEMA_VERSION, init_db
 from .doctor import _date_from_filename, history_gaps
 
 # 跳过的目录名（相对 input_dir 的任一层级命中即跳过），与 doctor 对账口径一致
 _SKIP_DIRS = ("收件箱", "历史源复盘")
+
+# 四维 + 系统分的展示标签（顺序即展示顺序）
+_DIM_LABELS = {
+    "health_score": "健康", "work_score": "工作", "learn_score": "学习",
+    "life_score": "生活", "system_score": "系统",
+}
+
+
+def _dimension_stats(rows: list[dict]) -> dict:
+    """四维 / 系统分分布概览 + 短板维度分布 + 均衡度（v1.34.0）。
+
+    为什么需要这一段：标尺 v2 起系统分**不再承担绝对及格判断**（上限只有 6.5
+    左右），「今天哪里拖后腿」改由「短板维度」和「均衡度」回答。核心实现见
+    ``core.score.weakest_dimension`` / ``balance_spread``。
+    """
+
+    def _one(field: str) -> dict | None:
+        vals = sorted(r[field] for r in rows if r.get(field) is not None)
+        if not vals:
+            return None
+        n = len(vals)
+        median = vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2
+        return {"n": n, "avg": round(sum(vals) / n, 2), "median": median,
+                "min": vals[0], "max": vals[-1], "levels": len(set(vals))}
+
+    full = [r for r in rows if all(r.get(d) is not None for d in DIMENSIONS)]
+    weak: dict[str, int] = {}
+    spreads: list[int] = []
+    for r in full:
+        got = weakest_dimension(r)
+        if got:
+            weak[got[0]] = weak.get(got[0], 0) + 1
+        sp = balance_spread(r)
+        if sp is not None:
+            spreads.append(sp)
+    return {
+        "dims": {f: _one(f) for f in _DIM_LABELS},
+        "full_days": len(full),
+        "weak": weak,
+        "spread_avg": round(sum(spreads) / len(spreads), 2) if spreads else None,
+    }
 
 
 def _count_md(input_dir: str) -> dict:
@@ -66,6 +108,9 @@ def collect(conn, input_dir: str, *, db_path: str | None = None) -> dict:
     path = db_path or DB_PATH
     db_dates = [r[0] for r in conn.execute("SELECT date FROM daily_reviews")]
     gaps = history_gaps(db_dates)
+    score_rows = [dict(r) for r in conn.execute(
+        "SELECT health_score, work_score, learn_score, life_score, system_score "
+        "FROM daily_reviews ORDER BY date")]
 
     result: dict = {
         "generated_at": date.today().isoformat(),
@@ -82,6 +127,7 @@ def collect(conn, input_dir: str, *, db_path: str | None = None) -> dict:
         "db_size_kb": round(os.path.getsize(path) / 1024) if os.path.exists(path) else 0,
         "history_gaps": gaps,
         "history_gap_days": sum(g["missing"] for g in gaps),
+        "scores": _dimension_stats(score_rows),
     }
     return result
 
@@ -116,6 +162,23 @@ def render(result: dict) -> str:
             L.append(f"    - {g['prev']} → {g['next']}（缺 {g['missing']} 天）")
     else:
         L.append("  相邻入库日连续，无历史空洞")
+
+    sc = result.get("scores") or {}
+    L.append("")
+    L.append("[四维概览]（标尺 v2；系统分只做趋势，及格看单维）")
+    for field, label in _DIM_LABELS.items():
+        s = (sc.get("dims") or {}).get(field)
+        if not s:
+            continue
+        L.append(f"  {label}   均 {s['avg']:.2f}｜中位 {s['median']:g}｜"
+                 f"值域 {s['min']:g}–{s['max']:g}｜{s['levels']} 个不同值（n={s['n']}）")
+    if sc.get("full_days"):
+        order = sorted(sc["weak"].items(), key=lambda kv: -kv[1])
+        parts = [f"{_DIM_LABELS[k]} {v / sc['full_days'] * 100:.0f}%" for k, v in order]
+        L.append(f"  短板   {' | '.join(parts)}（{sc['full_days']} 个四维齐全日）")
+    if sc.get("spread_avg") is not None:
+        L.append(f"  均衡度 四维极差均值 {sc['spread_avg']:.2f}"
+                 "（0=完全均衡，9=一维满格另一维耗尽）")
     return "\n".join(L)
 
 
