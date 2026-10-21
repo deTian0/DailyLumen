@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from ..config import LEARNING_TOPICS, SPACED_REPEAT
 from .tracks import normalize_item
-from .util import slugify, to_float
+from .util import is_blockquote_prose, slugify, to_float
 
 _FULLWIDTH = str.maketrans("０１２３４５６７８９", "0123456789")
 
@@ -237,6 +237,8 @@ def parse_section(
     items: list[dict] = []
     seen: set[str] = set()
     for line in body.splitlines():
+        if is_blockquote_prose(line):
+            continue
         item = parse_item_line(line, topics=topics)
         if item is None:
             continue
