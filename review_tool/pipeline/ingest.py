@@ -31,9 +31,11 @@ from ..config import ARCHIVE_SRC_DIR, INBOX_DIR, INPUT_DIR, PROFILE
 from ..core.score import compute_scores, system_score_from
 from ..storage.db import (
     count,
+    count_nutrition_days,
     init_db,
     prune_personal_tracks,
     rebuild_review_queue,
+    replace_nutrition_items,
     upsert,
     upsert_body_metrics,
     upsert_learning_log,
@@ -158,6 +160,14 @@ def ingest_path(conn, path: str, *, overwrite: bool = False,
                 overwrite=overwrite,
             )
         rebuild_review_queue(conn)
+    # 食物明细 → nutrition_items（独立指标区；不参与四维 G5）
+    # 权威是源 md：章节存在即整体替换该日明细（先删后插）——
+    # 没有天然主键，只能靠「该日 = md 里那张表」保证可重建与幂等。
+    nutrition_items = row.get("_nutrition_items")
+    if nutrition_items is not None:
+        row["_nutrition_replaced"] = replace_nutrition_items(
+            conn, row["date"], nutrition_items
+        )
     conn.commit()
     return row
 
@@ -168,6 +178,9 @@ def _report_row(label: str, row: dict) -> None:
         print(f"  [入库] {label}  ↳ 运动 {row['exercise_min']}min 由描述折算")
     else:
         print(f"  [入库] {label}")
+    replaced = row.get("_nutrition_replaced")
+    if replaced and replaced.get("inserted"):
+        print(f"       ↳ 食物明细 {replaced['inserted']} 项")
 
 
 def iter_markdown(input_dir: str) -> list[str]:
@@ -240,6 +253,9 @@ def main(argv: list[str] | None = None) -> int:
     if prune_tracks and tracks != before_tracks:
         line += f"（打卡对账删除 {before_tracks - tracks} 条陈旧项）"
     print(line)
+    days = count_nutrition_days(conn)
+    if days:
+        print(f"食物明细: {days} 天有明细（不参与四维评分）")
     conn.close()
     return 0
 
