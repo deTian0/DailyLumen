@@ -25,11 +25,15 @@ _SECTION_RE = re.compile(
     r"(^##[^\n]*训练明细[^\n]*$\n?)(.*?)(?=^##\s|\Z)", re.S | re.M
 )
 _DATA_BLOCK_RE = re.compile(r"(```data\s*\n)(.*?)(```)", re.S)
+# ⚠️ 行内空白一律 [ \t]*，不能用 \s* —— \s 会吞换行，当目标行为空时
+# `[:：]\s*(.*)$` 会命中**下一行**并把它的内容当值覆盖掉
+# （v1.37.1 实测：空「训练日:」行把下一行「睡眠时长_h: 6.9」顶成了「否」）。
+# 冒号后的空白放在捕获组外，替换时统一补一个空格（归一化「字段: 值」）。
 _WEIGHT_LINE_RE = re.compile(
-    r"^([ \t]*(?:体重_kg|体重|weight_kg)\s*[:：]\s*)(.*)$", re.M
+    r"^([ \t]*(?:体重_kg|体重|weight_kg)[ \t]*[:：])[ \t]*(.*)$", re.M
 )
 _TRAINING_DAY_LINE_RE = re.compile(
-    r"^([ \t]*(?:训练日|training_day)\s*[:：]\s*)(.*)$", re.M
+    r"^([ \t]*(?:训练日|training_day)[ \t]*[:：])[ \t]*(.*)$", re.M
 )
 
 
@@ -306,7 +310,7 @@ def apply_weight_kg(md_text: str, weight: float | None) -> str:
     def _sub_block(m: re.Match) -> str:
         body = m.group(2)
         if _WEIGHT_LINE_RE.search(body):
-            body2 = _WEIGHT_LINE_RE.sub(rf"\g<1>{val}", body, count=1)
+            body2 = _WEIGHT_LINE_RE.sub(rf"\g<1> {val}", body, count=1)
         else:
             # 插在日期行后
             if re.search(r"^日期\s*[:：].*$", body, re.M):
@@ -339,7 +343,7 @@ def apply_training_day(md_text: str, is_training: bool | None) -> str:
     def _sub_block(m: re.Match) -> str:
         body = m.group(2)
         if _TRAINING_DAY_LINE_RE.search(body):
-            body2 = _TRAINING_DAY_LINE_RE.sub(rf"\g<1>{val}", body, count=1)
+            body2 = _TRAINING_DAY_LINE_RE.sub(rf"\g<1> {val}", body, count=1)
         else:
             if re.search(r"^日期\s*[:：].*$", body, re.M):
                 body2 = re.sub(

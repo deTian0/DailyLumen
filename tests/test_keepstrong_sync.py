@@ -12,6 +12,7 @@ from review_tool.pipeline.keepstrong_sync import (
     END,
     apply_training_block,
     apply_training_day,
+    apply_weight_kg,
     merge_day_records,
     records_to_block,
     resolve_ks_item,
@@ -204,6 +205,44 @@ class TestTrainingDayField(unittest.TestCase):
         self.assertIsNone(summary["training_day"])
         self.assertNotIn("训练日:", out)
         self.assertFalse(summary.get("training_day_written"))
+
+    def test_apply_training_day_empty_line_keeps_next(self):
+        """回归 v1.37.2：空「训练日:」行（带尾随空格）写入时不得吞掉下一行。
+
+        旧正则 `[:：]\\s*(.*)$` 的 \\s* 会吃掉换行，把下一行
+        「睡眠时长_h: 6.9」整行替换成「否」。真实事故：2026-10-21。
+        """
+        md = (
+            "```data\n"
+            "日期: 2026-10-21\n"
+            "星期: 星期三\n"
+            "训练日: \n"
+            "睡眠时长_h: 6.9\n"
+            "```\n"
+        )
+        out = apply_training_day(md, False)
+        self.assertIn("训练日: 否", out)
+        self.assertIn("睡眠时长_h: 6.9", out)
+        # 无尾随空格的变体同样不得吞行
+        md2 = md.replace("训练日: \n", "训练日:\n")
+        out2 = apply_training_day(md2, False)
+        self.assertIn("训练日: 否", out2)
+        self.assertIn("睡眠时长_h: 6.9", out2)
+
+    def test_apply_weight_kg_empty_line_keeps_next(self):
+        """回归 v1.37.2：空「体重_kg:」行写入时不得吞掉下一行（与训练日同款隐患）。"""
+        md = (
+            "```data\n"
+            "日期: 2026-10-21\n"
+            "体重_kg: \n"
+            "体脂率:\n"
+            "腰围_cm:\n"
+            "```\n"
+        )
+        out = apply_weight_kg(md, 82.5)
+        self.assertIn("体重_kg: 82.5", out)
+        self.assertIn("体脂率:", out)
+        self.assertIn("腰围_cm:", out)
 
     def test_api_failure_does_not_write_training_day(self):
         """API 失败路径：training_day=None 且不传 records → 不碰字段。"""
