@@ -45,7 +45,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `learning.py` | 学习主题归一化 + 间隔重复队列推算（零 I/O；队列可从 logs 重建） |
 | `nutrition_items.py` | 食物明细：附录表格解析 + 餐次归一化 + 合计 / 分组（零 I/O；v9 / M25） |
 | `promises.py` | 承诺：改进点 / 明日 Top 3 解析 + 约束抽取（`60min`/`≤70g`/`23:30 前`）+ 桶分类 + **显式放弃判定**（零 I/O；v10 / M29，v1.37.0 加 `declined`） |
-| `clickup_done.py` | ClickUp 任务名解析：`姓名-工时-描述` → owner / minutes / subject + **归属判定**（只看姓名位，不看 assignee；零 I/O；v11 / M30） |
+| `clickup_done.py` | ClickUp 任务名解析：`姓名-工时-描述` → owner（=下发人）/ minutes / subject；**整表都是本人执行记录**（`is_self` 恒 True，不看 assignee 也不排姓名前缀；零 I/O；v11 / M30，v1.37.1 修正） |
 | `score.py` | 四维评分规则（健康加权子项；工作/学习/生活时长分档） |
 
 ### storage/ —— 持久化层
@@ -80,7 +80,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `habits.py` | 行为习惯报告：依从率 / streak / 断更；`--sync` 调 `habit_sync` |
 | `nutrition.py` | 营养缺口报告：当日/近窗缺口 + FOOD_LIB ≤3 种具体动作 + **当日食物明细下钻**（`--json`；v1.35.0） |
 | `promises.py` | 承诺对账：次日证据型判定（兑现 / 未兑现 / **明写不设** / 无法判定 / 次日未记录），兑现率只算可判定子集；工作旁证另列（`--json`；v1.37.0） |
-| `clickup_done.py` | 某天 ClickUp 完成了什么（写复盘时的「今日事实」；离线读快照，不联网；v1.37.0） |
+| `clickup_done.py` | 某天 ClickUp 完成了什么（写复盘时的「今日事实」；离线读快照，不联网；整表都是本人执行记录，姓名位=下发人；v1.37.0，口径 v1.37.1 修正） |
 | `tutor.py` | 学习/复习报告：今日待复习 + 本周主题/投入/产出物（`--json`） |
 | `steward.py` | 总管家编排：`--slot morning\|evening\|week`（只调用既有模块，数字可溯源） |
 | `chart.py` | 离线 SVG：默认四维趋势；`--type body|training|nutrition|all`（目标带 / 柱状 / 双轴） |

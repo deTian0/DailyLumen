@@ -1,18 +1,18 @@
-"""v11 / D2：ClickUp 完成任务名解析与归属判定（core.clickup_done，零 I/O）。"""
+"""v11 / D2：ClickUp 完成任务名解析（core.clickup_done，零 I/O）。
+
+v1.37.1 归属口径：整张工时表都是本人执行记录，姓名位 = 下发人，
+``is_self`` 恒为 True —— 不再有「排除同事前缀」的判定。
+"""
 from __future__ import annotations
 
 import unittest
 
 from review_tool.core.clickup_done import (
-    is_self_task,
     parse_hours,
     parse_task_name,
     summarize,
     to_row,
 )
-
-SELF = ("梁帅",)
-MATES = ("李扬", "常哲")
 
 
 class TestParseHours(unittest.TestCase):
@@ -37,7 +37,7 @@ class TestParseHours(unittest.TestCase):
 class TestParseTaskName(unittest.TestCase):
     def test_name_hours_subject(self):
         r = parse_task_name("李扬-2h-排查开发环境和生产环境 502 问题")
-        self.assertEqual(r["owner"], "李扬")
+        self.assertEqual(r["owner"], "李扬")  # 下发人
         self.assertEqual(r["minutes"], 120.0)
         self.assertEqual(r["subject"], "排查开发环境和生产环境 502 问题")
 
@@ -77,55 +77,32 @@ class TestParseTaskName(unittest.TestCase):
         self.assertIsNone(r["subject"])
 
 
-class TestIsSelf(unittest.TestCase):
-    """归属只看姓名位，**不看 assignee**（实测工作 list 全部任务 assignee 都是本人）。"""
-
-    def _task(self, name, assignees=None):
-        return {"name": name, "assignees": assignees or []}
-
-    def test_self_by_name_prefix(self):
-        t = self._task("梁帅-8h-国庆请假")
-        self.assertTrue(is_self_task(t, parse_task_name(t["name"]),
-                                     self_names=SELF, teammates=MATES))
-
-    def test_teammate_is_not_self_even_if_assignee_is_me(self):
-        """同事的工时挂在我名下 —— 不能算我的证据。"""
-        t = self._task("李扬-2h-排查502", [{"username": "detian"}])
-        self.assertFalse(is_self_task(t, parse_task_name(t["name"]),
-                                      self_names=SELF, teammates=MATES))
-
-    def test_no_prefix_is_self(self):
-        t = self._task("2h-平果铝厂配置")
-        self.assertTrue(is_self_task(t, parse_task_name(t["name"]),
-                                     self_names=SELF, teammates=MATES))
-
-    def test_label_prefix_is_self(self):
-        """`其他任务` / `开发任务` 是分类标签，不是人名。"""
-        for name in ("其他任务-3h-杂项", "开发任务-8h-迭代"):
-            t = self._task(name)
-            self.assertTrue(is_self_task(t, parse_task_name(name),
-                                         self_names=SELF, teammates=MATES), name)
-
-
 class TestToRowAndSummarize(unittest.TestCase):
-    def test_to_row(self):
+    def test_to_row_teammate_prefix_is_self(self):
+        """同事前缀 = 同事下发的任务，实际执行是本人 → is_self 恒 True（v1.37.1）。"""
         t = {
             "id": "abc",
-            "name": "梁帅-2h-修复登录",
+            "name": "李扬-2h-排查502",
             "status": {"status": "complete"},
+            "assignees": [{"username": "detian"}],
         }
-        row = to_row(t, "list-1", "2026-10-20",
-                     self_spec={"self_names": SELF, "teammates": MATES})
+        row = to_row(t, "list-1", "2026-10-20")
         self.assertEqual(row["date"], "2026-10-20")
         self.assertEqual(row["task_id"], "abc")
+        self.assertEqual(row["owner"], "李扬")  # 语义 = 下发人
         self.assertEqual(row["minutes"], 120.0)
-        self.assertEqual(row["is_self"], 1)
+        self.assertEqual(row["is_self"], True)
         self.assertEqual(row["status"], "complete")
 
-    def test_summarize_no_self_records(self):
-        rows = [{"is_self": 0, "minutes": 120.0, "subject": "同事的活"},
-                {"is_self": 1, "minutes": None, "subject": "无工时"}]
-        s = summarize([rows[0]])
+    def test_to_row_no_prefix(self):
+        t = {"id": "d1", "name": "2h-平果铝厂配置", "status": {"status": "complete"}}
+        row = to_row(t, "list-1", "2026-10-20")
+        self.assertIsNone(row["owner"])
+        self.assertEqual(row["minutes"], 120.0)
+        self.assertEqual(row["is_self"], True)
+
+    def test_summarize_empty(self):
+        s = summarize([])
         self.assertEqual(s["self_count"], 0)
         self.assertIsNone(s["self_max"])
         self.assertIsNone(s["self_sum"])
@@ -133,9 +110,8 @@ class TestToRowAndSummarize(unittest.TestCase):
     def test_summarize_reports_max_not_only_sum(self):
         """多条工时只给「最长单条」和「合计」两个数，判定用前者。"""
         rows = [
-            {"is_self": 1, "minutes": 480.0, "subject": "a"},
-            {"is_self": 1, "minutes": 240.0, "subject": "b"},
-            {"is_self": 0, "minutes": 600.0, "subject": "同事"},
+            {"minutes": 480.0, "subject": "a"},
+            {"minutes": 240.0, "subject": "b"},
         ]
         s = summarize(rows)
         self.assertEqual(s["self_count"], 2)
@@ -144,7 +120,7 @@ class TestToRowAndSummarize(unittest.TestCase):
         self.assertEqual(s["subjects"], ["a", "b"])
 
     def test_summarize_counts_rows_without_hours(self):
-        s = summarize([{"is_self": 1, "minutes": None, "subject": "x"}])
+        s = summarize([{"minutes": None, "subject": "x"}])
         self.assertEqual(s["self_count"], 1)
         self.assertEqual(s["self_no_hours"], 1)
         self.assertIsNone(s["self_max"])

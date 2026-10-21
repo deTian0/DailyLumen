@@ -2,16 +2,22 @@
 
 任务的命名约定是**工时流水**，不是「待办标题」::
 
-    李扬-2h-排查开发环境和生产环境 502 问题        # 姓名-工时-描述
-    2h-更新及协调平果铝厂端站点配置                # 工时-描述（本人，无姓名前缀）
+    李扬-2h-排查开发环境和生产环境 502 问题        # 下发人-工时-描述
+    2h-更新及协调平果铝厂端站点配置                # 工时-描述（无下发人前缀）
     常哲-xh-知识库底座需求会                       # 工时写不出（xh）但仍是流水
 
-这个约定比「待办」有用得多：**工时是可直接比对的数字**。因此本模块只做两件事：
-把名字拆成 ``(owner, minutes, subject)``，以及判断这条记录属不属于本人。
+这个约定比「待办」有用得多：**工时是可直接比对的数字**。本模块把名字拆成
+``(owner, minutes, subject)``。
+
+✅ **归属口径（v1.37.1 修正）**：这张工时表是用本人账号建的，**所有条目
+（不管姓名前缀是谁）实际执行人都是本人** —— 姓名位是「任务下发人」，
+不是执行人。2026-10-21 曾按姓名位排除同事前缀，把「李扬-2h-xxx」这类
+同事下发、本人执行的任务全排除了，实测漏掉 8-20 之后几乎全部工作流水。
+因此 ``to_row`` 里 ``is_self`` **恒为 True**；字段保留只为兼容 schema，
+``owner`` 字段的语义是**下发人**（谁派给你的），可用于展示「这条活是谁的」。
 
 ⛔ 明确不做：**不把承诺文本和任务描述做语义匹配**。
-理由（2026-10-21 实测）：本人工时记录只有 2026-08-20 之前那批，
-承诺对账的 79 天窗口（8-10 月）与它几乎零重叠；硬做词重叠匹配，
+理由（2026-10-21 实测）：工时流水与承诺对账窗口重叠有限；硬做词重叠匹配，
 产出的是「猜出来的兑现率」，比不做更糟。判定只用**工时这个数**，
 判不了就照实说判不了。
 """
@@ -62,7 +68,8 @@ def parse_hours(seg: str) -> tuple[float | None, bool]:
 def parse_task_name(name: str) -> dict:
     """任务名 → ``{owner, minutes, subject, hours_raw}``。
 
-    四种形态（``minutes`` 为 ``None`` 表示**写不出或没有工时**，不是 0）：
+    ``owner`` 是**下发人**（姓名位），不是执行人 —— 执行人恒为本人。
+    ``minutes`` 为 ``None`` 表示**写不出或没有工时**，不是 0：
 
     ==============================  =========  ==========  =============
     任务名                            owner      minutes     subject
@@ -80,14 +87,14 @@ def parse_task_name(name: str) -> dict:
         first, second = parts[0], parts[1]
         minutes, is_hour = parse_hours(second)
         if is_hour:
-            # 姓名-工时-描述
+            # 下发人-工时-描述
             return {
                 "owner": first.strip() or None,
                 "minutes": minutes,
                 "subject": parts[2].strip() or None,
                 "hours_raw": second.strip(),
             }
-        # 姓名-xh-描述 或「A-B-描述」但 B 不是工时：仍按姓名位处理
+        # 下发人-xh-描述 或「A-B-描述」但 B 不是工时：仍按姓名位处理
         return {
             "owner": first.strip() or None,
             "minutes": None,
@@ -98,7 +105,7 @@ def parse_task_name(name: str) -> dict:
     if len(parts) == 2:
         minutes, is_hour = parse_hours(parts[0])
         if is_hour:
-            # 工时-描述（本人，无姓名前缀）
+            # 工时-描述（无下发人前缀）
             return {
                 "owner": None,
                 "minutes": minutes,
@@ -111,47 +118,12 @@ def parse_task_name(name: str) -> dict:
     return {"owner": None, "minutes": None, "subject": raw or None, "hours_raw": None}
 
 
-def is_self_task(
-    task: dict,
-    parsed: dict,
-    *,
-    self_names: tuple[str, ...] = (),
-    teammates: tuple[str, ...] = (),
-) -> bool:
-    """是不是**本人**的记录。
-
-    ⛔ **不看 assignee**：实测工作 list 的 704 条任务 assignee 全是本人
-    （团队工时表用本人账号建，同事条目也挂在本人名下），按 assignee 判会把
-    整个团队的工时都算成自己的证据。
-
-    只看任务名的**姓名位**：
-
-    - 命中 ``self_names``（如「梁帅」）        → True
-    - 命中 ``teammates``（如「李扬」）        → False
-    - 其它（无前缀 / `其他任务` 这类分类标签）→ True
-
-    默认 True 是刻意的：无前缀条目就是本人手填的流水（实测 593 条），
-    漏算自己的比错算同事的代价更大 —— 后者会直接让兑现率虚高。
-    """
-    owner = (parsed.get("owner") or "").strip()
-    if owner:
-        if any(n == owner for n in self_names if n):
-            return True
-        if any(n == owner for n in teammates if n):
-            return False
-    return True
-
-
-def to_row(task: dict, list_id: str, day: str, *, self_spec: dict | None = None) -> dict:
+def to_row(task: dict, list_id: str, day: str) -> dict:
     """ClickUp 任务 + 归属日 → ``clickup_done`` 的一行。
 
-    ``self_spec`` 形如 ``{"self_names": (...), "teammates": (...)}``，默认从 config 取。
+    ``is_self`` 恒为 True（v1.37.1）：整张表都是本人执行记录，姓名位只是
+    下发人。字段保留只为兼容 schema v11。
     """
-    if self_spec is None:
-        from ..config import CLICKUP_SELF_NAMES, CLICKUP_TEAMMATES
-
-        self_spec = {"self_names": CLICKUP_SELF_NAMES, "teammates": CLICKUP_TEAMMATES}
-
     name = task.get("name") or ""
     parsed = parse_task_name(name)
     status = task.get("status") or {}
@@ -163,12 +135,7 @@ def to_row(task: dict, list_id: str, day: str, *, self_spec: dict | None = None)
         "owner": parsed["owner"],
         "minutes": parsed["minutes"],
         "subject": parsed["subject"],
-        "is_self": is_self_task(
-            task,
-            parsed,
-            self_names=self_spec.get("self_names") or (),
-            teammates=self_spec.get("teammates") or (),
-        ),
+        "is_self": True,
         "status": status.get("status") if isinstance(status, dict) else None,
     }
 
@@ -180,20 +147,19 @@ def summarize(rows: list[dict]) -> dict:
     **任务级估算**，同一天多条可以重叠（实测 2026-10-13 十条合计 57h，
     物理上不可能）。所以这里给的是：
 
-    - ``self_count``   本人记录条数（存在性证据，最硬）
+    - ``self_count``   记录条数（存在性证据，最硬）
     - ``self_max``     最长单条工时（「至少投入了这么久」的下界）
     - ``self_sum``     合计，**仅供人工参考**，不参与任何判定
 
     ``self_count == 0`` 时 ``self_minutes`` 为 ``None`` —— 表示那天在 ClickUp
-    里没有你的记录（可能是没填），**不等于没工作**。
+    里没有记录（可能是没填），**不等于没工作**。
     """
-    mine = [r for r in rows if r.get("is_self")]
-    mins = [float(r["minutes"]) for r in mine if r.get("minutes") is not None]
+    mins = [float(r["minutes"]) for r in rows if r.get("minutes") is not None]
     return {
         "count": len(rows),
-        "self_count": len(mine),
+        "self_count": len(rows),
         "self_max": max(mins) if mins else None,
         "self_sum": sum(mins) if mins else None,
-        "self_no_hours": sum(1 for r in mine if r.get("minutes") is None),
-        "subjects": [r.get("subject") or r.get("name") or "" for r in mine],
+        "self_no_hours": sum(1 for r in rows if r.get("minutes") is None),
+        "subjects": [r.get("subject") or r.get("name") or "" for r in rows],
     }
