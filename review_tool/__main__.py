@@ -48,6 +48,7 @@ from collections.abc import Callable
 
 from . import __version__
 from .pipeline.clickup import main as clickup_main
+from .pipeline.clickup_pull import main as clickup_pull_main
 from .pipeline.clickup_sync import main as clickup_push_main
 from .pipeline.export import main as export_main
 from .pipeline.import_history import main as import_history_main
@@ -60,6 +61,7 @@ from .reports.ai_review import main as ai_context_main
 from .reports.analyze import main as analyze_main
 from .reports.body import main as body_main
 from .reports.chart import main as chart_main
+from .reports.clickup_done import main as clickup_done_main
 from .reports.coach import main as coach_main
 from .reports.correlate import main as correlate_main
 from .reports.doctor import main as doctor_main
@@ -117,6 +119,12 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "clickup-push": (
         clickup_push_main,
         "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]"),
+    "clickup-pull": (
+        clickup_pull_main,
+        "clickup-pull [--days N] [--list ID] [--dry-run]"),
+    "clickup-done": (
+        clickup_done_main,
+        "clickup-done [YYYY-MM-DD] [结束日期] [--json]"),
     "keepstrong": (
         keepstrong_main,
         "keepstrong [--date D] [--write] [--ingest] | --set-weight/--log-body/--schedule --yes"),

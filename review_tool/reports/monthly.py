@@ -115,8 +115,7 @@ def build_month_deep(
             f"{lbl} {_fmt(v, 1) if 'kcal' not in lbl else _fmt(v, 0)}"
             for lbl, v in fa.items()
         ),
-        f"> 早餐按时 **{_pct(s['breakfast_on_time_pct'])}** ｜ "
-        f"通勤完成 **{_pct(s['commute_pct'])}**",
+        f"> 早餐按时 **{_pct(s['breakfast_on_time_pct'])}**",
     ]
     if s.get("macros"):
         sp = s["macros"]["split_pct"]

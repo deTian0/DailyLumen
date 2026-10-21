@@ -44,7 +44,8 @@ reports   ->  pipeline  ->  storage  ->  core
 | `nutrition.py` | 营养缺口：宏量判定（与 ai_review 同源）/ 贪心组合 / 三餐结构 / 极端值（零 I/O） |
 | `learning.py` | 学习主题归一化 + 间隔重复队列推算（零 I/O；队列可从 logs 重建） |
 | `nutrition_items.py` | 食物明细：附录表格解析 + 餐次归一化 + 合计 / 分组（零 I/O；v9 / M25） |
-| `promises.py` | 承诺：改进点 / 明日 Top 3 解析 + 约束抽取（`60min`/`≤70g`/`23:30 前`）+ 桶分类（零 I/O；v10 / M29） |
+| `promises.py` | 承诺：改进点 / 明日 Top 3 解析 + 约束抽取（`60min`/`≤70g`/`23:30 前`）+ 桶分类 + **显式放弃判定**（零 I/O；v10 / M29，v1.37.0 加 `declined`） |
+| `clickup_done.py` | ClickUp 任务名解析：`姓名-工时-描述` → owner / minutes / subject + **归属判定**（只看姓名位，不看 assignee；零 I/O；v11 / M30） |
 | `score.py` | 四维评分规则（健康加权子项；工作/学习/生活时长分档） |
 
 ### storage/ —— 持久化层
@@ -63,6 +64,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `clickup.py` | **ClickUp → 素材简报**（按 `date_closed` 归日；`--with-habits` 附习惯段并同步 `habit_logs`） |
 | `habit_sync.py` | **ClickUp 习惯 → habit_logs**（唯一 ClickUp→库写方向；幂等；不改写已有 done） |
 | `clickup_sync.py` | **复盘入库 → 勾「每日复盘总结」**（默认 dry-run；`--apply` 真写 + GET 回读） |
+| `clickup_pull.py` | **ClickUp 已完成任务 → `clickup_done` 快照**（按整天替换；离线可查；v1.37.0） |
 | `keepstrong.py` | 练练健身客户端（读 + 受控写）；M20 起 records 只留 `completed` |
 | `keepstrong_render.py` | 练练记录 → 素材 md（纯函数、零 I/O） |
 | `keepstrong_sync.py` | 练练 → 复盘 md（幂等标记块 + `训练日:`/`体重_kg`）+ 可选 ingest |
@@ -77,7 +79,8 @@ reports   ->  pipeline  ->  storage  ->  core
 | `coach.py` | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据；`--json`） |
 | `habits.py` | 行为习惯报告：依从率 / streak / 断更；`--sync` 调 `habit_sync` |
 | `nutrition.py` | 营养缺口报告：当日/近窗缺口 + FOOD_LIB ≤3 种具体动作 + **当日食物明细下钻**（`--json`；v1.35.0） |
-| `promises.py` | 承诺对账：次日证据型判定（兑现 / 未兑现 / 无法判定 / 次日未记录），兑现率只算可判定子集（`--json`；v1.36.0） |
+| `promises.py` | 承诺对账：次日证据型判定（兑现 / 未兑现 / **明写不设** / 无法判定 / 次日未记录），兑现率只算可判定子集；工作旁证另列（`--json`；v1.37.0） |
+| `clickup_done.py` | 某天 ClickUp 完成了什么（写复盘时的「今日事实」；离线读快照，不联网；v1.37.0） |
 | `tutor.py` | 学习/复习报告：今日待复习 + 本周主题/投入/产出物（`--json`） |
 | `steward.py` | 总管家编排：`--slot morning\|evening\|week`（只调用既有模块，数字可溯源） |
 | `chart.py` | 离线 SVG：默认四维趋势；`--type body|training|nutrition|all`（目标带 / 柱状 / 双轴） |
@@ -99,6 +102,8 @@ python -m review_tool ai-context YYYY-MM-DD            # AI 上下文（当日 +
 python -m review_tool import-history [--check] [--src 目录]   # 旧格式转换（--check 仅预览）
 python -m review_tool clickup [YYYY-MM-DD] [--out 目录] [--stdout] [--list ID] [--with-habits]
 python -m review_tool clickup-push [YYYY-MM-DD] [--apply]   # 勾「每日复盘总结」（默认 dry-run）
+python -m review_tool clickup-pull [--days N]               # 已完成任务 → clickup_done 快照
+python -m review_tool clickup-done 2026-10-20               # 那天完成了什么（写复盘用）
 python -m review_tool doctor                           # 数据体检（exit≠0 表示有问题）
 python -m review_tool body [--json]                    # 体征趋势（BMI / 均线 / 距目标）
 python -m review_tool coach [YYYY-MM-DD] [--json]      # 训练教练建议（达标 / 渐进 / 恢复 / 轮换）

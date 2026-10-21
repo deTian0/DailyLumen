@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import unittest
 
+from review_tool.config import PROMISE_DECLINED_BUCKET
 from review_tool.core.promises import (
+    bucket_label,
     classify,
     clean_item,
     extract_constraints,
     has_section,
+    is_declined,
     is_empty_marker,
     is_prompt_line,
     normalize,
@@ -119,6 +122,46 @@ class TestPromptAndEmptyMarkers(unittest.TestCase):
     def test_parse_items_dedup_keeps_order(self):
         items = parse_items("- 早点睡\n- 读书\n- 早点睡\n")
         self.assertEqual(items, ["早点睡", "读书"])
+
+
+class TestDeclined(unittest.TestCase):
+    """v1.37.0 / D1：`今天不设` 是**决定**，不是空转，也不是承诺。"""
+
+    def test_is_declined(self):
+        for raw in ("今天不设", " 今日不设 ", "不设", "今天跳过", "无改进点"):
+            self.assertTrue(is_declined(raw), raw)
+
+    def test_declined_is_not_empty_marker(self):
+        # 两者方向相反：一个是没做决定，一个是做了决定
+        self.assertFalse(is_empty_marker("今天不设"))
+        self.assertFalse(is_declined("空"))
+        self.assertFalse(is_declined("忘记了"))
+
+    def test_declined_survives_clean_item(self):
+        """关键：放弃标记不能被 `clean_item` 当空行丢掉，否则等于没写。"""
+        self.assertEqual(clean_item("- 今天不设"), "今天不设")
+
+    def test_full_equality_only(self):
+        # 「不设上限地推进」是真实承诺，不能被误判成放弃
+        self.assertFalse(is_declined("不设上限地推进 migration"))
+        self.assertIsNone(classify("不设上限地推进 migration"))
+
+    def test_classify_returns_declined_bucket(self):
+        self.assertEqual(classify("今天不设"), PROMISE_DECLINED_BUCKET)
+        self.assertEqual(bucket_label(PROMISE_DECLINED_BUCKET), "明写不设")
+
+    def test_parse_section_keeps_declined(self):
+        text = "## 三、一个改进点\n\n- 今天不设\n\n## 四、明日 Top 3\n\n1. 读书 30min\n"
+        r = parse_section(text)
+        self.assertEqual(r["improvement"], ["今天不设"])
+        self.assertEqual(r["plan"], ["读书 30min"])
+
+    def test_judge_declined_is_not_no_data(self):
+        """次日没写复盘时，`今天不设` 仍应判 declined —— 它是当天的决定。"""
+        status, _ = judge(
+            {"bucket": PROMISE_DECLINED_BUCKET, "text": "今天不设"}, None, [], []
+        )
+        self.assertEqual(status, "declined")
 
 
 class TestConstraints(unittest.TestCase):

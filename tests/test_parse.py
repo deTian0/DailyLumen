@@ -153,23 +153,25 @@ class TestBedtimeEdge(unittest.TestCase):
 
 
 class TestEnergyMoodCommute(unittest.TestCase):
-    """v1.9.0：保留字段并用起来 —— 模板默认通勤「是」+ 精力/心情可解析。"""
+    """v1.9.0 保留字段并用起来；v1.37.0 起 `通勤完成` 废弃但解析保留。"""
 
     def test_parses_kept_fields(self):
         text = (
             "```data\n日期: 2026-10-14\n通勤完成: 是\n精力: 中\n心情: 平稳\n```"
         )
         row = parse_text(text)
+        # 老 md 里的 commute_done 仍能解析入库 —— 废弃的是「读者」，不是解析
         self.assertEqual(row["commute_done"], 1)
         self.assertEqual(row["energy"], "中")
         self.assertEqual(row["mood"], "平稳")
 
-    def test_template_defaults_commute_yes(self):
+    def test_template_drops_commute_but_keeps_energy_mood(self):
+        """v1.37.0：模板不再列 `通勤完成`（通勤固定，填了也只反映懒得填）。"""
         from pathlib import Path
 
         from review_tool.config import TEMPLATE_PATH
         body = Path(TEMPLATE_PATH).read_text(encoding="utf-8")
-        self.assertIn("通勤完成: 是", body)
+        self.assertNotIn("通勤完成: 是", body)
         self.assertIn("精力:", body)
         self.assertIn("心情:", body)
 

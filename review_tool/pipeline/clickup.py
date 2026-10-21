@@ -119,8 +119,17 @@ def rebate_target(t: dict, *, tz_hours: int | None = None, rule: dict | None = N
     return None
 
 
-def completion_day(t: dict, *, tz_hours: int | None = None, rule: dict | None = None) -> str:
-    """已完成任务的**归属日**：默认 ``date_closed`` 那天，命中回拨则取 ``due_date`` 那天。"""
+def completion_day(
+    t: dict, *, tz_hours: int | None = None, rule: dict | None = None
+) -> str | None:
+    """已完成任务的**归属日**：默认 ``date_closed`` 那天，命中回拨则取 ``due_date`` 那天。
+
+    未完成（无 ``date_closed``）返回 ``None`` —— 此前这里直接取
+    ``t["date_closed"]`` 再 ``int(None)``，一个未关闭的任务就会让整批拉取崩掉
+    （实测 692 条已完成里有 12 条缺 ``date_closed``）。
+    """
+    if not t.get("date_closed"):
+        return None
     return rebate_target(t, tz_hours=tz_hours, rule=rule) or day_of(
         t["date_closed"], tz_hours=tz_hours)
 
