@@ -205,6 +205,15 @@ agent_created: true
   | 层 | 放哪 | 例 |
   | --- | --- | --- |
   | **凭据** | 仓库根 `.env`（gitignore；模板见 `.env.example`） | `KEEPSTRONG_API_KEY` / `CLICKUP_API_KEY` |
+
+  ⚠️ **凭据会过期，且过期表现是「静默无数据」不是报错崩掉**（2026-10-21 实测）：
+  `keepstrong` 返回 `401 apiKeyExpired` → CLI 打一行提示就**正常退出**，
+  只留一句「离线兜底…」。这类失败不会让任何测试变红，容易被当成「本来就没数据」。
+  - 处置：练练 App → 我的 → 连接 AI → 生成新 API Key → 写入 `.env`；
+  - **诊断顺序**：先 `keepstrong --date <D> --type body --stdout` 看是否 401，
+    再去怀疑代码 / 数据。
+  - 同一现象也会出现在**从没跑过同步**上：`body_metrics` 0 行既可能是无数据，
+    也可能是链路从未触发 —— 两者要分开验证（看 md 数据块有没有 `体重_kg` 值）。
   | **环境差异** | `.env` 可覆盖，代码给默认值（`settings.Settings`） | baseUrl / timeout / `DAILYLUMEN_DB_PATH` |
   | **个人参数** | `config.PROFILE` 等（**入 git**） | 身高 / 宏量目标 / 训练日 |
   | **业务规则** | 代码 | `SCORE_THRESHOLDS` / `FOOD_LIB` / `COACH_RULES` |

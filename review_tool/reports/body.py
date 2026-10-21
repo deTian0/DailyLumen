@@ -24,6 +24,12 @@ from ..core.body import (
 )
 from ..storage.db import init_db, load_body_metrics
 
+# 出趋势所需的最小非空体重观测数。
+# 口径跟随 ``core.body.weekly_delta``：「近 7 个观测 vs 前 7 个观测」，
+# 故至少 7 + 1 = 8 个点才有两侧均值。注意它**不等于「两周」** ——
+# 一周称 2 次时两周只有 4 个点，按天算会高估达标速度。
+_BODY_TREND_MIN_OBS = 8
+
 
 def collect(conn) -> dict:
     """从库汇总体征报告数据（结构化，供文本 / JSON 共用）。"""
@@ -104,11 +110,21 @@ def advice_lines(data: dict) -> list[str]:
     eta = data["eta_weeks"]
 
     if trend is None or delta is None:
-        # 样本不足以定性趋势；带外位置仍值得提醒一句
+        # 样本不足以定性趋势；带外位置仍值得提醒一句。
+        # 门槛口径：weekly_delta 取「近 7 个观测 vs 前 7 个观测」，故需 ≥8 个
+        # 非空体重观测 —— 不是「两周」：一周称 2 次时两周只有 4 个点。
         if dist:
             side = "低于下限" if dist < 0 else "高于上限"
-            out.append(f"当前{side} {abs(dist):.2f} kg —— 先攒够两周记录，"
-                       "再看趋势与外推")
+            obs = len(
+                [r for r in data["series"] if r.get("weight_kg") is not None]
+            )
+            need = max(0, _BODY_TREND_MIN_OBS - obs)
+            gap = f"，还差 {need} 次" if need else ""
+            out.append(
+                f"当前{side} {abs(dist):.2f} kg —— 趋势要「近 7 点 vs 前 7 点」"
+                f"共 {_BODY_TREND_MIN_OBS} 个观测（现有 {obs} 次{gap}），"
+                "凑够后才出趋势与外推"
+            )
         return out
 
     label = {"down": "下行", "up": "上行", "flat": "平稳（平台期）"}[trend]

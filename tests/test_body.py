@@ -225,10 +225,19 @@ class TestBodyAdvice(unittest.TestCase):
         self._seed([78.0] * 3)  # 无 prior 侧 → delta None；带外
         data, text = self._collect_and_text()
         self.assertIsNone(data["weekly_delta"])
-        # 样本不足但带外：仍给位置提醒，不给趋势建议
-        self.assertIn("先攒够两周记录", text)
+        # 样本不足但带外：仍给位置提醒，不给趋势建议。
+        # 门槛报「8 个观测」而非「两周」——一周称 2 次时两周只有 4 个点。
+        self.assertIn("共 8 个观测", text)
+        self.assertIn("现有 3 次", text)
+        self.assertIn("还差 5 次", text)
         self.assertNotIn("趋势下行", text)
         self.assertNotIn("趋势上行", text)
+
+    def test_insufficient_samples_no_gap_when_enough_obs(self):
+        # 7 个观测仍缺 prior 侧（delta 需 ≥8），文案不应出现「还差」负值
+        self._seed([78.0] * 7)
+        _, text = self._collect_and_text()
+        self.assertIn("现有 7 次，还差 1 次", text)
 
     def test_advice_in_json(self):
         self._seed([72.0] * 14)
