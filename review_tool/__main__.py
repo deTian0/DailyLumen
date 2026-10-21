@@ -66,6 +66,7 @@ from .reports.doctor import main as doctor_main
 from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
 from .reports.nutrition import main as nutrition_main
+from .reports.promises import main as promises_main
 from .reports.recompute import main as recompute_main
 from .reports.stats import main as stats_main
 from .reports.steward import main as steward_main
@@ -124,6 +125,8 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),
     "habits": (habits_main, "habits [--json] [--sync [YYYY-MM-DD] [--dry-run]]"),
     "nutrition": (nutrition_main, "nutrition [YYYY-MM-DD] [--json]"),
+    "promises": (
+        promises_main, "promises [起始日期] [结束日期] [--json]"),
     "tutor": (tutor_main, "tutor [YYYY-MM-DD] [--json]"),
     "steward": (
         steward_main,

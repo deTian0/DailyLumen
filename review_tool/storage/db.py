@@ -18,7 +18,7 @@ from ..config import DB_PATH, SCHEMA_PATH
 from ..core.tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
@@ -91,6 +91,8 @@ _INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_rq_due ON review_queue(due_date)",
     "CREATE INDEX IF NOT EXISTS idx_ni_date ON nutrition_items(date)",
     "CREATE INDEX IF NOT EXISTS idx_ni_meal ON nutrition_items(date, meal)",
+    "CREATE INDEX IF NOT EXISTS idx_pr_date ON promises(date)",
+    "CREATE INDEX IF NOT EXISTS idx_pr_kind ON promises(kind, date)",
 ]
 
 # 体征表（v5）：与 schema.sql 对齐；迁移路径在 schema 未跑时也能建表
@@ -231,6 +233,27 @@ CREATE TABLE IF NOT EXISTS nutrition_items (
 NUTRITION_COLUMNS = [
     "date", "seq", "meal", "item", "kcal", "protein_g", "carb_g", "fat_g", "note",
 ]
+
+# 承诺（v10 / M29）：改进点 + 明日 Top 3，独立指标区，**不参与四维评分**
+# 权威：md「## 三、一个改进点」「## 四、明日 Top 3」→ ingest；可从 md 100% 重建
+# - date 记**写下承诺那天**，对账对象是次日（due 由 date 推导，不落库）
+# - kind ∈ {improvement, plan}；seq 是同日同类内顺序（无天然主键）
+# - bucket 是分类桶（learn/exercise/...），由 core.promises.classify 派生，
+#   随「先删后插」同步，因此仍满足「可从 md 重建」
+_PROMISES_DDL = """
+CREATE TABLE IF NOT EXISTS promises (
+    date   TEXT NOT NULL,
+    kind   TEXT NOT NULL
+        CHECK (kind IN ('improvement', 'plan')),
+    seq    INTEGER NOT NULL
+        CHECK (seq >= 0),
+    text   TEXT NOT NULL,
+    bucket TEXT,
+    PRIMARY KEY (date, kind, seq)
+)
+"""
+
+PROMISES_COLUMNS = ["date", "kind", "seq", "text", "bucket"]
 
 
 def _create_indexes(conn: sqlite3.Connection) -> None:
@@ -444,6 +467,14 @@ def _migrate_nutrition(conn: sqlite3.Connection) -> bool:
     return True
 
 
+def _migrate_promises(conn: sqlite3.Connection) -> bool:
+    """v9 → v10：建 ``promises``（幂等）。返回是否新创建了表。"""
+    if "promises" in _table_names(conn):
+        return False
+    conn.execute(_PROMISES_DDL)
+    return True
+
+
 def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     """执行全部增量迁移（幂等）。返回本次迁移动作摘要。
 
@@ -461,6 +492,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     habits_created = _migrate_habit_logs(conn)
     learning_created = _migrate_learning(conn)
     nutrition_created = _migrate_nutrition(conn)
+    promises_created = _migrate_promises(conn)
     _create_indexes(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     if verbose:
@@ -483,6 +515,8 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
             print("  learning_logs/review_queue: 新建学习表（v8）")
         if nutrition_created:
             print("  nutrition_items: 新建食物明细表（v9）")
+        if promises_created:
+            print("  promises: 新建承诺表（v10）")
     return {
         "version_before": version_before,
         "version_after": SCHEMA_VERSION,
@@ -493,6 +527,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
         "habit_logs_created": habits_created,
         "learning_created": learning_created,
         "nutrition_created": nutrition_created,
+        "promises_created": promises_created,
     }
 
 
@@ -940,6 +975,80 @@ def count_nutrition_days(conn: sqlite3.Connection) -> int:
     row = conn.execute(
         "SELECT COUNT(DISTINCT date) FROM nutrition_items"
     ).fetchone()
+    return int(row[0]) if row and row[0] else 0
+
+
+def replace_promises(
+    conn: sqlite3.Connection, date_str: str, by_kind: dict[str, list[dict]]
+) -> dict:
+    """按 ``(date, kind)`` 整体替换承诺（先删后插）。
+
+    只处理 ``by_kind`` 里**出现过的** kind —— 某天 md 里删掉了「明日 Top 3」
+    整段时，该 kind 不出现在字典里，库里旧行保持不动（同食物明细的两种「空」）。
+
+    每个元素形如 ``{"text": "...", "bucket": "learn"}``；``seq`` 由列表顺序生成，
+    保证「从 md 100% 可重建」。
+
+    返回 ``{kind: {"deleted": n, "inserted": m}}``。
+    """
+    if not date_str:
+        raise ValueError("replace_promises 需要 date")
+
+    out: dict[str, dict] = {}
+    for kind, items in (by_kind or {}).items():
+        cur = conn.execute(
+            "DELETE FROM promises WHERE date = ? AND kind = ?", (date_str, kind)
+        )
+        deleted = cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+        rows = [
+            (date_str, kind, seq, str(it["text"]), it.get("bucket"))
+            for seq, it in enumerate(items or [])
+            if str(it.get("text") or "").strip()
+        ]
+        if rows:
+            conn.executemany(
+                "INSERT INTO promises (date, kind, seq, text, bucket) "
+                "VALUES (?, ?, ?, ?, ?)",
+                rows,
+            )
+        out[kind] = {"deleted": deleted, "inserted": len(rows)}
+    return out
+
+
+def load_promises(
+    conn: sqlite3.Connection,
+    *,
+    date: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    kind: str | None = None,
+) -> list:
+    """按 ``(date, kind, seq)`` 升序返回承诺。"""
+    clauses: list[str] = []
+    params: list[str] = []
+    if date is not None:
+        clauses.append("date = ?")
+        params.append(date)
+    else:
+        if start is not None:
+            clauses.append("date >= ?")
+            params.append(start)
+        if end is not None:
+            clauses.append("date <= ?")
+            params.append(end)
+    if kind is not None:
+        clauses.append("kind = ?")
+        params.append(kind)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    return conn.execute(
+        f"SELECT * FROM promises {where} ORDER BY date ASC, kind ASC, seq ASC",
+        params,
+    ).fetchall()
+
+
+def count_promise_days(conn: sqlite3.Connection) -> int:
+    """有承诺记录的不同日期数（doctor / 报告用）。"""
+    row = conn.execute("SELECT COUNT(DISTINCT date) FROM promises").fetchone()
     return int(row[0]) if row and row[0] else 0
 
 

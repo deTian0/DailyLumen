@@ -42,6 +42,7 @@ from ..storage.db import (
     load_learning_logs,
     load_training,
 )
+from .promises import collect as collect_promises
 from .streak import render_streaks, summarize_streaks
 from .tutor import week_section_lines
 
@@ -750,6 +751,73 @@ def _daily_rows(conn, where: str, params: tuple) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# 承诺兑现（M29 / v1.36.0）：本周写下的改进点 / 明日 Top 3，次日证据型判定
+# ---------------------------------------------------------------------------
+
+_PROMISE_KIND_ORDER = ("improvement", "plan")
+
+
+def _render_promise_section(conn, start_date: str, end_date: str) -> list[str]:
+    """周报里的承诺兑现段。只统计**本周写下**的承诺，对账对象是次日。
+
+    判定口径见 ``reports/promises.py``：只认次日结构化字段，判不了的记
+    「无法判定」，次日没写复盘的记「次日未记录」—— 两者都**不算没做到**。
+    """
+    res = collect_promises(conn, start=start_date, end=end_date)
+    L: list[str] = []
+    if not res["total"]:
+        L.append("> 本周没有写下改进点 / 明日 Top 3。")
+        return L
+
+    c = res["counts"]
+    kind_txt = " / ".join(
+        f"{b['label']} {b['total']}" for b in res["by_kind"]
+    )
+    L.append(
+        f"> 本周写下 **{res['total']} 条**承诺（{kind_txt}）；"
+        f"可判定 **{res['judged']} 条**，"
+        f"兑现率 **{_pct(res['rate'])}**（只在可判定子集上算）。"
+    )
+    L.append(
+        "> 判据一律来自次日已入库字段（学习时长 / 运动分钟 / 宏量 / 入睡时刻 / 打卡），"
+        "判不了的记「无法判定」，次日没写复盘的记「次日未记录」—— **两者都不算没做到**。"
+    )
+    L += [
+        "",
+        "| 话题 | 条数 | 兑现 | 未兑现 | 无法判定 | 次日未记录 | 兑现率 |",
+        "|------|------|------|--------|----------|------------|--------|",
+    ]
+    for b in res["by_bucket"]:
+        L.append(
+            f"| {b['label'] or '未归类'} | {b['total']} | {b['fulfilled']} | "
+            f"{b['missed']} | {b['unmapped']} | {b['no_data']} | "
+            f"{_pct(b['rate'])} |"
+        )
+
+    judged = [r for r in res["items"] if r["status"] in ("fulfilled", "missed")]
+    if judged:
+        L += ["", "**已判定明细**", ""]
+        for r in judged:
+            mark = "✓" if r["status"] == "fulfilled" else "✗"
+            text = r["text"]
+            if len(text) > 42:
+                text = text[:42] + "…"
+            L.append(
+                f"- {mark} `{r['date']}` [{r['bucket_label']}] {text}"
+                f" —— {r['evidence']}"
+            )
+
+    if c.get("unmapped"):
+        L.append("")
+        L.append(
+            f"> 有 {c['unmapped']} 条无法判定：承诺没写可验证的数字，或落在没有对应字段的"
+            "话题（生活琐事 / 工作任务）。想让它可核对，写成 `脂肪≤70g`、`23:30 前`、"
+            "`60min` 这种形式。"
+        )
+    return L
+
+
+# ---------------------------------------------------------------------------
 # 数据要点（M24 / v1.32.0）：环比 / 极值 / 连续段，全脚本计算
 # ---------------------------------------------------------------------------
 
@@ -1063,9 +1131,14 @@ def render_week_md(conn, iso_week: int) -> str | None:
             for a in arts:
                 L.append(f"- {a}")
 
+    L += ["", "## 八、承诺兑现（次日证据型判定 · 不计入四维评分）", ""]
+    L += _render_promise_section(
+        conn, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+    )
+
     L += [
         "",
-        "## 八、自动生成说明",
+        "## 九、自动生成说明",
         "",
         "> 本文件由 CLI `--write` 落盘。关键发现 / 与上周对比 / 行动清单等叙事段"
         "请人工补写，或继续沿用既有手写周总结（默认**不**用本渲染器回填历史件）。",

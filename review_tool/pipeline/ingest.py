@@ -28,14 +28,17 @@ import sys
 from datetime import datetime
 
 from ..config import ARCHIVE_SRC_DIR, INBOX_DIR, INPUT_DIR, PROFILE
+from ..core.promises import classify as classify_promise
 from ..core.score import compute_scores, system_score_from
 from ..storage.db import (
     count,
     count_nutrition_days,
+    count_promise_days,
     init_db,
     prune_personal_tracks,
     rebuild_review_queue,
     replace_nutrition_items,
+    replace_promises,
     upsert,
     upsert_body_metrics,
     upsert_learning_log,
@@ -168,6 +171,16 @@ def ingest_path(conn, path: str, *, overwrite: bool = False,
         row["_nutrition_replaced"] = replace_nutrition_items(
             conn, row["date"], nutrition_items
         )
+    # 承诺 → promises（独立指标区；不参与四维 G5）
+    # 权威是源 md：只替换 md 里**出现过的** kind，缺失的 kind 不动库。
+    # bucket 在这里算好再落库（core 零 I/O，storage 也不该 import core）。
+    promises = row.get("_promises")
+    if promises is not None:
+        by_kind = {
+            kind: [{"text": t, "bucket": classify_promise(t)} for t in texts]
+            for kind, texts in promises.items()
+        }
+        row["_promises_replaced"] = replace_promises(conn, row["date"], by_kind)
     conn.commit()
     return row
 
@@ -256,6 +269,10 @@ def main(argv: list[str] | None = None) -> int:
     days = count_nutrition_days(conn)
     if days:
         print(f"食物明细: {days} 天有明细（不参与四维评分）")
+    pdays = count_promise_days(conn)
+    if pdays:
+        ptotal = conn.execute("SELECT COUNT(*) FROM promises").fetchone()[0]
+        print(f"承诺: {pdays} 天 {ptotal} 条（不参与四维评分）")
     conn.close()
     return 0
 

@@ -474,7 +474,8 @@ class TestWeekHighlights(_DB):
         self.assertIn("## 五、行为习惯依从率", text)
         self.assertIn("## 六、训练结构", text)
         self.assertIn("## 七、学习记录", text)
-        self.assertIn("## 八、自动生成说明", text)
+        self.assertIn("## 八、承诺兑现", text)
+        self.assertIn("## 九、自动生成说明", text)
 
     def test_render_first_week_no_prev(self):
         self._seed_two_weeks()
