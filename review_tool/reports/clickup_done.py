@@ -80,16 +80,16 @@ def render(result: dict) -> str:
         return "\n".join(L)
 
     for d in result["days"]:
-        mine = [it for it in d["items"] if it["is_self"]]
-        head = f"{d['date']}  完成 {d['count']} 条 · 本人 {d['self_count']} 条"
+        head = f"{d['date']}  完成 {d['count']} 条"
         if d["self_max"]:
             head += f" · 最长单条 {_fmt_minutes(d['self_max'])}"
         L.append(head)
-        if not mine:
-            L.append("    （这天没有你名下的记录 —— 可能是没填，也可能都算在别人名下）")
+        items = d["items"]
+        if not items:
+            L.append("    （这天没有记录 —— 可能是没填，不等于没工作）")
             L.append("")
             continue
-        for it in mine:
+        for it in items:
             subj = it["subject"] or it["name"]
             if it["minutes"] is None:
                 L.append(f"    -        {subj[:60]}")
@@ -109,7 +109,8 @@ def render(result: dict) -> str:
 
     L.append("-" * 62)
     L.append(
-        f"本人记录合计 {result['self_total']} 条。"
+        f"记录合计 {result['self_total']} 条（整张工时表都是本人执行记录，"
+        "姓名前缀是下发人）。"
         "这里是**事实**：哪天完成了什么。它不判承诺兑现 —— "
         "工时是任务级估算，不是专注计时，量纲不同。"
     )
