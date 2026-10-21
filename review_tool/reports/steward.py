@@ -377,9 +377,10 @@ def render_morning(data: dict) -> str:
         L.append("  熔断: 无维度触发")
     else:
         for it in fd["absolute"]:
+            tail = "（长期低位·阈值失效）" if it.get("long_run") else ""
             L.append(
                 f"  熔断: {it['label']} 连续 {it['run']} 天"
-                f"（自 {it['since']}）"
+                f"（自 {it['since']}）{tail}"
             )
     L.append("")
 

@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import unittest
 
-from review_tool.reports.fuse import find_fuses, render
+from review_tool.reports.fuse import find_fuses, has_active_fuse, render
 from review_tool.storage.db import init_db, upsert
 
 RULES = {"threshold": 6, "days": 3, "long_run_days": 4,
@@ -109,6 +109,27 @@ class TestRender(_Fixture):
         self.assertIsNone(r["as_of"])
         self.assertEqual(r["absolute"], [])
         self.assertIn("无维度触发熔断", render(r))
+
+    def test_active_fuse_short_run(self):
+        """3 天（< long_run_days 4）触发 → 仍算熔断态，退出码应为 1。"""
+        for d in ("2026-09-01", "2026-09-02", "2026-09-03"):
+            self._add(d, learn_score=3)
+        r = self._run()
+        self.assertTrue(has_active_fuse(r))
+        text = render(r)
+        self.assertIn("处于熔断态（学习）", text)
+        self.assertNotIn("长期低位", text)
+
+    def test_long_run_not_counted_as_fuse(self):
+        """5 天（> long_run_days 4）→ 阈值失效，不再算熔断态、不进退出码。"""
+        for i in range(5):
+            self._add(f"2026-09-{i + 1:02d}", learn_score=3)
+        r = self._run()
+        self.assertFalse(has_active_fuse(r))
+        text = render(r)
+        self.assertNotIn("处于熔断态", text)
+        self.assertIn("长期低位", text)
+        self.assertIn("阈值失效提示", text)
 
 
 if __name__ == "__main__":
