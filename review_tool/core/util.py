@@ -17,6 +17,28 @@ ITEM_SPLIT_RE = re.compile(r"\s*[＋+、]\s*|\s+/\s+")
 # 片段里的数量标记（×1 / x2 / *3 / 1粒），归一化 slug 时剔除
 _QTY_RE = re.compile(r"[×xX*]\s*\d+|\d+\s*(?:粒|片|颗|袋|次)")
 
+# markdown 列表项前缀（`- ` / `* ` / `+ ` / `1. ` / `1、`），不含 `>`
+LIST_MARKER_RE = re.compile(r"^\s*(?:[-*+]|\d+\s*[.、)）])\s+")
+
+
+def is_blockquote_prose(line: str) -> bool:
+    """引用块里的**纯说明行**（`> 今天学了什么`）≠ 数据行。
+
+    markdown 里 ``>`` 是注释 / 摘录，模板的填写指引正写在引用块里。
+    但 ``> - 主题：X`` 这种「引用块里的列表」仍是数据 —— 所以判据是
+    「去掉 ``>`` 之后还带不带列表符」，不是「有没有 ``>``」。
+
+    不排除说明行的后果：附录里每写一行指引，就多出一条假数据。
+    """
+    s = (line or "").strip()
+    if not s.startswith(">"):
+        return False
+    rest = s.lstrip(">").strip()
+    if not rest or rest.startswith(">"):
+        return False
+    return LIST_MARKER_RE.match(rest) is None
+
+
 
 def clock_to_minutes(raw) -> int | None:
     """'HH:MM' / 'HH:MM:SS' -> 距 00:00 的分钟数；解析失败返回 None。

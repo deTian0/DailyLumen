@@ -64,6 +64,28 @@ class TestResolveAndParse(unittest.TestCase):
         self.assertIn("_learning", row)
         self.assertEqual(len(row["_learning"]), 2)
 
+    def test_blockquote_prose_skipped(self):
+        """附录里的 `> 填写指引` 不是数据 —— 否则每写一行说明就多一条假记录。"""
+        text = (
+            "## 附录 · 学习记录\n\n"
+            "> 今天学了什么，一行一条。\n"
+            "> 来源写 self / course。\n\n"
+            "- 主题：Python｜时长：45min\n"
+        )
+        items = parse_section(text)
+        self.assertEqual([i["topic_key"] for i in items], ["python"])
+
+    def test_blockquote_list_still_parsed(self):
+        """`> - 主题：X` 是引用块里的列表，仍是数据。"""
+        text = "## 附录 · 学习记录\n\n> - 主题：Python｜时长：30min\n"
+        items = parse_section(text)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["minutes"], 30.0)
+
+    def test_empty_section_is_empty_list(self):
+        text = "## 附录 · 学习记录\n\n> 只有说明\n"
+        self.assertEqual(parse_section(text), [])
+
 
 class TestSpacedRepeat(unittest.TestCase):
     def test_stage_from_count(self):
