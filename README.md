@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.36.0**（承诺对账：改进点 / 明日 Top 3 落库并做次日证据型判定，`promises` 表 schema **v10**；`promises` 子命令 + 周报兑现率段；食物明细表 `nutrition_items`；标尺 v2 = 阈值分档 → 锚点插值 + 健康死档拆分）｜测试 **802** 项
+> 当前版本 **1.37.0**（承诺可写「今天不设」显式放弃；ClickUp 完成记录落 `clickup_done` 作工作旁证，schema **v11**；废弃 `commute_done`；食物明细 `nutrition_items`；标尺 v2 = 阈值分档 → 锚点插值 + 健康死档拆分）｜测试 **845** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
