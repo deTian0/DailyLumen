@@ -112,6 +112,17 @@ def _date_from_filename(name: str) -> str | None:
     return m.group(1) if m else None
 
 
+# 收件箱素材文件名里的日期：``clickup-素材-2026-10-12.md`` /
+# ``截图-2026-10-15-睡眠7h37m质量85.jpg`` / ``素材提取-2026-10-02_10-09.md``。
+# 与 ``_DATE_STEM`` 不同：这里**允许日期出现在名字任意位置**，且可能多段（区间素材）。
+_DATE_ANY = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _dates_in_name(name: str) -> set[str]:
+    """提取文件名里出现的所有 ``YYYY-MM-DD``（可能为空集）。"""
+    return set(_DATE_ANY.findall(os.path.splitext(os.path.basename(name))[0]))
+
+
 def _dates_from_dir(directory: str) -> set[str]:
     """从目录下文件名里提取日期集合（只认主干纯日期的日复盘）。"""
     out: set[str] = set()
@@ -464,14 +475,25 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
 
         # 收件箱
         inbox = os.path.join(input_dir, "收件箱")
-        # 只统计「待处理素材」：忽略隐藏文件、说明文档（README）与 _ 前缀辅助文件
-        result["inbox_files"] = (
-            len([
+        # 只统计素材文件：忽略隐藏文件、说明文档（README）与 _ 前缀辅助文件。
+        # v1.33.2：按「素材日期是否已入库」区分**已消化**与**待处理** —— 素材按规约
+        # 整理完不删除（原文留档），旧口径把留档永久算作「待处理」，导致这条告警恒真。
+        inbox_names = (
+            [
                 f for f in os.listdir(inbox)
                 if not f.startswith((".", "_")) and f != "README.md"
-            ])
-            if os.path.isdir(inbox) else 0
+            ]
+            if os.path.isdir(inbox) else []
         )
+        consumed: list[str] = []
+        pending: list[str] = []
+        for f in inbox_names:
+            ds = _dates_in_name(f)
+            # 全部日期都已在库 → 已消化；无日期（无法判定）也算待处理
+            (consumed if ds and ds <= db_dates else pending).append(f)
+        result["inbox_files"] = len(inbox_names)
+        result["inbox_consumed"] = len(consumed)
+        result["inbox_pending"] = sorted(pending)
 
         # 熔断检测（与数据健康无关，属「人生指标」告警，故不参与 is_healthy）
         result["fuse"] = find_fuses(conn)
@@ -744,7 +766,17 @@ def render(result: dict, *, encoding: str | None = None) -> str:
 
     if result["inbox_files"]:
         L.append("")
-        L.append(f"[收件箱] {result['inbox_files']} 个待处理素材")
+        pend, done = result["inbox_pending"], result["inbox_consumed"]
+        if pend:
+            L.append(f"{warn} [收件箱] {len(pend)} 个待处理素材"
+                     f"（共 {result['inbox_files']} 个，已消化 {done}）")
+            for name in pend[:6]:
+                L.append(f"    - {name}")
+            if len(pend) > 6:
+                L.append(f"    … 其余 {len(pend) - 6} 项省略")
+        else:
+            L.append(f"[收件箱] {result['inbox_files']} 个素材均已消化"
+                     "（对应日期已入库，原文按规约留档）")
 
     fuse = result.get("fuse")
     if fuse and fuse.get("as_of"):
@@ -753,8 +785,9 @@ def render(result: dict, *, encoding: str | None = None) -> str:
         if fuse["absolute"]:
             for it in fuse["absolute"]:
                 flag = crit if not it["long_run"] else warn
+                tail = " · 长期低位" if it["long_run"] else ""
                 L.append(f"  {flag} {it['label']}：连续 {it['run']} 天 < {fuse['threshold']}"
-                         f"（自 {it['since']} 起）")
+                         f"（自 {it['since']} 起）{tail}")
             long_runs = [it["label"] for it in fuse["absolute"] if it["long_run"]]
             if long_runs:
                 L.append(f"     · {'、'.join(long_runs)} 已连续超过 "

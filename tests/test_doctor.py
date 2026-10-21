@@ -87,6 +87,38 @@ class TestReconciliation(_Fixture):
             f.write("今日素材")
         self.assertEqual(self._run(today="2026-09-22")["inbox_files"], 1)
 
+    def test_inbox_consumed_vs_pending(self):
+        """v1.33.2：素材按「日期是否已入库」分已消化 / 待处理，留档不再算待处理。"""
+        inbox = os.path.join(self.md_dir, "收件箱")
+        upsert(self.conn, {"date": "2026-09-21"})
+        self.conn.commit()
+        # 已消化：日期已入库（含区间名只解析出起始日的旧素材）
+        for name in ("clickup-素材-2026-09-21.md", "截图-2026-09-21-睡眠7h.png",
+                     "素材提取-2026-09-21_09-23.md"):
+            with open(os.path.join(inbox, name), "w", encoding="utf-8") as f:
+                f.write("x")
+        # 待处理：日期未入库 / 文件名无日期
+        for name in ("keepstrong-素材-2026-09-25.md", "截图转写.md"):
+            with open(os.path.join(inbox, name), "w", encoding="utf-8") as f:
+                f.write("x")
+        r = self._run(today="2026-09-22")
+        self.assertEqual(r["inbox_files"], 5)
+        self.assertEqual(r["inbox_consumed"], 3)
+        self.assertEqual(sorted(r["inbox_pending"]),
+                         ["keepstrong-素材-2026-09-25.md", "截图转写.md"])
+
+    def test_inbox_all_consumed_message(self):
+        """全部已消化时报告「均已消化」，不再出现「待处理」字样。"""
+        inbox = os.path.join(self.md_dir, "收件箱")
+        upsert(self.conn, {"date": "2026-09-21"})
+        self.conn.commit()
+        with open(os.path.join(inbox, "clickup-素材-2026-09-21.md"), "w",
+                  encoding="utf-8") as f:
+            f.write("x")
+        text = doctor.render(self._run(today="2026-09-22"))
+        self.assertIn("均已消化", text)
+        self.assertNotIn("待处理素材", text)
+
     def test_archive_only_reported(self):
         self._md("历史源复盘/2026-07-16.md")
         upsert(self.conn, {"date": "2026-07-16"})

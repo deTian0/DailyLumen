@@ -16,7 +16,8 @@
 为什么必须有第 2 个信号：49 天样本里学习分 **82% 的天数 <6、60% 正好落在
 最低档**，绝对阈值在这条分布上近乎恒真 —— 连续 24 天触发等于没有信息量。
 **长期低位提示**（连续超过 ``long_run_days``）会显式告诉你「这条阈值对该
-维度已经失去分辨力」，而不是继续刷同一条告警。
+维度已经失去分辨力」，而不是继续刷同一条告警。v1.33.2 起这类项**不再计入
+「熔断态」与退出码** —— 否则报告会自相矛盾：一边说阈值失效，一边把它算成熔断。
 """
 from __future__ import annotations
 
@@ -151,12 +152,16 @@ def render(results: dict) -> str:
     L.append(f"  规则：任一维度连续 ≥{results['days']} 天 < {results['threshold']} 分 → 熔断")
 
     L.append("")
-    L.append("[绝对信号 · 已触发]")
+    L.append("[绝对信号]")
     if results["absolute"]:
         for it in results["absolute"]:
-            flag = "🔴" if not it["long_run"] else "⚠️"
-            L.append(f"  {flag} {it['label']}：连续 {it['run']} 天 < {results['threshold']}"
-                     f"（自 {it['since']} 起）｜超阈值 {it['run'] / results['days']:.1f} 倍")
+            if it["long_run"]:
+                # 长期低位：本身已声明「阈值失效」，不再用熔断符号与倍数渲染
+                L.append(f"  ⚠️ {it['label']}：连续 {it['run']} 天 < {results['threshold']}"
+                         f"（自 {it['since']} 起）· 长期低位，阈值已失效")
+            else:
+                L.append(f"  🔴 {it['label']}：连续 {it['run']} 天 < {results['threshold']}"
+                         f"（自 {it['since']} 起）｜超阈值 {it['run'] / results['days']:.1f} 倍")
     else:
         L.append("  ✓ 无维度触发")
 
@@ -191,12 +196,25 @@ def render(results: dict) -> str:
 
     L.append("")
     L.append("-" * 52)
-    if results["absolute"]:
-        names = "、".join(it["label"] for it in results["absolute"])
-        L.append(f"结论: ⚠️ {len(results['absolute'])} 个维度处于熔断态（{names}）")
+    active = [it for it in results["absolute"] if not it["long_run"]]
+    stale = [it for it in results["absolute"] if it["long_run"]]
+    if active:
+        names = "、".join(it["label"] for it in active)
+        L.append(f"结论: ⚠️ {len(active)} 个维度处于熔断态（{names}）")
+        if stale:
+            names = "、".join(it["label"] for it in stale)
+            L.append(f"      另 {len(stale)} 个维度长期低位（{names}）：绝对阈值已失效，看相对基线")
+    elif stale:
+        names = "、".join(it["label"] for it in stale)
+        L.append(f"结论: △ 无新增熔断；{names}长期低位（绝对阈值已失效）→ 以相对基线为准")
     else:
         L.append("结论: ✓ 无维度触发熔断")
     return "\n".join(L)
+
+
+def has_active_fuse(results: dict) -> bool:
+    """是否有**未失效**的熔断（长期低位不算：阈值对它已失去分辨力）。"""
+    return any(not it["long_run"] for it in results["absolute"])
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -208,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         conn.close()
     print(render(results))
-    return 1 if results["absolute"] else 0
+    return 1 if has_active_fuse(results) else 0
 
 
 if __name__ == "__main__":
