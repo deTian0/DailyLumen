@@ -18,7 +18,7 @@ from ..config import DB_PATH, SCHEMA_PATH
 from ..core.tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
@@ -255,6 +255,37 @@ CREATE TABLE IF NOT EXISTS promises (
 
 PROMISES_COLUMNS = ["date", "kind", "seq", "text", "bucket"]
 
+# --- v11：ClickUp 已完成任务快照（D2 / v1.37.0） ---------------------------
+#
+# 为什么快照而不是实时查：
+#   1. 报告必须离线可用（`promises` / 周报 / doctor 都不该依赖网络）；
+#   2. ClickUp 的 60s 超时 + 分页会让一次周报卡住十几秒；
+#   3. **可复现**：同一天的判定不能因为「今天 ClickUp 又改了」而变。
+#
+# date 是**归属日**（`clickup.completion_day`：date_closed 那天，命中回拨取 due_date），
+# 与 promises 的「次日」口径对齐。
+# 权威方向：ClickUp → 本表（只读）。**绝不由本表反推复盘**。
+_CLICKUP_DONE_DDL = """
+CREATE TABLE IF NOT EXISTS clickup_done (
+    date    TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    list_id TEXT NOT NULL,
+    name    TEXT NOT NULL,
+    owner   TEXT,
+    minutes REAL,
+    subject TEXT,
+    is_self INTEGER
+        CHECK (is_self IN (0, 1)),
+    status  TEXT,
+    PRIMARY KEY (date, task_id)
+)
+"""
+
+CLICKUP_DONE_COLUMNS = [
+    "date", "task_id", "list_id", "name", "owner", "minutes", "subject",
+    "is_self", "status",
+]
+
 
 def _create_indexes(conn: sqlite3.Connection) -> None:
     """建索引（幂等）。必须在结构与列齐备之后调用。"""
@@ -475,24 +506,47 @@ def _migrate_promises(conn: sqlite3.Connection) -> bool:
     return True
 
 
+def _migrate_clickup_done(conn: sqlite3.Connection) -> bool:
+    """v10 → v11：建 ``clickup_done``（幂等）。返回是否新创建了表。"""
+    if "clickup_done" in _table_names(conn):
+        return False
+    conn.execute(_CLICKUP_DONE_DDL)
+    return True
+
+
 def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     """执行全部增量迁移（幂等）。返回本次迁移动作摘要。
 
     顺序：补列 -> 建表 -> 重建 personal_tracks -> body_metrics ->
     training_* -> habit_logs -> learning_* -> nutrition_items -> 建索引 -> 记录版本。
+
+    ⚠️ 「XX 表是否本次新建」一律**以迁移开始前的表快照**为准，不信各
+    ``_migrate_*`` 的返回值：``_migrate_exercise_src_check`` 重建 daily_reviews 时
+    会 ``_exec_schema`` 执行**整份** schema.sql，把后面所有表一并建掉 ——
+    于是 ``_migrate_clickup_done`` 看到表已存在、返回 False，而它明明是刚建的。
+    （v10→v11 实测踩到：表建了、标志说没建。）
     """
     version_before = conn.execute("PRAGMA user_version").fetchone()[0]
+    before_tables = _table_names(conn)
     _migrate_daily_reviews(conn)
     rebuilt = _migrate_exercise_src_check(conn)
     # 断点续迁恢复的旧表可能缺列（如 exercise_src），补列是幂等的，再跑一次
     _migrate_daily_reviews(conn)
     tracks_rows = _migrate_personal_tracks(conn)
-    body_created = _migrate_body_metrics(conn)
-    training_created = _migrate_training(conn)
-    habits_created = _migrate_habit_logs(conn)
-    learning_created = _migrate_learning(conn)
-    nutrition_created = _migrate_nutrition(conn)
-    promises_created = _migrate_promises(conn)
+    _migrate_body_metrics(conn)
+    _migrate_training(conn)
+    _migrate_habit_logs(conn)
+    _migrate_learning(conn)
+    _migrate_nutrition(conn)
+    _migrate_promises(conn)
+    _migrate_clickup_done(conn)
+    body_created = "body_metrics" not in before_tables
+    training_created = "training_sessions" not in before_tables
+    habits_created = "habit_logs" not in before_tables
+    learning_created = "learning_logs" not in before_tables
+    nutrition_created = "nutrition_items" not in before_tables
+    promises_created = "promises" not in before_tables
+    clickup_done_created = "clickup_done" not in before_tables
     _create_indexes(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     if verbose:
@@ -517,6 +571,8 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
             print("  nutrition_items: 新建食物明细表（v9）")
         if promises_created:
             print("  promises: 新建承诺表（v10）")
+        if clickup_done_created:
+            print("  clickup_done: 新建 ClickUp 完成任务快照表（v11）")
     return {
         "version_before": version_before,
         "version_after": SCHEMA_VERSION,
@@ -528,6 +584,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
         "learning_created": learning_created,
         "nutrition_created": nutrition_created,
         "promises_created": promises_created,
+        "clickup_done_created": clickup_done_created,
     }
 
 
@@ -1180,3 +1237,111 @@ def count(conn: sqlite3.Connection) -> int:
 def count_tracks(conn: sqlite3.Connection) -> int:
     """返回个人打卡表行数。"""
     return conn.execute("SELECT COUNT(*) FROM personal_tracks").fetchone()[0]
+
+
+# ---------------------------------------------------------------------------
+# ClickUp 完成任务快照（v11 / D2）
+# ---------------------------------------------------------------------------
+
+
+def replace_clickup_days(
+    conn: sqlite3.Connection, rows_by_date: dict[str, list[dict]]
+) -> dict:
+    """按 ``date`` 整体替换某天的 ClickUp 完成任务（先删后插）。
+
+    为什么是「按整天替换」而不是 upsert：ClickUp 里任务可以被取消完成、
+    被改名、被移到别的 list —— upsert 会留下幽灵行。整天替换天然对齐。
+    只处理 ``rows_by_date`` 里出现过的日期，没拉到的日期不动。
+
+    每行需含 ``task_id`` / ``list_id`` / ``name``，其余可选。
+    返回 ``{date: {"deleted": n, "inserted": m}}``。
+    """
+    out: dict[str, dict] = {}
+    for date_str, items in (rows_by_date or {}).items():
+        cur = conn.execute("DELETE FROM clickup_done WHERE date = ?", (date_str,))
+        deleted = cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+        rows = []
+        for it in items or []:
+            tid = str(it.get("task_id") or "").strip()
+            if not tid:
+                continue
+            rows.append(
+                (
+                    date_str,
+                    tid,
+                    str(it.get("list_id") or ""),
+                    str(it.get("name") or ""),
+                    it.get("owner"),
+                    it.get("minutes"),
+                    it.get("subject"),
+                    1 if it.get("is_self") else 0,
+                    it.get("status"),
+                )
+            )
+        if rows:
+            conn.executemany(
+                "INSERT INTO clickup_done "
+                "(date, task_id, list_id, name, owner, minutes, subject, is_self, status) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                rows,
+            )
+        out[date_str] = {"deleted": deleted, "inserted": len(rows)}
+    return out
+
+
+def load_clickup_done(
+    conn: sqlite3.Connection,
+    *,
+    date: str | None = None,
+    dates: list[str] | None = None,
+    start: str | None = None,
+    end: str | None = None,
+) -> list:
+    """按日期升序返回完成任务快照。``dates`` 是精确点集，``start``/``end`` 是区间。"""
+    if date is not None:
+        return conn.execute(
+            "SELECT * FROM clickup_done WHERE date = ? ORDER BY task_id", (date,)
+        ).fetchall()
+    if dates:
+        marks = ",".join("?" * len(dates))
+        return conn.execute(
+            f"SELECT * FROM clickup_done WHERE date IN ({marks}) "
+            "ORDER BY date ASC, task_id ASC",
+            list(dates),
+        ).fetchall()
+    clauses: list[str] = []
+    params: list[str] = []
+    if start is not None:
+        clauses.append("date >= ?")
+        params.append(start)
+    if end is not None:
+        clauses.append("date <= ?")
+        params.append(end)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    return conn.execute(
+        f"SELECT * FROM clickup_done {where} ORDER BY date ASC, task_id ASC", params
+    ).fetchall()
+
+
+def clickup_self_day(conn: sqlite3.Connection, date_str: str) -> dict:
+    """某日本人完成记录的存在性汇总（**不求和使用**）。
+
+    返回 ``{"count": n, "max_minutes": m}``；``count == 0`` 表示那天在 ClickUp
+    里没有本人记录 —— 可能是没填，**不等于没工作**。
+
+    为什么不求和：任务名里的工时是任务级估算，一天多条会重叠
+    （实测 2026-10-13 十条合计 57h）。合计值只能人工看，不能当判定依据。
+    """
+    row = conn.execute(
+        "SELECT COUNT(*) AS n, MAX(minutes) AS m FROM clickup_done "
+        "WHERE date = ? AND is_self = 1",
+        (date_str,),
+    ).fetchone()
+    n = int(row["n"] or 0) if row else 0
+    return {"count": n, "max_minutes": float(row["m"]) if row and row["m"] else None}
+
+
+def count_clickup_days(conn: sqlite3.Connection) -> int:
+    """有 ClickUp 完成记录的不同日期数。"""
+    row = conn.execute("SELECT COUNT(DISTINCT date) FROM clickup_done").fetchone()
+    return int(row[0]) if row and row[0] else 0

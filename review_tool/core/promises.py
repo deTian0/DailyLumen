@@ -24,7 +24,13 @@ from __future__ import annotations
 
 import re
 
-from ..config import PROMISE_BUCKETS, PROMISE_EMPTY_MARKERS, PROMISE_PROMPT_LINES
+from ..config import (
+    PROMISE_BUCKETS,
+    PROMISE_DECLINED_BUCKET,
+    PROMISE_DECLINED_MARKERS,
+    PROMISE_EMPTY_MARKERS,
+    PROMISE_PROMPT_LINES,
+)
 from .util import clock_to_minutes, is_blockquote_prose
 
 _IMPROVE_RE = re.compile(
@@ -110,6 +116,17 @@ def is_empty_marker(text: str) -> bool:
     """
     key = normalize(text)
     return bool(key) and any(key == normalize(m) for m in PROMISE_EMPTY_MARKERS)
+
+
+def is_declined(text: str) -> bool:
+    """是不是**显式放弃**（`今天不设`）—— 与 ``is_empty_marker`` 方向相反。
+
+    空 / 忘记了是「没做决定」，放弃标记是「做了决定」。后者必须留下痕迹：
+    连续多天写「今天不设」是一个信号（仪式对当前生活没抓手），
+    而连续多天空着只是没写字。两者混为一谈，doctor 就永远看不出差别。
+    """
+    key = normalize(text)
+    return bool(key) and any(key == normalize(m) for m in PROMISE_DECLINED_MARKERS)
 
 
 def clean_item(line: str) -> str | None:
@@ -218,6 +235,8 @@ def classify(text: str, *, buckets: list[dict] | None = None) -> str | None:
     low = (text or "").lower()
     if not low.strip():
         return None
+    if is_declined(text):
+        return PROMISE_DECLINED_BUCKET
     best: tuple[int, int, int, str] | None = None
     for idx, bucket in enumerate(catalog):
         for kw in bucket.get("keywords") or []:
@@ -239,6 +258,8 @@ def normalize(text: str) -> str:
 
 def bucket_label(key: str | None, *, buckets: list[dict] | None = None) -> str:
     """桶 key → 中文标签；未知返回「其他」。"""
+    if key == PROMISE_DECLINED_BUCKET:
+        return "明写不设"
     if not key:
         return "其他"
     for bucket in (buckets if buckets is not None else PROMISE_BUCKETS):

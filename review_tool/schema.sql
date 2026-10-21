@@ -222,3 +222,22 @@ CREATE TABLE IF NOT EXISTS promises (
     bucket TEXT,
     PRIMARY KEY (date, kind, seq)
 );
+
+-- ClickUp 已完成任务快照（v11 / D2）：承诺对账的「工作旁证」来源
+-- 权威方向：ClickUp → 本表（只读）。绝不由本表反推复盘。
+-- date = 归属日（clickup.completion_day：date_closed，命中「次日补勾」回拨取 due_date）
+-- minutes 从任务名「姓名-Nh-描述」里的 Nh 解析；解析不出为 NULL（≠ 0）
+-- is_self = 1 仅当 assignee 是本人 或 姓名前缀是本人 —— 同事工时不算自己的证据
+CREATE TABLE IF NOT EXISTS clickup_done (
+    date    TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    list_id TEXT NOT NULL,
+    name    TEXT NOT NULL,
+    owner   TEXT,
+    minutes REAL,
+    subject TEXT,
+    is_self INTEGER
+        CHECK (is_self IN (0, 1)),
+    status  TEXT,
+    PRIMARY KEY (date, task_id)
+);

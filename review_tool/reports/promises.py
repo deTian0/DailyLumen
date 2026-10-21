@@ -24,7 +24,7 @@ import json
 import sys
 from datetime import datetime, timedelta
 
-from ..config import PROMISE_BUCKETS, PROMISE_KINDS
+from ..config import PROMISE_BUCKETS, PROMISE_DECLINED_BUCKET, PROMISE_KINDS
 from ..core.promises import bucket_label, extract_constraints
 from ..core.util import minutes_to_clock
 from ..storage.db import init_db, load_promises
@@ -32,12 +32,13 @@ from ..storage.db import init_db, load_promises
 STATUS_LABELS = {
     "fulfilled": "兑现",
     "missed": "未兑现",
+    "declined": "明写不设",
     "unmapped": "无法判定",
     "no_data": "次日未记录",
 }
 
 # 判定顺序：越靠前越严格。用于汇总时取「最需要关注」的状态。
-_STATUS_ORDER = ["missed", "fulfilled", "no_data", "unmapped"]
+_STATUS_ORDER = ["missed", "fulfilled", "declined", "no_data", "unmapped"]
 
 # 饮食类承诺的字段线索（单位是 g 时按这些词选列）
 _DIET_FIELDS = [
@@ -236,6 +237,10 @@ _HANDLERS = {
 
 def judge(item: dict, nxt: dict | None, tracks: list[dict], logs: list[dict]) -> tuple[str, str]:
     """单条承诺 → ``(status, evidence)``。"""
+    if item.get("bucket") == PROMISE_DECLINED_BUCKET:
+        # 显式放弃是**已完成的决定**，不是待办：先于「次日有没有数据」判定，
+        # 否则没写次日复盘的日子会把它算成 no_data，等于没留下这个决定。
+        return "declined", "当天明写「今天不设」"
     if nxt is None:
         return "no_data", "次日无复盘记录"
     bucket = item.get("bucket")
@@ -250,10 +255,10 @@ def judge(item: dict, nxt: dict | None, tracks: list[dict], logs: list[dict]) ->
     return handler(cons, nxt, tracks, logs)
 
 
-def _prefetch(conn, dates: list[str]) -> tuple[dict, dict, dict]:
+def _prefetch(conn, dates: list[str]) -> tuple[dict, dict, dict, dict]:
     """一次取齐所有次日的数据，避免逐条查库。"""
     if not dates:
-        return {}, {}, {}
+        return {}, {}, {}, {}
     marks = ",".join("?" * len(dates))
     days = {
         r["date"]: dict(r)
@@ -272,7 +277,15 @@ def _prefetch(conn, dates: list[str]) -> tuple[dict, dict, dict]:
         f"SELECT * FROM learning_logs WHERE date IN ({marks})", dates
     ):
         logs.setdefault(r["date"], []).append(dict(r))
-    return days, tracks, logs
+    # ClickUp 完成快照（v11）：只取本人记录 —— 同事的工时不是你的证据
+    cu: dict[str, list[dict]] = {d: [] for d in dates}
+    for r in conn.execute(
+        f"SELECT * FROM clickup_done WHERE date IN ({marks}) AND is_self = 1 "
+        "ORDER BY date ASC, task_id ASC",
+        dates,
+    ):
+        cu.setdefault(r["date"], []).append(dict(r))
+    return days, tracks, logs, cu
 
 
 def collect(
@@ -287,13 +300,16 @@ def collect(
         r["due"] = _next_day(r["date"])
 
     dates = sorted({r["due"] for r in rows})
-    days, tracks, logs = _prefetch(conn, dates)
+    days, tracks, logs, clickup = _prefetch(conn, dates)
 
     # 对账日 >= 今天就还没过完 —— 此刻判「未兑现」是冤枉。
+    # 「今天不设」例外：它是**当天的决定**，不需要等次日到齐就能定。
     today = datetime.now().strftime("%Y-%m-%d")
     for r in rows:
         due = r["due"]
-        if due >= today:
+        if r.get("bucket") == PROMISE_DECLINED_BUCKET:
+            status, evidence = "declined", "当天明写「今天不设」"
+        elif due >= today:
             status, evidence = "no_data", "对账日尚未结束"
         else:
             status, evidence = judge(
@@ -302,6 +318,24 @@ def collect(
         r["status"] = status
         r["evidence"] = evidence
         r["bucket_label"] = bucket_label(r.get("bucket"))
+        # ClickUp 旁证：**只在判不了的工作/琐事上附**，绝不据此改状态。
+        # 工时是任务级估算、不是专注计时，量纲不同 —— 用它判「兑现」等于换尺子量。
+        # 也不挂到运动/学习/睡眠上：那些桶有自己的证据，再挂旁证只会让人看花。
+        r["clickup"] = [
+            (c.get("subject") or c.get("name") or "") for c in (clickup.get(due) or [])
+        ]
+        if (
+            status == "unmapped"
+            and r.get("bucket") in (None, "work")
+            and r["clickup"]
+        ):
+            shown = "、".join(x for x in r["clickup"][:3] if x)
+            more = f" 等 {len(r['clickup'])} 条" if len(r["clickup"]) > 3 else ""
+            r["evidence"] = (
+                f"{evidence}；**次日 ClickUp 有本人记录**：{shown}{more}"
+            )
+        else:
+            r.pop("clickup", None)
 
     counts = {k: 0 for k in STATUS_LABELS}
     for r in rows:
@@ -376,6 +410,9 @@ def collect(
         "rate": rate,
         "unmapped_no_bucket": unmapped_no_bucket,
         "unmapped_no_constraint": unmapped_no_constraint,
+        "due_days": len(dates),
+        "clickup_days": sum(1 for d in dates if clickup.get(d)),
+        "clickup_items": sum(len(clickup.get(d) or []) for d in dates),
         "by_bucket": sorted(
             by_bucket.values(), key=lambda x: (-x["total"], str(x["label"]))
         ),
@@ -402,18 +439,28 @@ def render(result: dict, *, show_items: int = 12) -> str:
         L.append("没有承诺记录。先在复盘的「三、一个改进点」「四、明日 Top 3」里写点什么。")
         return "\n".join(L)
 
+    declined = c.get("declined", 0)
+    promised = result["total"] - declined
     L.append(
-        f"总承诺 {result['total']} 条（{result['days']} 天）"
+        f"总承诺 {promised} 条（{result['days']} 天）"
         f" · 可判定 {result['judged']} 条 · "
         f"**兑现率 {_pct(result['rate'])}**（只在可判定子集上算）"
+        + (f" · 另有 {declined} 天明写「今天不设」" if declined else "")
     )
     L.append("")
-    for key in ("fulfilled", "missed", "no_data", "unmapped"):
+    base = promised or 1
+    for key in ("fulfilled", "missed", "declined", "no_data", "unmapped"):
         n = c.get(key, 0)
         if not n:
             continue
-        share = n / result["total"] * 100
+        share = n / base * 100
         L.append(f"  {STATUS_LABELS[key]:6s} {n:4d} 条  {share:5.1f}%")
+
+    if declined:
+        L.append(
+            "  ↳ 「明写不设」= 当天明确写了「今天不设」，**是决定不是欠账**，"
+            "不进兑现率分母。空着才是空转 —— 两者在 doctor 里分开报。"
+        )
 
     if c.get("no_data"):
         L.append("")
@@ -435,6 +482,27 @@ def render(result: dict, *, show_items: int = 12) -> str:
                 parts.append(f"没归到任何指标 {nb} 条（生活琐事 / 工作任务）")
             L.append("     · " + "；".join(parts))
 
+    if result.get("clickup_items"):
+        L.append("")
+        L.append("工作旁证（ClickUp 完成记录）")
+        L.append(
+            f"  次日有本人记录 {result['clickup_days']}/{result['due_days']} 天 · "
+            f"共 {result['clickup_items']} 条"
+        )
+        L.append(
+            "  ↳ **只作旁证，不改判定**：任务名里的工时是任务级估算、不是专注计时，"
+            "拿它当「工作了几小时」会得到假数（实测一天多条目合计 57h）。"
+        )
+        misses = [r for r in result["items"] if r.get("clickup")][-5:]
+        seen_dates: set[str] = set()
+        for r in misses:
+            text = r["text"] if len(r["text"]) <= 40 else r["text"][:40] + "…"
+            L.append(f"  · {r['date']} [{r['bucket_label']}] {text}")
+            L.append(f"      → {r['evidence'].split('；**次日 ClickUp')[0]}")
+            if r["date"] not in seen_dates:
+                seen_dates.add(r["date"])
+                L.append(f"      → 次日旁证：{'、'.join(r['clickup'][:3])}")
+
     L.append("")
     L.append("按类型")
     for b in result["by_kind"]:
@@ -446,6 +514,8 @@ def render(result: dict, *, show_items: int = 12) -> str:
     L.append("")
     L.append("按话题")
     for b in result["by_bucket"]:
+        if b["bucket"] == PROMISE_DECLINED_BUCKET:
+            continue  # 已在上面的状态汇总里单独报过，不是话题
         label = b["label"] or "未归类"
         L.append(
             f"  {label:6s} {b['total']:3d} 条 · 兑现 {b['fulfilled']:3d} · "

@@ -154,6 +154,18 @@ class TestExampleDb(unittest.TestCase):
         self.assertIn("'plan'", ddl)
         self.assertIn("PRIMARY KEY (date, kind, seq)", ddl)
 
+    def test_clickup_done_table_present(self):
+        """v11：空模板必须带 clickup_done（is_self CHECK + (date, task_id) 主键）。"""
+        cols = [r[1] for r in self.conn.execute("PRAGMA table_info(clickup_done)")]
+        self.assertEqual(
+            cols,
+            ["date", "task_id", "list_id", "name", "owner", "minutes",
+             "subject", "is_self", "status"],
+        )
+        ddl = _ddl(self.conn, "clickup_done")
+        self.assertIn("is_self IN (0, 1)", ddl)
+        self.assertIn("PRIMARY KEY (date, task_id)", ddl)
+
     def test_integrity_ok(self):
         self.assertEqual(
             self.conn.execute("PRAGMA integrity_check").fetchone()[0], "ok")

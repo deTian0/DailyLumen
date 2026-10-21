@@ -596,7 +596,9 @@ def render_summary(s: dict) -> str:
         bar = _bar(v) if v else "  - "
         L.append(_line(f"{label}分均值", f"{v}  {bar}"))
     L.append(_line("早餐按时", _pct(s["breakfast_on_time_pct"])))
-    L.append(_line("通勤完成", _pct(s["commute_pct"])))
+    # 通勤完成（v1.37.0 废弃，用户 2026-10-21 拍板）：通勤是固定的 2×2.4km/日，
+    # 「今天通勤了吗」恒为是，打卡率 22.8% 只反映「懒得填」，不反映任何事实。
+    # 列与解析保留（老 md 仍能入库），但**不再出现在任何报告里**。
     L.append(_training_line(s["training"]))
     if s["derived_days"]:
         L.append(_line("运动折算", f"{s['derived_days']} 天的运动时长由"

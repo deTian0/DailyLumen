@@ -35,6 +35,7 @@ from ..config import (
     HABITS,
     INPUT_DIR,
     PROFILE,
+    PROMISE_DECLINED_BUCKET,
     TRACK_ADHERENCE_ALERT,
 )
 from ..core.habits import detect_gaps, key_overlap
@@ -289,6 +290,14 @@ def promise_coverage(conn, *, days: int = 30, today: str | None = None) -> dict:
 
     M29 的副产品。实测 79 天里 75 处写的是「空 / 忘记了 / 无」这类占位，
     也就是**「写复盘」这个动作本身有空转**。这项只数库里的行，零误报。
+
+    v1.37.0 起区分三种日子（D1 / 用户 2026-10-21 拍板）：
+    - ``promised_days`` 真写了承诺
+    - ``declined_days`` 明写「今天不设」——**是决定**，不是欠账
+    - ``blank_days``    章节在、内容空 —— **这才是空转**
+
+    混为一谈的话，一个天天写「今天不设」的人会跟一个天天留白的人报一样的数，
+    而这两件事的意思完全相反。
     """
     today = today or _date.today().isoformat()
     start = (
@@ -298,16 +307,28 @@ def promise_coverage(conn, *, days: int = 30, today: str | None = None) -> dict:
         "SELECT COUNT(*) FROM daily_reviews WHERE date BETWEEN ? AND ?",
         (start, today),
     ).fetchone()[0]
-    with_p = conn.execute(
-        "SELECT COUNT(DISTINCT date) FROM promises WHERE date BETWEEN ? AND ?",
-        (start, today),
+    promised_days = conn.execute(
+        "SELECT COUNT(DISTINCT date) FROM promises WHERE date BETWEEN ? AND ? "
+        "AND (bucket IS NULL OR bucket != ?)",
+        (start, today, PROMISE_DECLINED_BUCKET),
+    ).fetchone()[0]
+    declined_days = conn.execute(
+        "SELECT COUNT(*) FROM ("
+        "  SELECT date FROM promises WHERE date BETWEEN ? AND ? "
+        "  GROUP BY date HAVING SUM(bucket = ?) = COUNT(*)"
+        ")",
+        (start, today, PROMISE_DECLINED_BUCKET),
+    ).fetchone()[0]
+    declined_rows = conn.execute(
+        "SELECT COUNT(*) FROM promises WHERE date BETWEEN ? AND ? AND bucket = ?",
+        (start, today, PROMISE_DECLINED_BUCKET),
     ).fetchone()[0]
     by_kind = {
         r[0]: r[1]
         for r in conn.execute(
             "SELECT kind, COUNT(*) FROM promises WHERE date BETWEEN ? AND ? "
-            "GROUP BY kind",
-            (start, today),
+            "AND (bucket IS NULL OR bucket != ?) GROUP BY kind",
+            (start, today, PROMISE_DECLINED_BUCKET),
         )
     }
     return {
@@ -315,8 +336,10 @@ def promise_coverage(conn, *, days: int = 30, today: str | None = None) -> dict:
         "start": start,
         "end": today,
         "reviewed": reviewed,
-        "with_promises": with_p,
-        "missing": max(reviewed - with_p, 0),
+        "with_promises": promised_days,
+        "declined_days": declined_days,
+        "declined_rows": declined_rows,
+        "missing": max(reviewed - promised_days - declined_days, 0),
         "improvement": by_kind.get("improvement", 0),
         "plan": by_kind.get("plan", 0),
         "total": sum(by_kind.values()),
@@ -747,26 +770,36 @@ def render(result: dict, *, encoding: str | None = None) -> str:
     L.append("")
     L.append("[承诺覆盖]")
     pc = result.get("promise_coverage") or {}
+    declined_days = pc.get("declined_days") or 0
     if not pc.get("reviewed"):
         L.append(f"  {ok} 近 {pc.get('days', 30)} 天没有入库复盘，跳过")
-    elif not pc.get("with_promises"):
+    elif not pc.get("with_promises") and not declined_days:
         L.append(
             f"  {warn} 近 {pc['days']} 天有 {pc['reviewed']} 天复盘，"
             "但一条改进点 / 明日 Top 3 都没写（建议性，不影响数据健康）"
         )
         L.append("     · 想让它可核对，写成 `脂肪≤70g`、`23:30 前`、`60min` 这种形式")
+        L.append("     · 今天确实不想设？写 `- 今天不设` —— 那是决定，不是欠账")
     else:
         line = (
             f"  {ok} 近 {pc['days']} 天有 {pc['reviewed']} 天复盘，"
             f"{pc['with_promises']} 天写了承诺"
             f"（改进点 {pc['improvement']} / 明日 Top 3 {pc['plan']}）"
         )
+        if declined_days:
+            line += f" · {declined_days} 天明写「今天不设」"
         L.append(line)
+        if declined_days and declined_days == pc["reviewed"] - pc.get("missing", 0):
+            L.append(
+                f"     · {warn} 这段时间**每天都是「今天不设」** —— "
+                "这个仪式对当前生活没有抓手，比留白更值得看一眼"
+            )
         if pc.get("missing"):
             L.append(
-                f"     · 另 {pc['missing']} 天没写（写「空 / 忘记了」也算没写）；"
-                "对账口径见 `python -m review_tool promises`"
+                f"     · 另 {pc['missing']} 天**空着**（写「空 / 忘记了」也算空着）；"
+                "想核对就写具体数字，不想设就写「今天不设」"
             )
+            L.append("     · 对账口径见 `python -m review_tool promises`")
 
     L.append("")
     L.append("[体征]")
