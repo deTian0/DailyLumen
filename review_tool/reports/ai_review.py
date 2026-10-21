@@ -152,11 +152,12 @@ def attention_flags(day: dict, recent: list[dict],
     if ph is not None and ph > T["phone"]["bad"]:
         flags.append(f"屏幕 {ph:g}h 高于 {T['phone']['bad']:g}h（已是差档）")
 
-    # --- 四维最低档 ---
-    for dim, label in _DIMS[1:]:  # 工作/学习/生活（健康由子项体现）
+    # --- 四维偏低（健康由子项体现）---
+    # v1.34.0 起分值下限是 1（不再从 3 起跳），所以这里叫「偏低」而不是「最低档」。
+    for dim, label in _DIMS[1:]:  # 工作/学习/生活
         v = day.get(dim)
         if v is not None and v <= 3:
-            flags.append(f"{label}分 {v}（最低档）")
+            flags.append(f"{label}分 {v}（偏低）")
 
     # --- 趋势：连续性问题 ---
     s_bed = _streak(recent, lambda r: _bedtime_is_late(r.get("bedtime")))

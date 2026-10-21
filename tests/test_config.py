@@ -50,45 +50,71 @@ class TestScoreThresholds(unittest.TestCase):
         for key in SCORE_THRESHOLDS["weights"]:
             self.assertIn(f'w["{key}"]', src, f"权重 {key} 未被健康分使用")
 
-    def test_sleep_thresholds_descending(self):
-        s = SCORE_THRESHOLDS["sleep"]
-        self.assertGreater(s["full"], s["good"])
-        self.assertGreater(s["good"], s["ok"])
-        self.assertGreater(s["ok"], s["low"])
+    def test_health_bands_sorted(self):
+        """睡眠是「越大越好」（gte=True）：阈值与分值都必须降序。"""
+        cfg = SCORE_THRESHOLDS["sleep"]
+        self.assertTrue(cfg["gte"])
+        thr = [x for x, _ in cfg["bands"]]
+        sc = [s for _, s in cfg["bands"]]
+        self.assertEqual(thr, sorted(thr, reverse=True))
+        self.assertEqual(sc, sorted(sc, reverse=True))
 
-    def test_duration_bands_descending(self):
+    def test_phone_bands_sorted(self):
+        """屏幕是「越小越好」（gte=False）：阈值升序、分值降序。"""
+        cfg = SCORE_THRESHOLDS["phone"]
+        self.assertFalse(cfg["gte"])
+        thr = [x for x, _ in cfg["bands"]]
+        sc = [s for _, s in cfg["bands"]]
+        self.assertEqual(thr, sorted(thr))
+        self.assertEqual(sc, sorted(sc, reverse=True))
+
+    def test_bands_have_no_duplicate_scores(self):
+        """同一子项里两个档不许同分 —— 同分即死档。
+
+        v1.34.0 的三处病灶正是这个：入睡 89% 同分、屏幕 74% 同分、
+        运动 69% 同分。这条测试把「不许再写出死档」钉死。
+        """
+        for key in ("sleep", "phone"):
+            scores = [s for _, s in SCORE_THRESHOLDS[key]["bands"]]
+            self.assertEqual(len(scores), len(set(scores)), key)
+        for branch in ("train", "rest"):
+            scores = [s for _, s in SCORE_THRESHOLDS["exercise"][branch]["bands"]]
+            self.assertEqual(len(scores), len(set(scores)), branch)
+
+    def test_duration_anchors_monotonic(self):
+        """锚点必须双升序：原始值递增时，分值不能回头。"""
         for key in ("work", "learn", "life"):
-            t = SCORE_THRESHOLDS[key]
-            self.assertGreater(t["full"], t["good"], key)
-            self.assertGreater(t["good"], t["ok"], key)
+            pts = SCORE_THRESHOLDS[key]["anchors"]
+            xs = [x for x, _ in pts]
+            ys = [y for _, y in pts]
+            self.assertEqual(xs, sorted(xs), key)
+            self.assertEqual(len(xs), len(set(xs)), key)
+            self.assertEqual(ys, sorted(ys), key)
 
-    def test_duration_sub_ok_knobs_sane(self):
-        """未达标区细分档的上下界必须存在且递增、且不越过达标区首档 5。"""
+    def test_duration_anchors_cover_full_range(self):
+        """锚点必须 0h=1 分起、10 分止 —— 否则顶格或地板不可达。"""
         for key in ("work", "learn", "life"):
-            t = SCORE_THRESHOLDS[key]
-            self.assertIn("sub_floor", t, key)
-            self.assertIn("sub_ceil", t, key)
-            self.assertGreaterEqual(t["sub_floor"], 1, key)
-            self.assertGreater(t["sub_ceil"], t["sub_floor"], key)
-            self.assertLess(t["sub_ceil"], 5, key)
+            pts = sorted(SCORE_THRESHOLDS[key]["anchors"])
+            self.assertEqual(pts[0][0], 0, f"{key} 未从 0 小时起")
+            self.assertEqual(pts[0][1], 1, f"{key} 起点不是 1 分")
+            self.assertEqual(pts[-1][1], 10, f"{key} 顶格不是 10 分")
 
-    def test_phone_thresholds_ascending(self):
-        p = SCORE_THRESHOLDS["phone"]
-        self.assertLess(p["ideal"], p["good"])
-        self.assertLess(p["good"], p["ok"])
-        self.assertLess(p["ok"], p["bad"])
-
-    def test_diet_range_valid(self):
+    def test_diet_tolerance_ascending(self):
         d = SCORE_THRESHOLDS["diet"]
-        self.assertLess(d["ok_low"], d["good_low"])
+        tol = [x for x, _ in d["bands"]]
+        self.assertEqual(tol, sorted(tol))
         self.assertLess(d["good_low"], d["good_high"])
-        self.assertLess(d["good_high"], d["ok_high"])
 
-    def test_bedtime_thresholds_valid(self):
+    def test_bedtime_delay_axis_valid(self):
         b = SCORE_THRESHOLDS["bedtime"]
-        self.assertLess(b["late_night_max"], b["early_max"])
-        self.assertLess(b["early_max"], b["ok_max"])
+        self.assertLess(b["late_night_max"], b["ok_max"])
         self.assertLess(b["ok_max"], 1440)
+        self.assertEqual(b["anchor_min"], 1350, "延迟轴零点应为 22:30")
+        self.assertLess(b["anchor_min"], b["ok_max"])
+        delays = [x for x, _ in b["bands"]]
+        scores = [s for _, s in b["bands"]]
+        self.assertEqual(delays, sorted(delays))
+        self.assertEqual(scores, sorted(scores, reverse=True))
 
 
 class TestProfile(unittest.TestCase):
