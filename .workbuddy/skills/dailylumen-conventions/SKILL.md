@@ -214,6 +214,14 @@ agent_created: true
     再去怀疑代码 / 数据。
   - 同一现象也会出现在**从没跑过同步**上：`body_metrics` 0 行既可能是无数据，
     也可能是链路从未触发 —— 两者要分开验证（看 md 数据块有没有 `体重_kg` 值）。
+
+  **技能文档（2026-10-21 补充）**：上游是 `GET /api/v1/ai/skill`（Bearer 认证），返回的
+  JSON 才是接口契约的权威源，本地两处落地：
+  - `docs/练练健身-API参考.md` —— 中文规格，给人看（**不含密钥**）；
+  - `.workbuddy/cache/keepstrong-skill-<ver>.json` —— 原始 JSON 快照，给机器看（gitignore）。
+  每个非 skill 请求都必须带 `X-KeepStrong-Skill-Version` 与 `X-KeepStrong-Agent-Name`；
+  服务端返回 `426 skillUpdateRequired` 就重新拉、重存、改 `settings.DEFAULT_KEEPSTRONG_SKILL_VERSION`。
+  ⛔ **拉文档本身也要用 Key**，所以 Key 过期时连规格都拿不到 —— 换 Key 是第一步不是最后一步。
   | **环境差异** | `.env` 可覆盖，代码给默认值（`settings.Settings`） | baseUrl / timeout / `DAILYLUMEN_DB_PATH` |
   | **个人参数** | `config.PROFILE` 等（**入 git**） | 身高 / 宏量目标 / 训练日 |
   | **业务规则** | 代码 | `SCORE_THRESHOLDS` / `FOOD_LIB` / `COACH_RULES` |

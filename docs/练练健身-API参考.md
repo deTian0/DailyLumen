@@ -1,10 +1,11 @@
 # 练练健身（KeepStrong）AI 接口参考
 
 > **来源**：`GET https://lianlian.gzyunke.cn/api/v1/ai/skill`（Bearer 认证）
-> **文档版本**：**1.28.0** ｜ 拉取日期：2026-10-15
+> **文档版本**：**1.28.0** ｜ 首次拉取 2026-10-15 ｜ **复核 2026-10-21（版本未变）**
 > **本文用途**：开发时的接口规格单一来源。**不含任何密钥** —— API Key 只存在于本机 `.env`。
 > **上游约定**：`skillVersion` 变更时服务端返回 `HTTP 426 + skillUpdateRequired=true`，
 > 需重新拉取上文 URL 并替换本文件（`skillUrl` 字段给出新地址）。
+> **原始快照**：`.workbuddy/cache/keepstrong-skill-1.28.0.json`（完整 JSON，不含密钥，不入 git）。
 
 ---
 
@@ -86,10 +87,25 @@
 - ⛔ 超级组内不支持递变组
 - 热身组：`warmupGroup` 里带 `flag="hot"`；热身组不能再含 dropSets
 - `restSeconds` / `weightUnit` / `creatorTip`（≤300 字符，动作级提示）为可选
+- **前后动作（`beforeActions` / `afterActions` / `beforeAfterEnabled`）**：模板创建、模板动作替换、
+  running-plan 课次替换三类写端点可选携带。动作结构同 `actionPayload`（计时动作加 `durationSeconds`）。
+  语义是「**省略 = 保留原值**，传 `[]` = 清空该列表」，所以**不能靠省略来表达「删掉」**。
+  `beforeAfterEnabled` 接受 `{before, after, independentWeight}` 三个布尔，**只改传入的键**；
+  传 `false` 是关闭，传 `{}` 什么都不变。注意 `flag="hot"` 的热身组与 `beforeActions` 是两回事
+  （前者是组级热身，后者是独立的「课前动作」列表）。读 running-plan 时这三个字段以
+  `<name>Dict` 形式按模板 ID 返回，今日课次上则是同名字段（无 Dict 后缀）。
 
 ---
 
 ## 5. 本账号实测快照（2026-10-15 · 实测非推测）
+
+> **2026-10-21 复核（换 Key 后全端点重扫）**：11 个读端点中实测 5 个（records / running-plans /
+> actions / body-profile / body-logs / food-logs）全部 `HTTP 200`，无 `426`、无 `401`。
+> 数据面**没有变化**：`body/profile` 仍是 `height=null`、`weight=82`（`bodyLog@20260920`）、`fat=null`；
+> `body/logs?metric=weight`（2025-01-01 起）**只有 1 条**（2026-09-20, 82kg）；
+> `training/records` 2026-07-01 → 10-21 **只有 2 条**，都在 `20261001`（`temp`，161s 与 0s）；
+> `training/templates` 仍为空；`food/logs?dayStr=20261020` 空（`foodLogs` / `exerciseLogs` 均 `[]`）。
+> 结论不变 —— **练练只当运动通道，饮食仍走薄荷**；训练记录稀疏是**用户没在练练里记**，不是接口问题。
 
 | 端点 | 实测结果 |
 | --- | --- |
