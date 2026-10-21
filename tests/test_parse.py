@@ -174,5 +174,50 @@ class TestEnergyMoodCommute(unittest.TestCase):
         self.assertIn("心情:", body)
 
 
+class TestNutritionItemsSidecar(unittest.TestCase):
+    """v9：附录 · 食物明细解析成 _nutrition_items 侧车（不写 daily_reviews）。"""
+
+    TEXT = """# 2026-10-21 复盘
+
+```data
+日期: 2026-10-21
+饮食热量_kcal: 1500
+```
+
+## 附录 · 食物明细（可选）
+
+| 餐次 | 食物 | 估算 kcal | 备注 |
+|------|------|-----------|------|
+| 早 | 燕麦 40g | 380 | 估算 |
+| 午 | 食堂两荤一素 | 约 700 | |
+
+## 附录 · 系统数据
+```data
+日期: 2026-10-21
+```
+"""
+
+    def test_sidecar_present(self):
+        row = parse_text(self.TEXT)
+        items = row["_nutrition_items"]
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0]["meal"], "breakfast")
+        self.assertEqual(items[1]["kcal"], 700.0)
+
+    def test_not_in_daily_reviews_row(self):
+        row = parse_text(self.TEXT)
+        self.assertEqual(row["date"], "2026-10-21")
+        self.assertEqual(row["diet_kcal"], 1500)
+        # 明细是侧车，不污染 daily_reviews 列
+        for key in row:
+            if key == "_nutrition_items":
+                continue
+            self.assertNotIsInstance(row[key], list)
+
+    def test_absent_section_gives_no_key(self):
+        row = parse_text("```data\n日期: 2026-10-21\n```\n")
+        self.assertNotIn("_nutrition_items", row)
+
+
 if __name__ == "__main__":
     unittest.main()

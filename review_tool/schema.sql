@@ -184,3 +184,25 @@ CREATE TABLE IF NOT EXISTS review_queue (
 );
 
 -- 索引见文件开头说明，由 db.py 统一创建。
+
+-- 食物明细（v9 / M25）：独立指标区，不参与四维评分（G5）
+-- 权威：md「附录 · 食物明细」→ ingest；可从 md 100% 重建
+-- 无天然主键，seq 是同日表内顺序；kcal 为估算值（不做精确化）
+CREATE TABLE IF NOT EXISTS nutrition_items (
+    date      TEXT NOT NULL,
+    seq       INTEGER NOT NULL
+        CHECK (seq >= 0),
+    meal      TEXT NOT NULL
+        CHECK (meal IN ('breakfast', 'lunch', 'dinner', 'snack', 'other')),
+    item      TEXT NOT NULL,
+    kcal      REAL
+        CHECK (kcal IS NULL OR (kcal >= 0 AND kcal <= 5000)),
+    protein_g REAL
+        CHECK (protein_g IS NULL OR (protein_g >= 0 AND protein_g <= 500)),
+    carb_g    REAL
+        CHECK (carb_g IS NULL OR (carb_g >= 0 AND carb_g <= 1000)),
+    fat_g     REAL
+        CHECK (fat_g IS NULL OR (fat_g >= 0 AND fat_g <= 500)),
+    note      TEXT,
+    PRIMARY KEY (date, seq)
+);

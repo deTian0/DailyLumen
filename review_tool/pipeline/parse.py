@@ -42,6 +42,7 @@ from ..config import (
 )
 from ..core.bodyweight import estimate
 from ..core.learning import parse_section as parse_learning_section
+from ..core.nutrition_items import parse_section as parse_nutrition_section
 from ..core.score import system_score_from
 from ..core.tracks import normalize_supplement_line, resolve_item, resolve_track
 from ..core.training import parse_section as parse_training_section
@@ -273,6 +274,13 @@ def parse_text(text: str) -> dict:
         row["_personal_tracks"] = tracks
     # 该章节是否存在（供打卡对账判断「解析结果是否可作为权威集合」）
     row["_tracks_section"] = has_tracks_section(text)
+
+    # 8) 食物明细侧车（附录 · 食物明细，v9）—— 独立指标区，不参与四维（G5）
+    #    章节存在但表格为空 → 空列表（≠ 无该附录）：前者表示「当日确实没有明细」，
+    #    ingest 据此清空该日旧行，避免删掉的明细残留在库里。
+    nutrition = parse_nutrition_section(text)
+    if nutrition is not None:
+        row["_nutrition_items"] = nutrition
 
     return row
 

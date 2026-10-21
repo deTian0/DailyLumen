@@ -43,6 +43,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `habits.py` | 行为习惯：归一化 / 依从率 / streak / 断更（零 I/O；与 tracks 隔离） |
 | `nutrition.py` | 营养缺口：宏量判定（与 ai_review 同源）/ 贪心组合 / 三餐结构 / 极端值（零 I/O） |
 | `learning.py` | 学习主题归一化 + 间隔重复队列推算（零 I/O；队列可从 logs 重建） |
+| `nutrition_items.py` | 食物明细：附录表格解析 + 餐次归一化 + 合计 / 分组（零 I/O；v9 / M25） |
 | `score.py` | 四维评分规则（健康加权子项；工作/学习/生活时长分档） |
 
 ### storage/ —— 持久化层
@@ -74,7 +75,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `body.py` | 体征趋势：最新值 + BMI + 7 日均 + 周变化 + 距目标（`--json`） |
 | `coach.py` | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据；`--json`） |
 | `habits.py` | 行为习惯报告：依从率 / streak / 断更；`--sync` 调 `habit_sync` |
-| `nutrition.py` | 营养缺口报告：当日/近窗缺口 + FOOD_LIB ≤3 种具体动作（`--json`） |
+| `nutrition.py` | 营养缺口报告：当日/近窗缺口 + FOOD_LIB ≤3 种具体动作 + **当日食物明细下钻**（`--json`；v1.35.0） |
 | `tutor.py` | 学习/复习报告：今日待复习 + 本周主题/投入/产出物（`--json`） |
 | `steward.py` | 总管家编排：`--slot morning\|evening\|week`（只调用既有模块，数字可溯源） |
 | `chart.py` | 离线 SVG：默认四维趋势；`--type body|training|nutrition|all`（目标带 / 柱状 / 双轴） |

@@ -23,7 +23,7 @@ from review_tool.reports.ai_review import attention_flags
 from review_tool.reports.nutrition import collect
 from review_tool.reports.nutrition import main as nutrition_main
 from review_tool.reports.nutrition import render as render_nutrition
-from review_tool.storage.db import init_db, upsert
+from review_tool.storage.db import init_db, replace_nutrition_items, upsert
 
 DAY = {
     "date": "2026-09-15",
@@ -238,6 +238,73 @@ class TestNutritionReport(unittest.TestCase):
         payload = json.loads(buf.getvalue())
         self.assertEqual(payload["as_of"], "2026-10-15")
         self.assertTrue(payload["extreme"]["triggered"])
+
+
+class TestNutritionItemsDrilldown(unittest.TestCase):
+    """v9 / M25：nutrition --date 下钻到当日食物明细（不参与评分）。"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.db = os.path.join(self.tmp, "t.db")
+        self.conn = init_db(self.db)
+        upsert(self.conn, {
+            "date": "2026-10-21",
+            "diet_kcal": 1500,
+            "carbs_g": 180,
+            "fat_g": 50,
+            "protein_g": 70,
+            "meals_count": 3,
+            "breakfast_on_time": 1,
+        })
+        replace_nutrition_items(self.conn, "2026-10-21", [
+            {"meal": "breakfast", "item": "燕麦＋牛奶", "kcal": 380, "note": "估算"},
+            {"meal": "lunch", "item": "食堂两荤一素", "kcal": 700},
+            {"meal": "dinner", "item": "小米粥＋鸡蛋", "kcal": 420},
+        ])
+        self.conn.commit()
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_collect_exposes_items(self):
+        data = collect(self.conn, as_of="2026-10-21")
+        self.assertEqual(len(data["items"]), 3)
+        self.assertEqual(data["items_total_kcal"], 1500.0)
+
+    def test_render_lists_items_by_meal(self):
+        text = render_nutrition(collect(self.conn, as_of="2026-10-21"))
+        self.assertIn("当日明细", text)
+        self.assertIn("燕麦＋牛奶", text)
+        self.assertIn("早餐", text)
+        self.assertIn("明细合计: 1500 kcal", text)
+        # 与数据块对照（本例恰好相等）
+        self.assertIn("数据块 1500 kcal", text)
+
+    def test_render_marks_missing(self):
+        text = render_nutrition(collect(self.conn, as_of="2026-10-13"))
+        self.assertIn("该日无食物明细", text)
+
+    def test_json_includes_items(self):
+        import io
+        from contextlib import redirect_stdout
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = nutrition_main(["2026-10-21", "--json", self.db])
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue())
+        self.assertEqual(len(payload["items"]), 3)
+        self.assertEqual(payload["items_total_kcal"], 1500.0)
+        self.assertEqual(payload["items"][0]["item"], "燕麦＋牛奶")
+
+    def test_items_do_not_change_gap(self):
+        """明细不影响缺口判定（G5：不参与评分 / 不参与缺口）。"""
+        before = collect(self.conn, as_of="2026-10-21")["day_gap"]
+        replace_nutrition_items(self.conn, "2026-10-21", [])
+        self.conn.commit()
+        after = collect(self.conn, as_of="2026-10-21")["day_gap"]
+        self.assertEqual(before["deficits"], after["deficits"])
 
 
 if __name__ == "__main__":

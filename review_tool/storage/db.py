@@ -18,7 +18,7 @@ from ..config import DB_PATH, SCHEMA_PATH
 from ..core.tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
@@ -89,6 +89,8 @@ _INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_ll_date ON learning_logs(date)",
     "CREATE INDEX IF NOT EXISTS idx_ll_topic ON learning_logs(topic_key)",
     "CREATE INDEX IF NOT EXISTS idx_rq_due ON review_queue(due_date)",
+    "CREATE INDEX IF NOT EXISTS idx_ni_date ON nutrition_items(date)",
+    "CREATE INDEX IF NOT EXISTS idx_ni_meal ON nutrition_items(date, meal)",
 ]
 
 # 体征表（v5）：与 schema.sql 对齐；迁移路径在 schema 未跑时也能建表
@@ -199,6 +201,35 @@ LEARNING_COLUMNS = [
 ]
 QUEUE_COLUMNS = [
     "topic_key", "topic", "stage", "due_date", "last_seen", "note",
+]
+
+# 食物明细（v9 / M25）：独立指标区，不参与四维评分（G5），kcal 为估算值
+# 列名用 item 而非路线图里写的 desc —— `desc` 是 SQL 保留字，
+# 且本库其它明细表（training_items / personal_tracks / habit_logs）已统一用 item。
+# seq 是同日表内顺序，保证「从 md 100% 可重建」（无天然主键）。
+_NUTRITION_ITEMS_DDL = """
+CREATE TABLE IF NOT EXISTS nutrition_items (
+    date      TEXT NOT NULL,
+    seq       INTEGER NOT NULL
+        CHECK (seq >= 0),
+    meal      TEXT NOT NULL
+        CHECK (meal IN ('breakfast', 'lunch', 'dinner', 'snack', 'other')),
+    item      TEXT NOT NULL,
+    kcal      REAL
+        CHECK (kcal IS NULL OR (kcal >= 0 AND kcal <= 5000)),
+    protein_g REAL
+        CHECK (protein_g IS NULL OR (protein_g >= 0 AND protein_g <= 500)),
+    carb_g    REAL
+        CHECK (carb_g IS NULL OR (carb_g >= 0 AND carb_g <= 1000)),
+    fat_g     REAL
+        CHECK (fat_g IS NULL OR (fat_g >= 0 AND fat_g <= 500)),
+    note      TEXT,
+    PRIMARY KEY (date, seq)
+)
+"""
+
+NUTRITION_COLUMNS = [
+    "date", "seq", "meal", "item", "kcal", "protein_g", "carb_g", "fat_g", "note",
 ]
 
 
@@ -405,11 +436,19 @@ def _migrate_learning(conn: sqlite3.Connection) -> bool:
     return created
 
 
+def _migrate_nutrition(conn: sqlite3.Connection) -> bool:
+    """v8 → v9：建 ``nutrition_items``（幂等）。返回是否新创建了表。"""
+    if "nutrition_items" in _table_names(conn):
+        return False
+    conn.execute(_NUTRITION_ITEMS_DDL)
+    return True
+
+
 def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     """执行全部增量迁移（幂等）。返回本次迁移动作摘要。
 
     顺序：补列 -> 建表 -> 重建 personal_tracks -> body_metrics ->
-    training_* -> habit_logs -> learning_* -> 建索引 -> 记录版本。
+    training_* -> habit_logs -> learning_* -> nutrition_items -> 建索引 -> 记录版本。
     """
     version_before = conn.execute("PRAGMA user_version").fetchone()[0]
     _migrate_daily_reviews(conn)
@@ -421,6 +460,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
     training_created = _migrate_training(conn)
     habits_created = _migrate_habit_logs(conn)
     learning_created = _migrate_learning(conn)
+    nutrition_created = _migrate_nutrition(conn)
     _create_indexes(conn)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     if verbose:
@@ -441,6 +481,8 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
             print("  habit_logs: 新建行为习惯表（v7）")
         if learning_created:
             print("  learning_logs/review_queue: 新建学习表（v8）")
+        if nutrition_created:
+            print("  nutrition_items: 新建食物明细表（v9）")
     return {
         "version_before": version_before,
         "version_after": SCHEMA_VERSION,
@@ -450,6 +492,7 @@ def migrate(conn: sqlite3.Connection, *, verbose: bool = False) -> dict:
         "training_created": training_created,
         "habit_logs_created": habits_created,
         "learning_created": learning_created,
+        "nutrition_created": nutrition_created,
     }
 
 
@@ -816,6 +859,88 @@ def load_learning_logs(
         "ORDER BY date ASC, topic_key ASC",
         params,
     ).fetchall()
+
+
+def replace_nutrition_items(
+    conn: sqlite3.Connection, date_str: str, items: list[dict]
+) -> dict:
+    """按日整体替换食物明细（先删后插）。
+
+    ``nutrition_items`` 的权威是**源 md**，且没有天然主键 —— 因此写入语义是
+    「该日明细 = md 里那张表」，删干净再插，保证从 md 100% 可重建、
+    且重跑 ingest 不残留已删除的行（幂等）。
+
+    返回 ``{"deleted": n, "inserted": m}``，便于 ingest 打印与测试断言。
+    """
+    if not date_str:
+        raise ValueError("replace_nutrition_items 需要 date")
+
+    accepted: list[dict] = []
+    for row in items or []:
+        desc = str(row.get("item") or row.get("desc") or "").strip()
+        if not desc:
+            continue  # 空行 / 已删掉的行
+        accepted.append({**row, "item": desc})
+
+    cur = conn.execute("DELETE FROM nutrition_items WHERE date = ?", (date_str,))
+    deleted = cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+
+    if accepted:
+        conn.executemany(
+            "INSERT INTO nutrition_items "
+            "(date, seq, meal, item, kcal, protein_g, carb_g, fat_g, note) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    date_str,
+                    seq,
+                    row.get("meal") or "other",
+                    row["item"],
+                    row.get("kcal"),
+                    row.get("protein_g"),
+                    row.get("carb_g"),
+                    row.get("fat_g"),
+                    row.get("note"),
+                )
+                for seq, row in enumerate(accepted)
+            ],
+        )
+    return {"deleted": deleted, "inserted": len(accepted)}
+
+
+def load_nutrition_items(
+    conn: sqlite3.Connection,
+    *,
+    date: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+) -> list:
+    """按 ``(date, seq)`` 升序返回食物明细。"""
+    clauses: list[str] = []
+    params: list[str] = []
+    if date is not None:
+        clauses.append("date = ?")
+        params.append(date)
+    else:
+        if start is not None:
+            clauses.append("date >= ?")
+            params.append(start)
+        if end is not None:
+            clauses.append("date <= ?")
+            params.append(end)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    return conn.execute(
+        f"SELECT * FROM nutrition_items {where} ORDER BY date ASC, seq ASC",
+        params,
+    ).fetchall()
+
+
+def count_nutrition_days(conn: sqlite3.Connection) -> int:
+    """有明细的不同日期数（doctor / 报告用）。"""
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT date) FROM nutrition_items"
+    ).fetchone()
+    return int(row[0]) if row and row[0] else 0
 
 
 def upsert_review_queue(conn: sqlite3.Connection, row: dict) -> None:

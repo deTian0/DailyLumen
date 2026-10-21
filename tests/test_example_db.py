@@ -72,6 +72,8 @@ class TestExampleDb(unittest.TestCase):
             self.conn.execute("SELECT COUNT(*) FROM learning_logs").fetchone()[0], 0)
         self.assertEqual(
             self.conn.execute("SELECT COUNT(*) FROM review_queue").fetchone()[0], 0)
+        self.assertEqual(
+            self.conn.execute("SELECT COUNT(*) FROM nutrition_items").fetchone()[0], 0)
 
     def test_body_metrics_table_present(self):
         """v5：空模板必须带 body_metrics（含 CHECK）。"""
@@ -126,6 +128,20 @@ class TestExampleDb(unittest.TestCase):
         self.assertIn("'clickup'", ddl)
         self.assertIn("'self'", ddl)
         self.assertIn("'course'", ddl)
+
+    def test_nutrition_items_table_present(self):
+        """v9：空模板必须带 nutrition_items（餐次 CHECK + 可重建的 seq）。"""
+        cols = [r[1] for r in self.conn.execute(
+            "PRAGMA table_info(nutrition_items)")]
+        self.assertEqual(
+            cols,
+            ["date", "seq", "meal", "item", "kcal",
+             "protein_g", "carb_g", "fat_g", "note"],
+        )
+        ddl = _ddl(self.conn, "nutrition_items")
+        self.assertIn("'breakfast'", ddl)
+        self.assertIn("'snack'", ddl)
+        self.assertIn("PRIMARY KEY (date, seq)", ddl)
 
     def test_integrity_ok(self):
         self.assertEqual(

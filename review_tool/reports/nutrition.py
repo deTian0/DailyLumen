@@ -24,7 +24,8 @@ from ..core.nutrition import (
     meal_structure,
     suggest_foods,
 )
-from ..storage.db import init_db
+from ..core.nutrition_items import MEAL_LABELS, group_by_meal, total_kcal
+from ..storage.db import init_db, load_nutrition_items
 
 
 def _fetch_recent(conn, date_str: str, days: int = 7) -> list[dict]:
@@ -77,6 +78,9 @@ def collect(conn, *, as_of: str | None = None, recent_days: int = 7) -> dict:
     )
     ext = extreme_kcal_streak(recent)
 
+    # 当日食物明细（v9 / M25）：只做回看下钻，不参与任何评分或缺口判定
+    items = [dict(r) for r in load_nutrition_items(conn, date=as_of)]
+
     return {
         "as_of": as_of,
         "recent_days": len(recent),
@@ -92,6 +96,8 @@ def collect(conn, *, as_of: str | None = None, recent_days: int = 7) -> dict:
         "extreme": ext,
         "targets": targets,
         "food_lib_size": len(FOOD_LIB),
+        "items": items,
+        "items_total_kcal": total_kcal(items),
     }
 
 
@@ -177,6 +183,37 @@ def render(data: dict) -> str:
         for n in ms["notes"]:
             L.append(f"  · {n}")
     L.append(f"  建议补入: {ms['suggest_slot']}")
+    L.append("")
+
+    items = data.get("items") or []
+    L.append("---- 当日明细（食物 · 不参与评分）----")
+    if not items:
+        L.append("  （该日无食物明细：M25 附录为可选，漏记不补）")
+    else:
+        for code, group in group_by_meal(items):
+            L.append(f"  {MEAL_LABELS.get(code, code)}")
+            for it in group:
+                kcal = f"{it['kcal']:g} kcal" if it.get("kcal") is not None else "—"
+                macros = " · ".join(
+                    f"{label} {it[col]:g}g"
+                    for col, label in (
+                        ("protein_g", "蛋白"), ("carb_g", "碳水"), ("fat_g", "脂肪"),
+                    )
+                    if it.get(col) is not None
+                )
+                tail = f"（{macros}）" if macros else ""
+                note = f"  ※{it['note']}" if it.get("note") else ""
+                L.append(f"    · {it['item']}　{kcal}{tail}{note}")
+        tot = data.get("items_total_kcal")
+        if tot is not None:
+            block = (data.get("day") or {}).get("diet_kcal")
+            if block is None:
+                L.append(f"  明细合计: {tot:g} kcal（数据块无当日热量，无法对照）")
+            else:
+                L.append(
+                    f"  明细合计: {tot:g} kcal ｜ 数据块 {block:g} kcal"
+                    f"（差 {block - tot:+.0f}，明细为估算值）"
+                )
     L.append("")
 
     L.append("---- 建议（FOOD_LIB）----")

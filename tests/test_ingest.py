@@ -327,5 +327,111 @@ class TestZeroFill(unittest.TestCase):
         self.assertEqual(row[1], "record")
 
 
+NUTRITION_MD = """# 2026-10-21 复盘
+
+```data
+日期: 2026-10-21
+星期: 周三
+训练日: 否
+睡眠时长_h: 7.2
+睡眠质量: 82
+入睡时间: 23:10
+屏幕时长_h: 8.5
+深度工作_h: 3
+学习投入_h: 1
+生活投入_h: 1
+饮食热量_kcal: 1500
+碳水_g: 180
+脂肪_g: 50
+蛋白质_g: 70
+```
+
+## 附录 · 食物明细（可选）
+
+| 餐次 | 食物 | 估算 kcal | 备注 |
+|------|------|-----------|------|
+| 早 | 燕麦 40g ＋ 牛奶 250ml | 380 | 估算 |
+| 午 | 食堂两荤一素 | 约 700 | |
+| 晚 | 小米粥 ＋ 鸡蛋 | ≈420 | |
+"""
+
+
+class TestIngestNutritionItems(unittest.TestCase):
+    """v9 / M25：md 是权威，按日整体替换，可从 md 100% 重建。"""
+
+    def setUp(self):
+        self.conn, self.path = _tmp_db()
+        self.indir = tempfile.mkdtemp()
+        self.md = os.path.join(self.indir, "2026-10-21.md")
+        with open(self.md, "w", encoding="utf-8") as f:
+            f.write(NUTRITION_MD)
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.indir, ignore_errors=True)
+        shutil.rmtree(os.path.dirname(self.path), ignore_errors=True)
+
+    def _rows(self):
+        return [dict(r) for r in self.conn.execute(
+            "SELECT * FROM nutrition_items WHERE date='2026-10-21' ORDER BY seq")]
+
+    def test_items_written(self):
+        ingest_path(self.conn, self.md)
+        rows = self._rows()
+        self.assertEqual([r["item"] for r in rows],
+                         ["燕麦 40g ＋ 牛奶 250ml", "食堂两荤一素", "小米粥 ＋ 鸡蛋"])
+        self.assertEqual([r["meal"] for r in rows],
+                         ["breakfast", "lunch", "dinner"])
+        self.assertEqual([r["kcal"] for r in rows], [380.0, 700.0, 420.0])
+        self.assertEqual([r["seq"] for r in rows], [0, 1, 2])
+
+    def test_reingest_idempotent(self):
+        ingest_path(self.conn, self.md)
+        first = self._rows()
+        ingest_path(self.conn, self.md)
+        self.assertEqual(first, self._rows())
+
+    def test_removed_line_disappears(self):
+        ingest_path(self.conn, self.md)
+        with open(self.md, "w", encoding="utf-8") as f:
+            f.write(NUTRITION_MD.replace("| 晚 | 小米粥 ＋ 鸡蛋 | ≈420 | |\n", ""))
+        ingest_path(self.conn, self.md)
+        self.assertEqual(len(self._rows()), 2)
+
+    def test_empty_table_clears_day(self):
+        ingest_path(self.conn, self.md)
+        empty = NUTRITION_MD.split("| 餐次")[0] + (
+            "| 餐次 | 食物 | 估算 kcal | 备注 |\n|---|---|---|---|\n| 早 |  |  |  |\n"
+        )
+        with open(self.md, "w", encoding="utf-8") as f:
+            f.write(empty)
+        ingest_path(self.conn, self.md)
+        self.assertEqual(self._rows(), [])
+
+    def test_no_section_leaves_existing_rows(self):
+        """文件压根没有该附录 → 不动库（区别于「附录存在但为空」）。"""
+        ingest_path(self.conn, self.md)
+        with open(self.md, "w", encoding="utf-8") as f:
+            f.write(NUTRITION_MD.split("## 附录 · 食物明细")[0])
+        ingest_path(self.conn, self.md)
+        self.assertEqual(len(self._rows()), 3)
+
+    def test_does_not_touch_scores(self):
+        """明细不参与四维评分（G5）。"""
+        ingest_path(self.conn, self.md)
+        before = dict(self.conn.execute(
+            "SELECT health_score, work_score, learn_score, life_score, system_score "
+            "FROM daily_reviews WHERE date='2026-10-21'").fetchone())
+        with open(self.md, "w", encoding="utf-8") as f:
+            f.write(NUTRITION_MD.replace(
+                "| 晚 | 小米粥 ＋ 鸡蛋 | ≈420 | |",
+                "| 晚 | 火锅 | 2000 | 估算 |"))
+        ingest_path(self.conn, self.md)
+        after = dict(self.conn.execute(
+            "SELECT health_score, work_score, learn_score, life_score, system_score "
+            "FROM daily_reviews WHERE date='2026-10-21'").fetchone())
+        self.assertEqual(before, after)
+
+
 if __name__ == "__main__":
     unittest.main()
