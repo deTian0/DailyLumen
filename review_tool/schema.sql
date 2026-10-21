@@ -206,3 +206,19 @@ CREATE TABLE IF NOT EXISTS nutrition_items (
     note      TEXT,
     PRIMARY KEY (date, seq)
 );
+
+-- 承诺（v10 / M29）：改进点 + 明日 Top 3，独立指标区，不参与四维评分
+-- 权威：md「## 三、一个改进点」「## 四、明日 Top 3」→ ingest；可从 md 100% 重建
+-- date 记写下承诺那天，对账对象是次日（due 由 date 推导，不落库）
+-- bucket 是分类桶（learn / exercise / diet / sleep / phone / work / supplement），
+-- 由 core.promises.classify 派生，随「先删后插」同步
+CREATE TABLE IF NOT EXISTS promises (
+    date   TEXT NOT NULL,
+    kind   TEXT NOT NULL
+        CHECK (kind IN ('improvement', 'plan')),
+    seq    INTEGER NOT NULL
+        CHECK (seq >= 0),
+    text   TEXT NOT NULL,
+    bucket TEXT,
+    PRIMARY KEY (date, kind, seq)
+);

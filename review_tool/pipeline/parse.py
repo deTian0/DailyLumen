@@ -43,6 +43,7 @@ from ..config import (
 from ..core.bodyweight import estimate
 from ..core.learning import parse_section as parse_learning_section
 from ..core.nutrition_items import parse_section as parse_nutrition_section
+from ..core.promises import parse_section as parse_promises_section
 from ..core.score import system_score_from
 from ..core.tracks import normalize_supplement_line, resolve_item, resolve_track
 from ..core.training import parse_section as parse_training_section
@@ -281,6 +282,13 @@ def parse_text(text: str) -> dict:
     nutrition = parse_nutrition_section(text)
     if nutrition is not None:
         row["_nutrition_items"] = nutrition
+
+    # 9) 承诺侧车（改进点 / 明日 Top 3，v10 / M29）—— 独立指标区，不参与四维（G5）
+    #    章节存在但写空 → 空列表（清空该 kind）；整段缺失 → 该 kind 不出现在字典里
+    #    （本次不动库）。模板提示语与「空/忘记了」等占位已在 core.promises 里滤掉。
+    promises = parse_promises_section(text)
+    if promises is not None:
+        row["_promises"] = promises
 
     return row
 

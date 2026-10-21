@@ -177,9 +177,15 @@ agent_created: true
 
 ## 5. 数据库规约
 
-- **SQLite `reviews.db` 是唯一数据源**；schema 走 `PRAGMA user_version` 幂等迁移（当前 **v9**）。
+- **SQLite `reviews.db` 是唯一数据源**；schema 走 `PRAGMA user_version` 幂等迁移（当前 **v10**）。
   v1.9.0 决断：`energy` / `mood` / `commute_done` **保留**（模板提醒 / 通勤默认「是」），
   不做破坏性删列；三者**不参与四维评分**。
+- **承诺对账（v10 / M29）的口径是红线**：`promises` 存「改进点 / 明日 Top 3」，
+  兑现判定**只认次日结构化字段**（`learn_h`/`exercise_min`/`fat_g`/`bedtime`/
+  `deepwork_h`/`phone_h`/`personal_tracks.done`）。判不了记 `unmapped`、
+  次日没写复盘记 `no_data` —— **两者都不算未兑现**；兑现率只在可判定子集上算；
+  **不进四维评分、不加惩罚**。⛔ 别用「承诺文本里出现某词」当兑现证据（只证明提过）。
+  入口：`python -m review_tool promises`；周报第八节；`doctor` 的 `[承诺覆盖]`。
 - **改 CHECK 只能重建表**，重建必须走全覆盖流程：
   备份 → 副本验证 → 显式事务 → 逐列 diff → 落真库（详见用户级 skill `sqlite-safe-migration`）。
 - **`reviews.example.db` 必须与当前 schema 同版**（`tests/test_example_db.py` 守卫），

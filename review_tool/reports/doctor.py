@@ -284,6 +284,45 @@ def body_status(conn, *, today: str) -> dict:
     }
 
 
+def promise_coverage(conn, *, days: int = 30, today: str | None = None) -> dict:
+    """近 N 天「承诺填写」覆盖：有复盘的天里，多少天真的写了改进点/Top 3。
+
+    M29 的副产品。实测 79 天里 75 处写的是「空 / 忘记了 / 无」这类占位，
+    也就是**「写复盘」这个动作本身有空转**。这项只数库里的行，零误报。
+    """
+    today = today or _date.today().isoformat()
+    start = (
+        datetime.strptime(today, "%Y-%m-%d") - timedelta(days=max(days, 1) - 1)
+    ).strftime("%Y-%m-%d")
+    reviewed = conn.execute(
+        "SELECT COUNT(*) FROM daily_reviews WHERE date BETWEEN ? AND ?",
+        (start, today),
+    ).fetchone()[0]
+    with_p = conn.execute(
+        "SELECT COUNT(DISTINCT date) FROM promises WHERE date BETWEEN ? AND ?",
+        (start, today),
+    ).fetchone()[0]
+    by_kind = {
+        r[0]: r[1]
+        for r in conn.execute(
+            "SELECT kind, COUNT(*) FROM promises WHERE date BETWEEN ? AND ? "
+            "GROUP BY kind",
+            (start, today),
+        )
+    }
+    return {
+        "days": days,
+        "start": start,
+        "end": today,
+        "reviewed": reviewed,
+        "with_promises": with_p,
+        "missing": max(reviewed - with_p, 0),
+        "improvement": by_kind.get("improvement", 0),
+        "plan": by_kind.get("plan", 0),
+        "total": sum(by_kind.values()),
+    }
+
+
 def _track_rate(conn, start: str, end: str) -> tuple[float | None, int, int]:
     """闭区间 ``[start, end]`` 内 personal_tracks 完成率。
 
@@ -513,6 +552,9 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
         # 体征（建议性：最新距今 / 单周突变；不影响 is_healthy）
         result["body"] = body_status(conn, today=today)
 
+        # 承诺覆盖（建议性：近 30 天有复盘却没写改进点/Top 3 的天数）
+        result["promise_coverage"] = promise_coverage(conn, today=today)
+
         # R3：habit_logs ↔ personal_tracks key 隔离（交集非空 → 不健康）
         result["habit_track_overlap"] = habit_track_key_overlap(conn)
 
@@ -701,6 +743,30 @@ def render(result: dict, *, encoding: str | None = None) -> str:
             f"相对基线 {cliff['baseline_rate'] * 100:.1f}% "
             f"（降幅 {cliff['delta'] * 100:.1f}pp，未达阈值）"
         )
+
+    L.append("")
+    L.append("[承诺覆盖]")
+    pc = result.get("promise_coverage") or {}
+    if not pc.get("reviewed"):
+        L.append(f"  {ok} 近 {pc.get('days', 30)} 天没有入库复盘，跳过")
+    elif not pc.get("with_promises"):
+        L.append(
+            f"  {warn} 近 {pc['days']} 天有 {pc['reviewed']} 天复盘，"
+            "但一条改进点 / 明日 Top 3 都没写（建议性，不影响数据健康）"
+        )
+        L.append("     · 想让它可核对，写成 `脂肪≤70g`、`23:30 前`、`60min` 这种形式")
+    else:
+        line = (
+            f"  {ok} 近 {pc['days']} 天有 {pc['reviewed']} 天复盘，"
+            f"{pc['with_promises']} 天写了承诺"
+            f"（改进点 {pc['improvement']} / 明日 Top 3 {pc['plan']}）"
+        )
+        L.append(line)
+        if pc.get("missing"):
+            L.append(
+                f"     · 另 {pc['missing']} 天没写（写「空 / 忘记了」也算没写）；"
+                "对账口径见 `python -m review_tool promises`"
+            )
 
     L.append("")
     L.append("[体征]")

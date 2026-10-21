@@ -74,6 +74,8 @@ class TestExampleDb(unittest.TestCase):
             self.conn.execute("SELECT COUNT(*) FROM review_queue").fetchone()[0], 0)
         self.assertEqual(
             self.conn.execute("SELECT COUNT(*) FROM nutrition_items").fetchone()[0], 0)
+        self.assertEqual(
+            self.conn.execute("SELECT COUNT(*) FROM promises").fetchone()[0], 0)
 
     def test_body_metrics_table_present(self):
         """v5：空模板必须带 body_metrics（含 CHECK）。"""
@@ -142,6 +144,15 @@ class TestExampleDb(unittest.TestCase):
         self.assertIn("'breakfast'", ddl)
         self.assertIn("'snack'", ddl)
         self.assertIn("PRIMARY KEY (date, seq)", ddl)
+
+    def test_promises_table_present(self):
+        """v10：空模板必须带 promises（kind CHECK + 可重建的 seq）。"""
+        cols = [r[1] for r in self.conn.execute("PRAGMA table_info(promises)")]
+        self.assertEqual(cols, ["date", "kind", "seq", "text", "bucket"])
+        ddl = _ddl(self.conn, "promises")
+        self.assertIn("'improvement'", ddl)
+        self.assertIn("'plan'", ddl)
+        self.assertIn("PRIMARY KEY (date, kind, seq)", ddl)
 
     def test_integrity_ok(self):
         self.assertEqual(
