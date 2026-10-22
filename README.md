@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.38.0**（熔断双条件：稳定低位不再报警，低分须同时低于自身 28 日基线 ≥1 分）（历史：修复 keepstrong 写入器空行吞下一行；ClickUp 归属口径修正：整张工时表都是本人执行记录，姓名位=下发人；承诺可写「今天不设」显式放弃；`clickup_done` 作工作旁证，schema **v11**；废弃 `commute_done`；食物明细 `nutrition_items`；标尺 v2 = 阈值分档 → 锚点插值 + 健康死档拆分）｜测试 **848** 项
+> 当前版本 **1.39.0**（`daily-pull` 夜间采集拉齐：练练落 md + 习惯快照 + 入库一条命令，dry-run 默认）（历史：熔断双条件：稳定低位不再报警，低分须同时低于自身 28 日基线 ≥1 分；修复 keepstrong 写入器空行吞下一行；ClickUp 归属口径修正：整张工时表都是本人执行记录，姓名位=下发人；承诺可写「今天不设」显式放弃；`clickup_done` 作工作旁证，schema **v11**；废弃 `commute_done`；食物明细 `nutrition_items`；标尺 v2 = 锚点插值 + 健康死档拆分）｜测试 **855** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -105,6 +105,7 @@
 | `body [--json]`                                      | 体征趋势：最新体重 / BMI / 7 日均 / 周变化 / 距目标 + **建议段**（M23，趋势×带位×外推） |
 | `coach [YYYY-MM-DD] [--json]`                        | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据数字） |
 | `habits [--json] [--sync …]`                         | 行为习惯报告；`--sync` 从 ClickUp 写入 `habit_logs` |
+| `daily-pull [--date D] [--apply]`                    | 夜间采集拉齐：练练落 md + 习惯快照 + 入库一条命令（dry-run 默认；**仅夜间**，会打网） |
 | `nutrition [YYYY-MM-DD] [--json]`                    | 营养缺口：当日/近窗 vs macro_targets + FOOD_LIB 具体动作 |
 | `tutor [YYYY-MM-DD] [--json]`                        | 学习/复习：今日待复习 + 本周主题/投入/产出物（独立指标区） |
 | `steward --slot morning\|evening\|week […]`          | 总管家编排：晨间 brief / 夜间复盘指引 / 周度六段合一（只调用既有模块） |

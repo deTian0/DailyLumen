@@ -14,6 +14,7 @@
     python -m review_tool body       [--json]
     python -m review_tool coach      [YYYY-MM-DD] [--json]
     python -m review_tool habits     [--json] [--sync ...]
+    python -m review_tool daily-pull [--date YYYY-MM-DD] [--apply]
     python -m review_tool nutrition  [YYYY-MM-DD] [--json]
     python -m review_tool tutor      [YYYY-MM-DD] [--json]
     python -m review_tool steward    --slot morning|evening|week […]
@@ -50,6 +51,7 @@ from . import __version__
 from .pipeline.clickup import main as clickup_main
 from .pipeline.clickup_pull import main as clickup_pull_main
 from .pipeline.clickup_sync import main as clickup_push_main
+from .pipeline.daily_pull import main as daily_pull_main
 from .pipeline.export import main as export_main
 from .pipeline.import_history import main as import_history_main
 from .pipeline.ingest import main as ingest_main
@@ -132,6 +134,7 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "body": (body_main, "body [--json]"),
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),
     "habits": (habits_main, "habits [--json] [--sync [YYYY-MM-DD] [--dry-run]]"),
+    "daily-pull": (daily_pull_main, "daily-pull [--date YYYY-MM-DD] [--apply]"),
     "nutrition": (nutrition_main, "nutrition [YYYY-MM-DD] [--json]"),
     "promises": (
         promises_main, "promises [起始日期] [结束日期] [--json]"),
