@@ -61,7 +61,12 @@ $PY -m review_tool steward --slot week [ISO周|YYYY-MM-DD]
    - 训练 → intake §3.6 → `keepstrong --date <被复盘日> --write --ingest`
    - 饮食 → intake §3.6 → `nutrition`
    - 学习 → intake §3.7 → `tutor`
-4. 收尾：`doctor`（写「七、AI 评价」前看熔断段）；再 `ingest` 兜底 summary。
+   - ⚡ **偷懒通道（v1.39.0 / M33）**：`daily-pull --date <归属日> --apply`
+     一条命令跑完「练练落 md + 习惯快照 + 全量 ingest」，默认 dry-run 可先看计划。
+     **仅夜间用**（会打网：练练 + ClickUp）；它不替代上面的字段级回填，
+     只保证「链路不会因为忘跑命令而静默缺数」。
+4. 收尾：`doctor`（写「七、AI 评价」前看熔断段）；再 `ingest` 兜底 summary；
+   最后按 intake §6.1 跑 `clickup-push <日期> --apply` 勾掉元任务。
 
 **禁止**：只进库不落 md；手改四维分；把 ClickUp 习惯勾进「一、日常打卡」。
 
