@@ -342,6 +342,18 @@ python -m review_tool ai-context YYYY-MM-DD     # 当日事实 + 近 7 日均值
 简短告知：**处理了哪一天**、**回填了哪些数据/素材**、**生成了哪个文件**（完整路径）、
 **给了几条评价与建议**。然后按项目 5 步协议写执行摘要（见 `dailylumen-conventions` §7）。
 
+### 6.1 复盘全项完成后的最后一步（2026-10-21 用户拍板）
+
+复盘 md 回填 + 评分 + ingest 全部就位后，跑一次：
+
+```
+python -m review_tool clickup-push <日期> --apply
+```
+
+自动勾掉 ClickUp 当日「每日复盘总结」元任务（幂等：已是完成态会跳过）。
+⭐ **先 dry-run 看一眼再 `--apply`**；失败（网络 / 凭据）不影响复盘本身完成，
+提示一句即可，不要重试超过一次。
+
 ## 7. 与项目规约的衔接（别踩）
 
 - 改了评分规则 / 想调口径 → 走 CLI（`recompute-scores --apply` + `sync-docs`），
