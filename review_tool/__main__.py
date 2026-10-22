@@ -15,6 +15,7 @@
     python -m review_tool coach      [YYYY-MM-DD] [--json]
     python -m review_tool habits     [--json] [--sync ...]
     python -m review_tool daily-pull [--date YYYY-MM-DD] [--apply]
+    python -m review_tool promise-draft [--date YYYY-MM-DD] [--stdout]
     python -m review_tool nutrition  [YYYY-MM-DD] [--json]
     python -m review_tool tutor      [YYYY-MM-DD] [--json]
     python -m review_tool steward    --slot morning|evening|week […]
@@ -58,6 +59,7 @@ from .pipeline.ingest import main as ingest_main
 from .pipeline.keepstrong import main as keepstrong_main
 from .pipeline.new_day import is_enabled as _new_day_enabled
 from .pipeline.new_day import main as new_day_main
+from .pipeline.promise_draft import main as promise_draft_main
 from .pipeline.sync_docs import main as sync_docs_main
 from .reports.ai_review import main as ai_context_main
 from .reports.analyze import main as analyze_main
@@ -135,6 +137,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),
     "habits": (habits_main, "habits [--json] [--sync [YYYY-MM-DD] [--dry-run]]"),
     "daily-pull": (daily_pull_main, "daily-pull [--date YYYY-MM-DD] [--apply]"),
+    "promise-draft": (
+        promise_draft_main,
+        "promise-draft [--date YYYY-MM-DD] [--stdout] [--out DIR]"),
     "nutrition": (nutrition_main, "nutrition [YYYY-MM-DD] [--json]"),
     "promises": (
         promises_main, "promises [起始日期] [结束日期] [--json]"),
