@@ -86,7 +86,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `chart.py` | 离线 SVG：默认四维趋势；`--type body|training|nutrition|all`（目标带 / 柱状 / 双轴） |
 | `correlate.py` | 跨维关联：睡眠/训练/体重/热量/学习；样本不足 10 仅观察；相关≠因果 |
 | `doctor.py` | 数据体检：schema / 对账 / 熔断 / 体征 / **R3 习惯隔离** / **习惯断更** / **承诺覆盖**（后三项建议性） |
-| `fuse.py` | 熔断检测：单维度连续走低（绝对）+ 近 7 日 vs 前 28 日均值漂移（相对） |
+| `fuse.py` | 熔断检测：低分双条件（绝对+相对基线，v1.38.0）+ 近 7 日 vs 前 28 日均值漂移 |
 | `ai_review.py` | 「AI 评价与建议」的确定性上下文（当日事实 + 7 日均值 + 命中规则；宏量判定复用 core.nutrition） |
 | `recompute.py` | 按当前规则重算库中四维 / 系统分（默认只试算，`--apply` 落库） |
 

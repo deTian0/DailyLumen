@@ -1,4 +1,4 @@
-"""熔断检测：把「单维度 <6 连续 3 天就熔断」这条规则从文档搬进代码。
+"""熔断检测：把「单维度持续异常就熔断」这条规则从文档搬进代码。
 
 背景（v1.4.0）
 -------------
@@ -6,18 +6,27 @@
 2026-07-28 的复盘甚至写着「aggregate 会主动标红」，而那个 aggregate 是语雀
 时代的旧流程，从未迁进本工具。结果是：学习维度连续 24 天 <6，系统一声不吭。
 
-两个信号
---------
-1. **绝对熔断**：任一维度连续 ``rules['days']`` 天低于 ``rules['threshold']``。
-   这是用户原始定义的规则（<6 连续 3 天）。
-2. **相对基线**：近 ``recent_days`` 日均值 vs 更早 ``baseline_days`` 日均值，
-   偏离达到 ``rules['drift']`` 分才算「真的在变」。
+低分判定：双条件（v1.38.0 / M32 定版）
+-------------------------------------
+某天某维度计为「低」，须**同时**满足：
 
-为什么必须有第 2 个信号：49 天样本里学习分 **82% 的天数 <6、60% 正好落在
-最低档**，绝对阈值在这条分布上近乎恒真 —— 连续 24 天触发等于没有信息量。
-**长期低位提示**（连续超过 ``long_run_days``）会显式告诉你「这条阈值对该
-维度已经失去分辨力」，而不是继续刷同一条告警。v1.33.2 起这类项**不再计入
-「熔断态」与退出码** —— 否则报告会自相矛盾：一边说阈值失效，一边把它算成熔断。
+1. **绝对**：当日分 < ``rules['threshold']``（<6，用户原始定义）；
+2. **相对**：当日分 < 此前 ``rules['baseline_days']`` 日自身均值 −
+   ``rules['relative_drift']``（即显著低于自己近期的正常水平）。
+
+为什么必须加第 2 个条件：79 天实测，标尺 v2 下 **78% 的天数至少一维处于
+熔断态**（系统分 61/79 天 <6、历史最高仅 6.5）—— 稳定低位天天亮灯，
+等于没有报警。双条件下实测降到 **33%**：「一直低但稳定」不报，
+「突然掉下去」才报。基线样本不足 ``min_baseline_days`` 天时不计低
+（建库初期不乱报）。
+
+仍保留的两层防护
+----------------
+1. **长期低位失效降级**：连续超过 ``long_run_days`` 天满足双条件 → 显式提示
+   「阈值对该维度已失去分辨力」，且不计入熔断态与退出码（v1.33.2 起）。
+2. **相对基线漂移**：近 ``recent_days`` 日均值 vs 更早 ``baseline_days`` 日
+   均值，偏离 ≥ ``rules['drift']`` 分才算「真的在变」—— 这是趋势信号，
+   与逐日熔断互补。
 """
 from __future__ import annotations
 
@@ -62,33 +71,49 @@ def _series(conn, month: int | None = None) -> list[tuple[str, dict]]:
     return out
 
 
-def _streak_ending_latest(series: list[tuple[str, dict]], dim: str, th: float) -> tuple[int, str | None]:
-    """末尾连续低于阈值的记录数，以及该段起点日期。"""
-    run, start = 0, None
-    for date, vals in reversed(series):
+def _mean(values: list) -> float | None:
+    vals = [v for v in values if v is not None]
+    return round(sum(vals) / len(vals), 2) if vals else None
+
+
+def _low_flags(series: list[tuple[str, dict]], dim: str, R: dict
+               ) -> list[tuple[str, bool, float | None]]:
+    """逐日判定「低」：[(date, is_low, baseline), ...]。
+
+    baseline = 该天**之前** ``baseline_days`` 天内该维度非 None 值的均值；
+    样本不足 ``min_baseline_days`` 时为 None（该天不计低）。
+    """
+    th = R["threshold"]
+    out: list[tuple[str, bool, float | None]] = []
+    for i, (date, vals) in enumerate(series):
         v = vals.get(dim)
-        if v is None or v >= th:
+        pool = [x[1].get(dim) for x in series[max(0, i - R["baseline_days"]):i]]
+        base = _mean(pool)
+        if base is not None and len([p for p in pool if p is not None]) < R["min_baseline_days"]:
+            base = None  # 样本不足：基线不可用
+        low = v is not None and v < th and base is not None and v < base - R["relative_drift"]
+        out.append((date, low, base))
+    return out
+
+
+def _streak_ending_latest(flags: list[tuple[str, bool, float | None]]
+                          ) -> tuple[int, str | None]:
+    """末尾连续计低的记录数，以及该段起点日期。"""
+    run, start = 0, None
+    for date, low, _base in reversed(flags):
+        if not low:
             break
         run += 1
         start = date
     return run, start
 
 
-def _longest_streak(series: list[tuple[str, dict]], dim: str, th: float) -> int:
+def _longest_streak(flags: list[tuple[str, bool, float | None]]) -> int:
     best = cur = 0
-    for _date, vals in series:
-        v = vals.get(dim)
-        if v is not None and v < th:
-            cur += 1
-            best = max(best, cur)
-        else:
-            cur = 0
+    for _date, low, _base in flags:
+        cur = cur + 1 if low else 0
+        best = max(best, cur)
     return best
-
-
-def _mean(values: list) -> float | None:
-    vals = [v for v in values if v is not None]
-    return round(sum(vals) / len(vals), 2) if vals else None
 
 
 def find_fuses(conn, *, rules: dict | None = None,
@@ -105,6 +130,9 @@ def find_fuses(conn, *, rules: dict | None = None,
         "records": len(series),
         "threshold": th,
         "days": days,
+        "relative_drift": R["relative_drift"],
+        "min_baseline_days": R["min_baseline_days"],
+        "baseline_days": R["baseline_days"],
         "absolute": [],
         "quiet": [],
         "drift": [],
@@ -113,8 +141,10 @@ def find_fuses(conn, *, rules: dict | None = None,
         return result
 
     for dim in CHECK_DIMS:
-        run, since = _streak_ending_latest(series, dim, th)
-        longest = _longest_streak(series, dim, th)
+        flags = _low_flags(series, dim, R)
+        run, since = _streak_ending_latest(flags)
+        longest = _longest_streak(flags)
+        last_base = flags[-1][2] if flags else None
         item = {
             "dim": dim,
             "label": DIM_CN[dim],
@@ -123,6 +153,8 @@ def find_fuses(conn, *, rules: dict | None = None,
             "longest": longest,
             "fused": run >= days,
             "long_run": run >= R["long_run_days"],
+            "low_today": flags[-1][1] if flags else False,
+            "baseline": last_base,
         }
         (result["absolute"] if item["fused"] else result["quiet"]).append(item)
 
@@ -149,7 +181,8 @@ def render(results: dict) -> str:
     L.append("DailyLumen 熔断检测")
     L.append("=" * 52)
     L.append(f"  样本 {results['records']} 天｜截至 {results['as_of']}")
-    L.append(f"  规则：任一维度连续 ≥{results['days']} 天 < {results['threshold']} 分 → 熔断")
+    L.append(f"  规则：任一维度连续 ≥{results['days']} 天 < {results['threshold']} 分"
+             f"且低于自身 {results['baseline_days']} 日基线 ≥{results['relative_drift']} 分 → 熔断")
 
     L.append("")
     L.append("[绝对信号]")
@@ -157,11 +190,13 @@ def render(results: dict) -> str:
         for it in results["absolute"]:
             if it["long_run"]:
                 # 长期低位：本身已声明「阈值失效」，不再用熔断符号与倍数渲染
-                L.append(f"  ⚠️ {it['label']}：连续 {it['run']} 天 < {results['threshold']}"
+                L.append(f"  ⚠️ {it['label']}：连续 {it['run']} 天显著低于基线"
                          f"（自 {it['since']} 起）· 长期低位，阈值已失效")
             else:
+                base = f"，基线 {it['baseline']}" if it["baseline"] is not None else ""
                 L.append(f"  🔴 {it['label']}：连续 {it['run']} 天 < {results['threshold']}"
-                         f"（自 {it['since']} 起）｜超阈值 {it['run'] / results['days']:.1f} 倍")
+                         f"且低于基线（自 {it['since']} 起{base}）"
+                         f"｜超阈值 {it['run'] / results['days']:.1f} 倍")
     else:
         L.append("  ✓ 无维度触发")
 
@@ -177,11 +212,11 @@ def render(results: dict) -> str:
     if long_runs:
         L.append("")
         L.append("[阈值失效提示]")
-        L.append(f"  以下维度连续超过 {R['long_run_days']} 天 < {results['threshold']}，"
+        L.append(f"  以下维度连续超过 {R['long_run_days']} 天显著低于基线，"
                  "绝对阈值对它已失去分辨力：")
         for it in long_runs:
             L.append(f"  ·  {it['label']}（连续 {it['run']} 天）—— 请改用下面的相对基线判断")
-        L.append("     （连续 N 天 <6 在这条分布上近乎恒真，刷同一条告警没有信息量）")
+        L.append("     （连续低位在这条分布上近乎恒真，刷同一条告警没有信息量）")
 
     L.append("")
     L.append(f"[相对基线] 近 {R['recent_days']} 日均值 vs 之前 {R['baseline_days']} 日均值")

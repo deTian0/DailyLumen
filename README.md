@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.37.2**（修复 keepstrong 写入器空行吞下一行）（ClickUp 归属口径修正：整张工时表都是本人执行记录，姓名位=下发人；承诺可写「今天不设」显式放弃；`clickup_done` 作工作旁证，schema **v11**；废弃 `commute_done`；食物明细 `nutrition_items`；标尺 v2 = 阈值分档 → 锚点插值 + 健康死档拆分）｜测试 **844** 项
+> 当前版本 **1.38.0**（熔断双条件：稳定低位不再报警，低分须同时低于自身 28 日基线 ≥1 分）（历史：修复 keepstrong 写入器空行吞下一行；ClickUp 归属口径修正：整张工时表都是本人执行记录，姓名位=下发人；承诺可写「今天不设」显式放弃；`clickup_done` 作工作旁证，schema **v11**；废弃 `commute_done`；食物明细 `nutrition_items`；标尺 v2 = 阈值分档 → 锚点插值 + 健康死档拆分）｜测试 **848** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -78,7 +78,7 @@
         ├── chart.py                  #   离线趋势 SVG（四维 / 体重 / 训练 / 热量双轴）★
         ├── correlate.py              #   跨维关联统计（样本门槛 + Pearson）★
         ├── doctor.py                 #   数据体检（对账 / R3 隔离 / 习惯断更 / 体征…）★
-        ├── fuse.py                   #   熔断检测（连续走低 + 相对基线偏离）★
+        ├── fuse.py                   #   熔断检测（低分双条件 + 相对基线偏离）★
         ├── ai_review.py              #   「七、AI 评价与建议」上下文构建器 ★
         └── recompute.py              #   按当前规则重算库中四维 / 系统分 ★
 ```
@@ -108,7 +108,7 @@
 | `nutrition [YYYY-MM-DD] [--json]`                    | 营养缺口：当日/近窗 vs macro_targets + FOOD_LIB 具体动作 |
 | `tutor [YYYY-MM-DD] [--json]`                        | 学习/复习：今日待复习 + 本周主题/投入/产出物（独立指标区） |
 | `steward --slot morning\|evening\|week […]`          | 总管家编排：晨间 brief / 夜间复盘指引 / 周度六段合一（只调用既有模块） |
-| `fuse`                                               | 熔断检测：单维度持续走低 + 相对基线偏离（长期低位不算熔断，退出码 0） |
+| `fuse`                                               | 熔断检测：低分双条件（<6 且低于自身 28 日基线 ≥1 分）连续 3 天 + 相对基线偏离（长期低位不算熔断，退出码 0） |
 | `sync-docs [--check]`                                | 把库里的四维分回写到复盘 md（数据块 + 六章表格）            |
 | `recompute-scores [--apply]`                         | 按当前规则重算库中四维 / 系统分（默认只试算）               |
 | `export [--format csv\|json] [--out DIR] [--stdout]` | 导出结构化数据                                |

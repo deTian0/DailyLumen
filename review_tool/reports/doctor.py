@@ -885,8 +885,9 @@ def render(result: dict, *, encoding: str | None = None) -> str:
             for it in fuse["absolute"]:
                 flag = crit if not it["long_run"] else warn
                 tail = " · 长期低位" if it["long_run"] else ""
+                base = f"，基线 {it['baseline']}" if it.get("baseline") is not None else ""
                 L.append(f"  {flag} {it['label']}：连续 {it['run']} 天 < {fuse['threshold']}"
-                         f"（自 {it['since']} 起）{tail}")
+                         f"且低于基线（自 {it['since']} 起{base}）{tail}")
             long_runs = [it["label"] for it in fuse["absolute"] if it["long_run"]]
             if long_runs:
                 L.append(f"     · {'、'.join(long_runs)} 已连续超过 "

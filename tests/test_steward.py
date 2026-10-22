@@ -51,7 +51,11 @@ class TestStewardMorning(unittest.TestCase):
         self.today = "2026-10-15"
         self.yday = "2026-10-14"
         _seed_day(self.conn, self.yday)
-        # 连续 3 天学习低分 → 熔断
+        # 基线窗口：7 天学习高分（满足 min_baseline_days=7）
+        for i in range(7):
+            d = (date.fromisoformat(self.yday) - timedelta(days=9 - i)).isoformat()
+            _seed_day(self.conn, d, learn_score=8, system_score=5.0)
+        # 连续 3 天学习低分且显著低于基线 → 熔断
         for i, sc in enumerate((3, 3, 3)):
             d = (date.fromisoformat(self.yday) - timedelta(days=2 - i)).isoformat()
             _seed_day(self.conn, d, learn_score=sc, system_score=5.0)
