@@ -73,6 +73,7 @@ class TestProjectSkills(unittest.TestCase):
         "doc-corpus-normalize",
         "clickup-tracking",
         "life-steward-daily",
+        "life-decision-guide",
     )
 
     def test_required_skills_present(self):
