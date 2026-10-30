@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.40.0**（`promise-draft`：ClickUp 到期任务 → 明日 Top 3 候选草稿，写承诺降摩擦）（历史：`daily-pull` 夜间采集拉齐一条命令；熔断双条件：稳定低位不再报警；修复 keepstrong 写入器空行吞下一行；ClickUp 归属口径修正；承诺可写「今天不设」显式放弃；`clickup_done` 作工作旁证，schema **v11**；食物明细 `nutrition_items`；标尺 v2 = 锚点插值 + 健康死档拆分）｜测试 **866** 项
+> 当前版本 **1.41.0**（项目级 skill `life-decision-guide`：人生决策问答按《高性价比人生指南》查条目再答，每条注明第几节第几条）（历史：`promise-draft`：ClickUp 到期任务 → 明日 Top 3 候选草稿，写承诺降摩擦；`daily-pull` 夜间采集拉齐一条命令；熔断双条件：稳定低位不再报警；修复 keepstrong 写入器空行吞下一行；ClickUp 归属口径修正；承诺可写「今天不设」显式放弃；`clickup_done` 作工作旁证，schema **v11**；食物明细 `nutrition_items`；标尺 v2 = 锚点插值 + 健康死档拆分）｜测试 **866** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -253,6 +253,7 @@ ClickUp 只读素材 + 回写通道 / 配置自洽 / 版本一致性 / **分层�
 | **现在真有什么能力**（能力矩阵 / 资产盘点 / 缺口） | [**能力图谱**](docs/能力图谱.md) |
 | **项目口径总纲**（范围 / 权威归属 / 评分与熔断 / 规约 / 工程约定） | 项目级 skill `.workbuddy/skills/dailylumen-conventions/`（随 git 走） |
 | **发我截图 / 文档，生成当天复盘** | 项目级 skill `.workbuddy/skills/daily-review-intake/`（按需加载，无需定时任务） |
+| **某件人生事该不该做 / 值不值 / 犯不犯法** | 项目级 skill `.workbuddy/skills/life-decision-guide/`（按《高性价比人生指南》先查条目再答，见该目录 `README.md`） |
 | **换一台电脑跑 / 重装后恢复** | [**迁移指南**](docs/迁移指南.md)（含「什么在 git / 什么搬 / 什么重建」与落地命令） |
 
 ## 🩺 数据体检（`doctor`）
@@ -362,7 +363,7 @@ python -m review_tool ai-context 2026-09-15
 `.workbuddy/` 存放工作区级配置与记忆，**不参与程序运行**：
 
 - **`skills/`**（**已入 git**）：项目级 skill，属**方法资产** —— 跟代码一起版本化、打 tag。
-  当前含五个：
+  当前含六个：
   - `dailylumen-conventions` —— **项目口径总纲**（范围边界 / 权威归属 / 评分与熔断 /
     文档与库规约 / 工程约定 / 交付流程）。**跨会话要一直遵守的约定写在这里，而不写在
     `memory/`** —— 因为它随 `clone` 走，换机不丢。
@@ -376,6 +377,12 @@ python -m review_tool ai-context 2026-09-15
     按 `date_closed` 取当日完成项（含「次日早上补勾」回拨）/ 「两套打卡体系不许混」的边界）。取数**已代码化**：
     `python -m review_tool clickup [日期]` 直接产素材简报到 `收件箱/`（只读，不落库、
     不参与评分）；本 skill 讲的是空间结构与映射口径。
+  - `life-decision-guide` —— **人生决策问答**（「该不该 / 值不值 / 怎么选 / 这样犯法吗」）：
+    先去《高性价比人生指南》正文里查条目，再按钱 / 时间 / 毅力三项成本与证据等级排序回答，
+    每条注明第几节第几条，查不到就说查不到。规则来自上游
+    `github.com/eternity4719/HowToLiveBetter`，本仓库只保存其 `SKILL.md` 副本加三处本机补丁；
+    装法 / 加载 / 升级见 [该目录的 `README.md`](.workbuddy/skills/life-decision-guide/README.md)。
+    **纯只读**：不参与四维评分、不写 `reviews.db`。
   `.gitignore` 用 `.workbuddy/*` + `!.workbuddy/skills/` 开白名单；**注意必须写成
   `.workbuddy/*`**，写成 `.workbuddy/` 会连目录一起排除，白名单会静默失效。
 - **`memory/`**（不入 git，**换机不迁移**）：本机会话执行日志（按日期）+ `MEMORY.md`。

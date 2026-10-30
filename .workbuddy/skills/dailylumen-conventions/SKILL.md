@@ -330,6 +330,7 @@ agent_created: true
 | **ClickUp 行为跟踪 → 复盘素材**（结构 / 映射 / 日期口径 / 边界） | skill **`clickup-tracking`** |
 | ClickUp API 通用能力（批量建任务 / 迁移 / 坑清单） | skill `clickup-api-bulk-tasks`（用户级） |
 | 安全的库迁移 / 重建可复现性自检 | skill `sqlite-safe-migration`（用户级） |
+| **某件人生事该不该做 / 值不值 / 这样犯法吗**（查《高性价比人生指南》条目再答，纯只读、不参与评分） | skill **`life-decision-guide`** |
 | 模块级速查 | `review_tool/README.md` |
 
 ---
