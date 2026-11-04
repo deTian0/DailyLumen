@@ -1,4 +1,4 @@
-"""DeepSeek 读图 intake：mock Vision；写 md 数据块；mode 门禁。"""
+"""DeepSeek 读图 intake：mock Vision；写 md 数据块；mode 门禁；多图冲突 / 部分失败。"""
 from __future__ import annotations
 
 import contextlib
@@ -31,6 +31,8 @@ SAMPLE_MD = """# 每日复盘 · 2099-01-06（星期二）
 睡眠时长_h: 6.5
 饮食热量_kcal:
 碳水_g:
+体重_kg:
+体脂率:
 ```
 """
 
@@ -41,6 +43,36 @@ def _vision_client(content: str) -> ds.Client:
             def read(self_inner):
                 return json.dumps({
                     "choices": [{"message": {"content": content}}],
+                }).encode("utf-8")
+
+            def __enter__(self_inner):
+                return self_inner
+
+            def __exit__(self_inner, *a):
+                return False
+
+        return R()
+
+    return ds.Client("sk-fake", mode="deepseek", urlopen=urlopen)
+
+
+def _vision_client_sequence(contents: list[str]) -> ds.Client:
+    """按调用顺序返回不同 content；超出则报错（模拟单图失败）。"""
+    state = {"i": 0}
+
+    def urlopen(req, timeout=None):
+        idx = state["i"]
+        state["i"] += 1
+        if idx >= len(contents):
+            raise ds.DeepSeekError("mock vision exhausted", status=500, retryable=False)
+        payload = contents[idx]
+        if payload is None:
+            raise ds.DeepSeekError("mock per-image fail", status=502, retryable=True)
+
+        class R:
+            def read(self_inner):
+                return json.dumps({
+                    "choices": [{"message": {"content": payload}}],
                 }).encode("utf-8")
 
             def __enter__(self_inner):
@@ -65,6 +97,7 @@ class TestMergeContractFields(unittest.TestCase):
         self.assertIn("睡眠时长_h: 6.5", out)
         body = out.split("```data")[1].split("```")[0]
         self.assertNotRegex(body, r"脂肪_g:\s+\S")
+        self.assertNotRegex(body, r"体脂率:\s+\d")
 
 
 class TestVisionModeGate(unittest.TestCase):
@@ -118,12 +151,15 @@ class TestVisionIntakeWrite(unittest.TestCase):
             )
             self.assertTrue(result["written"])
             self.assertEqual(result["fields"]["饮食热量_kcal"], 1850)
+            self.assertNotIn("体脂率", result["fields"])
+            self.assertIn("体脂率", result["classification"]["optional_missing"])
             with open(md, encoding="utf-8") as f:
                 got = f.read()
             self.assertIn("饮食热量_kcal: 1850", got)
             self.assertIn("碳水_g: 200", got)
             self.assertIn("体重_kg: 70.5", got)
             self.assertIn("睡眠时长_h: 6.5", got)
+            self.assertNotRegex(got, r"体脂率:\s+\d")
 
     def test_dry_run_no_write(self):
         payload = '{"饮食热量_kcal": 1000}'
@@ -143,13 +179,10 @@ class TestVisionIntakeWrite(unittest.TestCase):
             with open(md, encoding="utf-8") as f:
                 self.assertNotIn("1000", f.read())
 
-    def test_multi_image_merge_fields(self):
-        """多图一次请求：契约字段合并后可写盘。"""
-        payload = json.dumps({
-            "diet_kcal": 2000,
-            "睡眠时长_h": 7.5,
-            "体重_kg": 71,
-        }, ensure_ascii=False)
+    def test_multi_image_later_wins_and_conflicts(self):
+        """多图：后图覆盖 + conflicts 记录。"""
+        p1 = json.dumps({"diet_kcal": 1000, "体重_kg": 70}, ensure_ascii=False)
+        p2 = json.dumps({"diet_kcal": 2000, "睡眠时长_h": 7.5}, ensure_ascii=False)
         with tempfile.TemporaryDirectory() as tmp:
             img1 = os.path.join(tmp, "a.png")
             img2 = os.path.join(tmp, "b.png")
@@ -166,19 +199,55 @@ class TestVisionIntakeWrite(unittest.TestCase):
                 md_path=md,
                 write=True,
                 mode="deepseek",
-                client=_vision_client(payload),
+                client=_vision_client_sequence([p1, p2]),
                 log_path=log,
             )
             self.assertTrue(result["written"])
             self.assertEqual(len(result["images"]), 2)
+            self.assertEqual(result["fields"]["饮食热量_kcal"], 2000)
+            self.assertEqual(result["fields"]["体重_kg"], 70)
+            self.assertEqual(result["merge_strategy"], "later_wins")
+            self.assertTrue(any(c["key"] == "饮食热量_kcal" for c in result["conflicts"]))
             with open(md, encoding="utf-8") as f:
                 got = f.read()
             self.assertIn("饮食热量_kcal: 2000", got)
             self.assertIn("睡眠时长_h: 7.5", got)
+            self.assertNotRegex(got, r"体脂率:\s+\d")
             with open(log, encoding="utf-8") as f:
                 log_text = f.read()
             self.assertIn('"ok": true', log_text)
             self.assertNotIn("sk-", log_text.lower())
+
+    def test_partial_image_failure_merges_ok(self):
+        """第二张失败：仍合并第一张成功字段。"""
+        p1 = json.dumps({"diet_kcal": 1500, "体重_kg": 69}, ensure_ascii=False)
+        with tempfile.TemporaryDirectory() as tmp:
+            img1 = os.path.join(tmp, "ok.png")
+            img2 = os.path.join(tmp, "bad.png")
+            md = os.path.join(tmp, "2099-01-06.md")
+            for p in (img1, img2):
+                with open(p, "wb") as f:
+                    f.write(_MIN_PNG)
+            with open(md, "w", encoding="utf-8", newline="\n") as f:
+                f.write(SAMPLE_MD)
+            # Client retries on 502 — use non-retryable then exhaust, or patch max retries
+            client = _vision_client_sequence([p1, None])
+            # DeepSeek client retries retryable errors; force non-retryable on 2nd
+            result = vi.run_vision_intake(
+                [img1, img2],
+                "2099-01-06",
+                md_path=md,
+                write=True,
+                mode="deepseek",
+                client=client,
+                skip_runlog=True,
+            )
+            self.assertEqual(result["fields"]["饮食热量_kcal"], 1500)
+            self.assertEqual(len(result["failed_images"]), 1)
+            self.assertEqual(result["failed_images"][0]["path"], img2)
+            self.assertEqual(result["ok_images"], [img1])
+            with open(md, encoding="utf-8") as f:
+                self.assertIn("饮食热量_kcal: 1500", f.read())
 
     def test_parse_multi_image_argv(self):
         opts = vi._parse([
@@ -187,6 +256,11 @@ class TestVisionIntakeWrite(unittest.TestCase):
         ])
         self.assertEqual(opts["images"], ["a.png", "b.png"])
         self.assertTrue(opts["diff"])
+
+    def test_prompt_forbids_invented_body_fat(self):
+        self.assertIn("体脂率", vi.VISION_SYSTEM)
+        self.assertIn("不要写", vi.VISION_SYSTEM)
+        self.assertIn("编造", vi.VISION_SYSTEM)
 
 
 if __name__ == "__main__":

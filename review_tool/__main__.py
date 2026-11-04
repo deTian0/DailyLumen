@@ -8,6 +8,7 @@
     python -m review_tool ai-context [YYYY-MM-DD]
     python -m review_tool llm-review [YYYY-MM-DD] [--write] [--dry-run] [--diff] [--stdout]
     python -m review_tool llm-vision --image PATH [--image PATH ...] --date D [--write] [--diff]
+    python -m review_tool llm-day --image PATH [--image ...] --date D [--review] [--write] [--diff]
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID] [--with-habits]
     python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
@@ -81,6 +82,7 @@ from .reports.finalize import main as finalize_main
 from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
 from .reports.improve_draft import main as improve_draft_main
+from .reports.llm_day import main as llm_day_main
 from .reports.llm_review import main as llm_review_main
 from .reports.nutrition import main as nutrition_main
 from .reports.promises import main as promises_main
@@ -135,6 +137,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "llm-vision": (
         llm_vision_main,
         "llm-vision --image PATH [--image ...] --date D [--write] [--diff] [--dry-run]"),
+    "llm-day": (
+        llm_day_main,
+        "llm-day --image PATH [--image ...] --date D [--review] [--write] [--diff] [--dry-run]"),
     "import-history": (
         import_history_main, "import-history [--check] [--src DIR]"),
     "clickup": (

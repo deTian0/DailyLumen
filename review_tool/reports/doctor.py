@@ -629,13 +629,18 @@ def _llm_advice(mode: str, key_ok: bool, last: dict | None) -> list[str]:
             )
         else:
             tips.append(
-                "可用: python -m review_tool llm-vision --image 图 --date 日 "
-                "[可重复 --image]；llm-review 日 [--diff]；默认 dry-run，人审后 ingest"
+                "可用: python -m review_tool llm-day --image 图 --date 日 "
+                "[可重复 --image] [--review]；或分拆 llm-vision / llm-review；"
+                "默认 dry-run，人审后 ingest"
+            )
+            tips.append(
+                "体脂率可选：无体脂秤/设备时留空合法，禁止伪造；"
+                "doctor 不因缺体脂判不健康"
             )
     else:
         tips.append(
             "mode=workbuddy：读图/写评价由宿主按 daily-review-intake + "
-            "llm-host-contract 履约；⛔ 不要调 llm-review / llm-vision（会拒绝）"
+            "llm-host-contract 履约；不要调 llm-review / llm-vision（会拒绝）"
         )
         tips.append("仓库无 WorkBuddy HTTP API / SDK 可调；勿假装有进程内宿主接口")
     if last:
@@ -647,11 +652,24 @@ def _llm_advice(mode: str, key_ok: bool, last: dict | None) -> list[str]:
                 f"（{kind}）：{summary}"
             )
         miss = last.get("missing_fields") or []
-        if miss and last.get("command") == "llm-vision":
+        opt_miss = last.get("optional_missing") or []
+        cmd = last.get("command") or ""
+        if miss and cmd in ("llm-vision", "llm-day"):
             tips.append(
                 "最近读图缺字段（留空合法，勿估算）："
                 + ", ".join(miss[:12])
                 + ("…" if len(miss) > 12 else "")
+            )
+        if "体脂率" in (opt_miss or []) or (
+            isinstance(opt_miss, list) and any("体脂" in str(x) for x in opt_miss)
+        ):
+            tips.append(
+                "体脂率未识别：属可选缺测（无设备可跳过）；建议性提示，不影响数据健康"
+            )
+        elif opt_miss and cmd in ("llm-vision", "llm-day"):
+            tips.append(
+                "最近读图可选字段空缺（建议性）："
+                + ", ".join(str(x) for x in opt_miss[:8])
             )
         if last.get("ok") and last.get("command"):
             tips.append(
@@ -839,8 +857,8 @@ def render(result: dict, *, encoding: str | None = None) -> str:
             "（仅显示是否已配置，永不打印密钥）"
         )
         L.append(
-            "  deepseek CLI : llm-vision 可多图 --image；"
-            "llm-review / llm-vision 支持 --diff；默认 dry-run，人审后 ingest"
+            "  deepseek CLI : llm-day（多图+可选 --review）或 llm-vision / llm-review；"
+            "支持 --diff；默认 dry-run；体脂率可选勿伪造；人审后 ingest"
         )
     else:
         L.append(
@@ -863,7 +881,7 @@ def render(result: dict, *, encoding: str | None = None) -> str:
         if miss:
             L.append("  契约缺字段 : " + ", ".join(miss[:10])
                      + ("…" if len(miss) > 10 else "")
-                     + "（留空合法，⛔ 估算）")
+                     + "（留空合法，勿估算）")
     else:
         L.append(f"  最近运行   : （无 {llm.get('last_run_path', 'local/llm_last_run.json')}）")
     for tip in llm.get("advice") or []:
@@ -1073,7 +1091,10 @@ def render(result: dict, *, encoding: str | None = None) -> str:
     L.append("[体征]")
     body = result.get("body") or {}
     if not body.get("count"):
-        L.append(f"  {ok} 尚无体征记录（建议性；填 体重_kg 后 ingest）")
+        L.append(
+            f"  {ok} 尚无体征记录（建议性；可填 体重_kg；"
+            "体脂率无设备可跳过，勿伪造）"
+        )
     else:
         stale_b = body.get("stale_days")
         latest_b = body.get("latest_date")

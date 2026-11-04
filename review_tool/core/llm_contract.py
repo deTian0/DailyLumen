@@ -2,6 +2,9 @@
 
 字段名对齐 ``docs/LLM能力拆分草案.md`` §4 与 intake 数据块清单；
 供 deepseek Vision / workbuddy 宿主自检共用，不发网络请求。
+
+体脂口径（v1.56.0）：``体脂率`` 为**可选**字段——无体脂秤/设备时允许空；
+⛔ 禁止臆造或估算体脂。缺测不影响归一 / 写 md / 四维评分。
 """
 from __future__ import annotations
 
@@ -35,6 +38,14 @@ ACTIVITY_FIELDS = (
 )
 # 全量契约字段（可部分缺失；缺失留空合法）
 CONTRACT_DATA_FIELDS = DIET_FIELDS + BODY_FIELDS + SLEEP_FIELDS + ACTIVITY_FIELDS
+
+# 明确可选：无设备 / 未投递时允许空；classify 归入 optional_missing（非硬缺口）
+# 体脂：用户无体脂秤时永久不可得 → 禁止伪造
+OPTIONAL_CONTRACT_FIELDS = frozenset({
+    "体脂率",
+    "体重_kg",
+    "腰围_cm",
+})
 
 # 英文 / 别名 → 契约中文键（模型 JSON 常混用）
 _ALIAS_TO_CONTRACT: dict[str, str] = {
@@ -110,12 +121,23 @@ def normalize_contract_fields(raw: Mapping[str, Any]) -> dict[str, Any]:
 def classify_contract_fields(
     fields: Mapping[str, Any],
 ) -> dict[str, list[str]]:
-    """对照契约字段清单：filled / missing / unknown。"""
+    """对照契约字段清单：filled / missing / optional_missing / unknown。
+
+    ``optional_missing`` = 可选字段未填（如无体脂设备时的 ``体脂率``）；
+    ``missing`` = 非可选字段未填（仍留空合法，勿估算）。
+    """
     filled = [k for k in CONTRACT_DATA_FIELDS if k in fields and fields[k] not in (None, "")]
-    missing = [k for k in CONTRACT_DATA_FIELDS if k not in filled]
+    missing_all = [k for k in CONTRACT_DATA_FIELDS if k not in filled]
+    optional_missing = [k for k in missing_all if k in OPTIONAL_CONTRACT_FIELDS]
+    missing = [k for k in missing_all if k not in OPTIONAL_CONTRACT_FIELDS]
     unknown_map = fields.get("_unknown") if isinstance(fields.get("_unknown"), dict) else {}
     unknown = sorted(unknown_map.keys()) if unknown_map else []
-    return {"filled": filled, "missing": missing, "unknown": unknown}
+    return {
+        "filled": filled,
+        "missing": missing,
+        "optional_missing": optional_missing,
+        "unknown": unknown,
+    }
 
 
 def parse_model_structured(text: str) -> tuple[dict[str, Any], dict[str, list[str]]]:
@@ -125,10 +147,33 @@ def parse_model_structured(text: str) -> tuple[dict[str, Any], dict[str, list[st
     return fields, classify_contract_fields(fields)
 
 
-def merge_contract_field_dicts(*parts: Mapping[str, Any]) -> dict[str, Any]:
-    """多图 / 多段契约字段合并：后写覆盖先写；``_unknown`` 字典并集。
+def _values_conflict(a: Any, b: Any) -> bool:
+    """两非空值是否视为冲突（规范化字符串后比较）。"""
+    if a is None or b is None:
+        return False
+    sa = str(a).strip()
+    sb = str(b).strip()
+    if not sa or not sb:
+        return False
+    # 数值：70 / 70.0 / "70" 视为同
+    try:
+        return float(sa) != float(sb)
+    except (TypeError, ValueError):
+        return sa != sb
 
-    空串 / None 不覆盖已有非空值。纯规则，零 I/O。
+
+def merge_contract_field_dicts(
+    *parts: Mapping[str, Any],
+    conflicts: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """多图 / 多段契约字段合并：**后写非空覆盖先写**；``_unknown`` 字典并集。
+
+    空串 / None 不覆盖已有非空值。若同一键先后出现**不同**非空值，后写胜出，
+    并在 ``conflicts``（若传入）记一条::
+
+        {"key": "饮食热量_kcal", "was": 1000, "now": 1850, "strategy": "later_wins"}
+
+    纯规则，零 I/O。
     """
     out: dict[str, Any] = {}
     unknown: dict[str, Any] = {}
@@ -142,6 +187,14 @@ def merge_contract_field_dicts(*parts: Mapping[str, Any]) -> dict[str, Any]:
                 continue
             if v is None or (isinstance(v, str) and not v.strip()):
                 continue
+            if k in out and _values_conflict(out[k], v):
+                if conflicts is not None:
+                    conflicts.append({
+                        "key": k,
+                        "was": out[k],
+                        "now": v,
+                        "strategy": "later_wins",
+                    })
             out[k] = v
     if unknown:
         out["_unknown"] = unknown
@@ -166,6 +219,7 @@ def merge_data_block_fields(md_text: str, fields: Mapping[str, Any]) -> str:
     """把契约字段幂等写入 md 的 ```data``` 块；缺字段不写（留空合法）。
 
     已有同名行则替换值；没有则追加在块末。不含 ``_unknown``。纯字符串，零 I/O。
+    无体脂时不写 ``体脂率`` 行——合法，禁止伪造。
     """
     updates = {
         k: v
@@ -196,6 +250,7 @@ __all__ = [
     "BODY_FIELDS",
     "CONTRACT_DATA_FIELDS",
     "DIET_FIELDS",
+    "OPTIONAL_CONTRACT_FIELDS",
     "SLEEP_FIELDS",
     "classify_contract_fields",
     "extract_json_object",

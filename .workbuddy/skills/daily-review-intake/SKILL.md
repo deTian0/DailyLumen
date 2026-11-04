@@ -51,7 +51,7 @@ agent_created: true
 | 3 | 屏幕使用时间截图 | `手机屏幕_h` | 留空 |
 | 4 | 三个时长（口述即可） | `深度工作_h` `学习投入_h` `生活投入_h` | 缺哪项留空哪项 |
 | 5 | 打卡（补剂 ×4 / 护肤 / 早餐吃没吃） | 「一、日常打卡」勾选 → `personal_tracks`；`早餐按时` 走数据块 | 未说 = **未做**，勾空 |
-| 6 | （可选）体重 / 体脂 / 腰围 | `体重_kg` `体脂率` `腰围_cm` | 留空（见 §3.5） |
+| 6 | （可选）体重 / 体脂 / 腰围 | `体重_kg` `体脂率` `腰围_cm` | 留空；**体脂无设备可永久跳过**（见 §3.5） |
 
 **三条不许**：
 - ⛔ 不许因为缺项就不出稿 —— 有多少写多少，`留空` 是合法状态；
@@ -276,8 +276,10 @@ python -m review_tool improve-draft --date D --out local/每日复盘/收件箱 
 | 来源 | 默认 `manual`；若明确来自体脂秤截图可在数据块加 `体征来源: scale` |
 | 与四维 | **零关系** —— 独立指标区，不影响健康分 / 熔断 |
 | 缺项 | 三行都可留空；有体重无体脂也合法 |
+| 体脂设备 | **无体脂秤时 `体脂率` 永久可空**；读图 / 评价 / doctor **禁止伪造或估算**体脂；缺测仅为建议性提示，不影响四维 / `is_healthy` |
 
 ⛔ 禁止「只进库不落 md」—— 否则破掉「删库可从 md 100% 重建」。
+⛔ 禁止臆造体脂率（无读数 = 不写）。
 
 ### 3.6 饮食 / 薄荷截图回填（M12）
 
@@ -377,29 +379,28 @@ API 失败**不写「否」**（CLI 明示离线兜底，留给 `fill_training_d
 > deepseek＝仓库调 API）。⛔ 无论哪种 mode，产出都**先落 md 再 `ingest`**，禁止只进库。
 > ⛔ **无** WorkBuddy HTTP API / SDK——`workbuddy` 模式只能由宿主在对话里履约落 md。
 
-### 4.0 双 mode 操作步骤（v1.55.0）
+### 4.0 双 mode 操作步骤（v1.56.0）
 
 先看 `doctor` 的 `[LLM 模式]`，或 `local/.env` 里的 `DAILYLUMEN_LLM_MODE`。
 
 #### A. `workbuddy`（默认 · 宿主清单）
 
-1. 用户投递截图 / 口述 → **本 skill §3** 读图填数据块 / 附录（缺项留空；对照 `llm-host-contract`）。  
+1. 用户投递截图 / 口述 → **本 skill §3** 读图填数据块 / 附录（缺项留空；**体脂可跳过**；对照 `llm-host-contract`）。  
 2. `python -m review_tool ai-context <日>` + `doctor`（熔断 / 相对基线）。  
-3. 建议段挂 `life-decision-guide`；宿主撰写「七、AI」评价 2–3 + 建议 2–4 → **写入 md**。  
+3. 建议段挂 `life-decision-guide`；宿主撰写「七、AI」评价 2–3 + 建议 2–4 → **写入 md**（勿编造体脂）。  
 4. `ingest` → `finalize --apply`（评价与 summary 写完后再 ingest 一次）。  
-5. ⛔ **不要**跑 `llm-review` / `llm-vision`（mode≠deepseek 会拒绝）。
+5. ⛔ **不要**跑 `llm-review` / `llm-vision` / `llm-day`（mode≠deepseek 会拒绝）。
 
 #### B. `deepseek`（仓库 CLI）
 
 前置：`local/.env` 设 `DAILYLUMEN_LLM_MODE=deepseek` + `DEEPSEEK_API_KEY=…`。
 
-1. **读图填数**（可选；支持多图）：  
-   `python -m review_tool llm-vision --image <图A> --image <图B> --date <日> [--diff]`  
-   （默认 dry-run）→ 确认字段后加 `--write` → **只改 md 数据块**。  
-2. 其它素材仍可按 §3 手填 / 宿主补。  
-3. **评价草稿**：  
-   `python -m review_tool llm-review <日> [--diff]`（默认 dry-run / stdout）  
-   → `--write` 写入「七、AI」并标注**草稿/待人审**。  
+1. **一键日流程**（推荐；多图 + 可选评价）：  
+   `python -m review_tool llm-day --image <图A> --image <图B> --date <日> [--review] [--diff]`  
+   （默认 dry-run）→ 确认后 `--write` **只写 md**。  
+   多图合并：**后图非空覆盖先图**，冲突打日志；部分图失败仍合并成功字段。  
+2. 或分拆：`llm-vision`（数据块）→ `llm-review`（「七、AI」草稿）。  
+3. 其它素材仍可按 §3 手填 / 宿主补；**无体脂图时不要补假体脂**。  
 4. **人审**改写或确认 → `ingest` → `finalize --apply`。  
 5. ⛔ CLI **不**直写库；⛔ 勿把真实隐私截图提交进 git；运行摘要可落 `local/llm_last_run.json`（无密钥）。
 

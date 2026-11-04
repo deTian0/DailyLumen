@@ -21,8 +21,9 @@ agent_created: true
 ## 0. 范围边界（先划清）
 
 - **本项目 = 个人健康 / 复盘系统**：md 复盘 → `review_tool` → `reviews.db` → 评分 / 熔断 / 报告。
-- **LLM / 宿主边界（L-1～打磨 / v1.55.0）**：互斥 mode `workbuddy`（默认，宿主代劳）|
-  `deepseek`（`llm-review` / `llm-vision` 可多图 / `--diff`）；契约见
+- **LLM / 宿主边界（L-1～打磨 / v1.56.0）**：互斥 mode `workbuddy`（默认，宿主代劳）|
+  `deepseek`（`llm-day` / `llm-review` / `llm-vision` 可多图 / `--diff`）；
+  **体脂率可选**（无设备勿伪造）；多图 **后图覆盖** + conflict 日志；契约见
   [`docs/LLM能力拆分草案.md`](../../../docs/LLM能力拆分草案.md) + skill `llm-host-contract`；
   产出仍先落 md 再 ingest；⛔ 无 WorkBuddy HTTP API。
 - ⛔ **不混"重装备份 / win-reinstall-toolkit"那套** —— 那是跨项目基础设施，与本系统**相互独立**。

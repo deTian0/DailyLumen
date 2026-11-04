@@ -3,6 +3,12 @@
 输入：一张或多张图片 + 日期 → Vision → ``llm_contract`` 归一合并 → **只写**复盘 md
 的 ```data``` 契约字段（缺字段留空合法）。⛔ 不直写库；人审后 ``ingest``。
 
+多图合并策略（v1.56.0）：**逐张读图 → 后图非空覆盖先图**；同键不同值记
+``conflicts``（strategy=later_wins）。部分图失败时合并已成功字段并记录
+``failed_images``，只要至少一张成功即继续。
+
+体脂：``体脂率`` 可选；图上无体脂 / 无设备时省略，⛔ 禁止臆造。
+
 仅 ``DAILYLUMEN_LLM_MODE=deepseek``；``workbuddy`` 拒绝并提示宿主读图。
 默认 dry-run；``--write`` 落盘；``--diff`` 预览数据块将变更行。
 """
@@ -19,6 +25,7 @@ from typing import Any
 from ..config import WEEKDAY_CN
 from ..core.llm_contract import (
     CONTRACT_DATA_FIELDS,
+    OPTIONAL_CONTRACT_FIELDS,
     classify_contract_fields,
     merge_contract_field_dicts,
     merge_data_block_fields,
@@ -42,23 +49,29 @@ USAGE = (
     "[--write] [--dry-run] [--diff] [--stdout] [--md PATH]"
 )
 
+_OPTIONAL_HINT = "、".join(sorted(OPTIONAL_CONTRACT_FIELDS))
+
 VISION_SYSTEM = (
     "你是 DailyLumen 读图助手。从截图抽取客观数字，只输出一个 JSON object。"
     "键优先用下列中文契约名（没有的键省略，⛔ 不要估算凑数）："
     + "、".join(CONTRACT_DATA_FIELDS)
     + "。也可用英文别名 diet_kcal / carbs_g / fat_g / protein_g / weight_kg 等。"
+    f"可选字段（{_OPTIONAL_HINT}）看不清或图上没有就省略；"
+    "尤其「体脂率」：无体脂秤读数时**不要写、不要估算、不要编造**。"
     "看不清的字段不要写。不要其它说明文字。"
 )
 
 VISION_USER_ONE = (
-    "请阅读这张复盘相关截图（饮食/体脂/睡眠/屏幕等），"
-    "抽出能辨认的数值，输出 JSON object；看不清的字段不要写。"
+    "请阅读这张复盘相关截图（饮食/睡眠/屏幕/体重等；体脂仅当图上有明确读数），"
+    "抽出能辨认的数值，输出 JSON object；看不清的字段不要写；"
+    "无体脂读数则不要输出体脂率。"
 )
 
 VISION_USER_MULTI = (
-    "下面有多张复盘相关截图（可能是多餐饮食 / 睡眠 / 体脂 / 屏幕等）。"
+    "下面有多张复盘相关截图（可能是多餐饮食 / 睡眠 / 体重 / 屏幕等）。"
     "合并所有能辨认的数值，输出**一个** JSON object；"
-    "同一字段以最清晰可读的值为准；看不清的不要写、不要估算。"
+    "同一字段以最清晰可读的值为准；看不清的不要写、不要估算；"
+    "无体脂读数则不要输出体脂率。"
 )
 
 _DATA_BLOCK_RE = re.compile(r"(```data\s*\n)(.*?)(```)", re.S)
@@ -108,6 +121,89 @@ def data_block_diff_lines(before_body: str, after_body: str) -> list[str]:
                 if f"+ {s}" not in out:
                     out.append(f"~ {b_map[key]}  →  {s}")
     return out
+
+
+def _vision_one(
+    c: Client,
+    data_url: str,
+    *,
+    system: str = VISION_SYSTEM,
+    user: str = VISION_USER_ONE,
+) -> tuple[dict[str, Any], str]:
+    """单图 Vision → (归一字段, raw text)。"""
+    resp = c.vision_completions(
+        user,
+        data_url,
+        system=system,
+        temperature=0,
+        max_tokens=512,
+    )
+    text = assistant_text(resp)
+    fields, _ = parse_model_structured(text)
+    return fields, text
+
+
+def extract_fields_from_images(
+    data_urls: list[str],
+    image_paths: list[str],
+    *,
+    client: Client,
+) -> dict[str, Any]:
+    """多图读字段：逐张调用 → 后图覆盖合并；记录冲突与失败。
+
+    返回 dict 含::
+
+        fields, classification, raw_text, conflicts, failed_images,
+        ok_images, merge_strategy
+    """
+    assert len(data_urls) == len(image_paths)
+    conflicts: list[dict[str, Any]] = []
+    failed: list[dict[str, str]] = []
+    parts: list[dict[str, Any]] = []
+    last_text = ""
+    ok_paths: list[str] = []
+
+    if len(data_urls) == 1:
+        fields, text = _vision_one(client, data_urls[0])
+        return {
+            "fields": fields,
+            "classification": classify_contract_fields(fields),
+            "raw_text": text,
+            "conflicts": [],
+            "failed_images": [],
+            "ok_images": list(image_paths),
+            "merge_strategy": "single",
+        }
+
+    # 多图：逐张（可追踪后图覆盖冲突）；部分失败可恢复
+    for url, path in zip(data_urls, image_paths):
+        try:
+            f, last_text = _vision_one(client, url)
+            parts.append(f)
+            ok_paths.append(path)
+        except (DeepSeekError, ValueError, OSError) as e:
+            failed.append({
+                "path": path,
+                "error": f"{type(e).__name__}: {str(e)[:160]}",
+            })
+
+    if not parts:
+        detail = "; ".join(f"{x['path']}: {x['error']}" for x in failed[:3])
+        raise DeepSeekError(
+            f"全部 {len(image_paths)} 张图读图失败"
+            + (f"（{detail}）" if detail else "")
+        )
+
+    fields = merge_contract_field_dicts(*parts, conflicts=conflicts)
+    return {
+        "fields": fields,
+        "classification": classify_contract_fields(fields),
+        "raw_text": last_text,
+        "conflicts": conflicts,
+        "failed_images": failed,
+        "ok_images": ok_paths,
+        "merge_strategy": "later_wins",
+    }
 
 
 def run_vision_intake(
@@ -167,39 +263,11 @@ def run_vision_intake(
     loader = image_loader or image_file_to_data_url
     data_urls = [loader(p) for p in images]
     c = client or Client(mode=m)
-    user_text = VISION_USER_ONE if len(data_urls) == 1 else VISION_USER_MULTI
 
     try:
-        # 多图：优先一次请求带齐；失败则逐张再合并（部分成功仍可用）
-        try:
-            resp = c.vision_completions(
-                user_text,
-                data_urls if len(data_urls) > 1 else data_urls[0],
-                system=VISION_SYSTEM,
-                temperature=0,
-                max_tokens=768,
-            )
-            text = assistant_text(resp)
-            fields, classification = parse_model_structured(text)
-        except (DeepSeekError, ValueError):
-            if len(data_urls) <= 1:
-                raise
-            parts: list[dict[str, Any]] = []
-            last_text = ""
-            for url in data_urls:
-                resp = c.vision_completions(
-                    VISION_USER_ONE,
-                    url,
-                    system=VISION_SYSTEM,
-                    temperature=0,
-                    max_tokens=512,
-                )
-                last_text = assistant_text(resp)
-                f, _ = parse_model_structured(last_text)
-                parts.append(f)
-            fields = merge_contract_field_dicts(*parts)
-            classification = classify_contract_fields(fields)
-            text = last_text
+        extracted = extract_fields_from_images(
+            data_urls, images, client=c,
+        )
     except (DeepSeekCredError, DeepSeekModeError, DeepSeekError) as e:
         _fail_log(
             False,
@@ -211,7 +279,17 @@ def run_vision_intake(
         _fail_log(False, error_kind="parse", error_summary=str(e)[:200])
         raise
 
+    fields = extracted["fields"]
+    classification = extracted["classification"]
+    text = extracted["raw_text"]
+    conflicts = extracted["conflicts"]
+    failed_images = extracted["failed_images"]
+
     clean = {k: v for k, v in fields.items() if k != "_unknown"}
+    # 防御：不落空体脂（模型偶发空串已在 normalize 丢掉；此处再保险）
+    if "体脂率" in clean and clean["体脂率"] in (None, ""):
+        del clean["体脂率"]
+
     path = md_path or review_md_path(day)
     try:
         wd = "星期" + WEEKDAY_CN[datetime.date.fromisoformat(day).weekday()]
@@ -228,6 +306,10 @@ def run_vision_intake(
         "fields": clean,
         "classification": classification,
         "raw_text": text,
+        "conflicts": conflicts,
+        "failed_images": failed_images,
+        "ok_images": extracted.get("ok_images") or [],
+        "merge_strategy": extracted.get("merge_strategy"),
         "written": False,
         "changed": False,
         "before_block": "",
@@ -255,6 +337,9 @@ def run_vision_intake(
             changed=bool(result["changed"]),
             filled_fields=classification["filled"],
             missing_fields=classification["missing"][:20],
+            optional_missing=classification.get("optional_missing", [])[:10],
+            conflict_count=len(conflicts),
+            failed_image_count=len(failed_images),
         )
         return result
 
@@ -288,6 +373,9 @@ def run_vision_intake(
         changed=bool(result["changed"]),
         filled_fields=classification["filled"],
         missing_fields=classification["missing"][:20],
+        optional_missing=classification.get("optional_missing", [])[:10],
+        conflict_count=len(conflicts),
+        failed_image_count=len(failed_images),
     )
     return result
 
@@ -373,7 +461,8 @@ def main(argv: list[str] | None = None) -> int:
     if any(a in ("-h", "--help") for a in argv):
         print(f"用法: python -m review_tool {USAGE}")
         print("DeepSeek Vision：截图（可多张）→ 契约字段合并 → 写当日 md 数据块；默认 dry-run。")
-        print("仅 mode=deepseek；workbuddy 走宿主读图。⛔ 不直写库。")
+        print("多图：后图非空覆盖先图；冲突记入结果 conflicts；部分失败可合并成功图。")
+        print("体脂率可选：无读数勿编造。仅 mode=deepseek；workbuddy 走宿主读图。⛔ 不直写库。")
         print("可选 --diff 预览数据块变更行；--write 前建议先 dry-run。")
         return 0
     try:
@@ -411,10 +500,25 @@ def main(argv: list[str] | None = None) -> int:
 
     filled = result["classification"]["filled"]
     missing = result["classification"]["missing"]
+    opt_miss = result["classification"].get("optional_missing") or []
     n_img = len(result.get("images") or [result.get("image")])
+    conflicts = result.get("conflicts") or []
+    failed = result.get("failed_images") or []
     if opts["stdout"]:
         print(json.dumps(result["fields"], ensure_ascii=False, indent=2))
-        print(f"# images={n_img} filled={len(filled)} missing={len(missing)}")
+        print(
+            f"# images={n_img} filled={len(filled)} missing={len(missing)} "
+            f"optional_missing={len(opt_miss)} conflicts={len(conflicts)} "
+            f"failed={len(failed)}"
+        )
+    if conflicts:
+        print("--- 多图字段冲突（后图覆盖）---")
+        for c in conflicts:
+            print(f"  {c['key']}: {c['was']} → {c['now']} ({c['strategy']})")
+    if failed:
+        print("--- 读图失败文件（已跳过，其余已合并）---")
+        for f in failed:
+            print(f"  {f['path']}: {f['error']}")
     if opts.get("diff") and result.get("diff_lines"):
         print("--- 数据块将写入差异 ---")
         for ln in result["diff_lines"]:
@@ -428,6 +532,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         if filled:
             print("  将写入: " + ", ".join(filled))
+        if "体脂率" in opt_miss:
+            print("  体脂率：未识别（可选；无设备/无读数时跳过，勿伪造）")
         print("确认后加 --write；人审后再 ingest。")
     elif result["written"]:
         print(f"已写入数据块字段 ({len(filled)}): {result['md_path']}")

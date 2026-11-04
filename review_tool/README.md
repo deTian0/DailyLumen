@@ -99,8 +99,9 @@ python -m review_tool ingest [文件] [--overwrite] [--prune-tracks]   # 入库 
 python -m review_tool week [周号] [--json]             # 周报（省略 = 全部周）
 python -m review_tool month [YYYYMM] [--json]          # 月报（省略 = 最近一个月）
 python -m review_tool ai-context YYYY-MM-DD            # AI 上下文（当日 + 7 日趋势 + 关注点）
+python -m review_tool llm-day --image 图 [--image …] --date 日 [--review] [--write] [--diff]  # 一键日流程（默认 dry-run）
 python -m review_tool llm-review YYYY-MM-DD [--write] [--diff]  # DeepSeek→「七、AI」草稿（默认 dry-run；仅 deepseek）
-python -m review_tool llm-vision --image 图 [--image …] --date 日 [--write] [--diff]  # 多图→md 数据块
+python -m review_tool llm-vision --image 图 [--image …] --date 日 [--write] [--diff]  # 多图→md；后图覆盖；体脂可选
 python -m review_tool import-history [--check] [--src 目录]   # 旧格式转换（--check 仅预览）
 python -m review_tool clickup [YYYY-MM-DD] [--out 目录] [--stdout] [--list ID] [--with-habits]
 python -m review_tool clickup-push [YYYY-MM-DD] [--apply]   # 勾「每日复盘总结」（默认 dry-run）
