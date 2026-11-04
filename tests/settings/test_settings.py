@@ -18,7 +18,9 @@ from review_tool.settings import (
     parse_env_file,
 )
 
-PKG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "review_tool")
+from tests import REPO_ROOT
+
+PKG = os.path.join(REPO_ROOT, "review_tool")
 SETTINGS_PATH = os.path.join(PKG, "settings.py")
 CONFIG_PATH = os.path.join(PKG, "config.py")
 

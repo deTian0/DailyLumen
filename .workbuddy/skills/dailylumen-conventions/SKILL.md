@@ -221,7 +221,7 @@ agent_created: true
   入口：`clickup-pull`（写快照）/ `clickup-done`（读某天完成了什么，写复盘时用）。
 - **改 CHECK 只能重建表**，重建必须走全覆盖流程：
   备份 → 副本验证 → 显式事务 → 逐列 diff → 落真库（详见用户级 skill `sqlite-safe-migration`）。
-- **`reviews.example.db` 必须与当前 schema 同版**（`tests/test_example_db.py` 守卫），
+- **`reviews.example.db` 必须与当前 schema 同版**（`tests/storage/test_example_db.py` 守卫），
   否则新用户复制后首次 ingest 会被 CHECK 拒绝。
 - schema 外的遗留列迁移时按**列交集**搬运，数据留档 `.workbuddy/backup/`；不存中间计算产物。
 - **`local/reviews.db` 可从本机 `local/每日复盘/` 的 md 100% 重建**（公开 git 不再含日记；
@@ -239,8 +239,12 @@ agent_created: true
   `doctor` / `recompute-scores` / `sync-docs --check` **阻塞**；`fuse` 不阻塞。矩阵 3.10–3.13。
 - **四层架构（v1.5.0）**：`core`（零 I/O 纯规则）→ `storage`（SQLite 唯一出入口）→
   `pipeline`（md ↔ 库）→ `reports`（读库产出）。依赖**只能自上而下**，
-  由 `tests/test_architecture.py` 用 ast 强制；`import sqlite3` 只准出现在 storage；
+  由 `tests/architecture/test_architecture.py` 用 ast 强制；`import sqlite3` 只准出现在 storage；
   `config.py` / `settings.py` 留包根（可配置层，历史文档引用不失效）。新增模块必须归入对应层。
+- **测试按领域分子目录**（与四层对齐）：`tests/architecture/`、`tests/core/`、
+  `tests/storage/`、`tests/pipeline/`、`tests/reports/`、`tests/cli/`、`tests/settings/`；
+  共享样例 `tests/sample_data.py`，语料 `tests/fixtures/`。发现命令不变：
+  `$PY -m unittest discover -s tests -t .`。
 - **配置分层（v1.20.0 / M16）** —— 四层不许混：
   | 层 | 放哪 | 例 |
   | --- | --- | --- |
@@ -354,7 +358,7 @@ agent_created: true
 
 1. **`.gitignore` 整目录规则会让白名单静默失效**：必须写 `.workbuddy/*` + `!.workbuddy/skills/`。
    写成 `.workbuddy/` 会连目录一起排除，git 不再向下遍历，`!` 规则不报错也不生效。
-   `tests/test_repo_layout.py` 把这条钉死了 —— 别"顺手清理"回去。
+   `tests/architecture/test_repo_layout.py` 把这条钉死了 —— 别"顺手清理"回去。
 2. **改文件别用 Python 的文本模式写**：`open(p, "w")` 会在 Windows 上把行尾改成 CRLF，
    而 `.gitattributes` 要求 `eol=lf`。用 `open(p, "rb"/"wb")` + `replace(b"\r\n", b"\n")`。
 3. **改服务端权威字段 = 白改**：md 里的分数、`ingest` 能覆盖的普通字段，改 md 只是临时状态，

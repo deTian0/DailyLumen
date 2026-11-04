@@ -138,8 +138,9 @@ class TestProfile(unittest.TestCase):
 
     def test_config_py_has_no_personal_literals(self):
         """M47：跟踪的 config.py 不得再写身高/宏量/体重带/list id 真值字面量。"""
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        path = os.path.join(root, "review_tool", "config.py")
+        from tests import REPO_ROOT
+
+        path = os.path.join(REPO_ROOT, "review_tool", "config.py")
         with open(path, encoding="utf-8") as f:
             src = f.read()
         forbidden = [
@@ -323,8 +324,9 @@ class TestVersionConsistency(unittest.TestCase):
     """pyproject 与包内 __version__ 必须一致，否则发布版本会撒谎。"""
 
     def test_pyproject_matches_package_version(self):
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        with open(os.path.join(root, "pyproject.toml"), encoding="utf-8") as f:
+        from tests import REPO_ROOT
+
+        with open(os.path.join(REPO_ROOT, "pyproject.toml"), encoding="utf-8") as f:
             text = f.read()
         m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.M)
         self.assertIsNotNone(m, "pyproject.toml 未找到 version")

@@ -12,7 +12,7 @@
     clickup / clickup-push / keepstrong / doctor / body / coach / habits / nutrition / tutor /
     steward / fuse / sync-docs / recompute-scores / export / chart / correlate / version
 
-分层（依赖只能自上而下，由 tests/test_architecture.py 强制）:
+分层（依赖只能自上而下，由 tests/architecture/test_architecture.py 强制）:
     core      领域层（零 I/O）：tracks / bodyweight / body / training / habits / nutrition / learning / score / util
     storage   持久化层：SQLite 唯一出入口 —— db（连接 / 迁移 / 读写 / 打卡对账）
     pipeline  数据流转层（md <-> 库）：parse / ingest / sync_docs / import_history / new_day / export / clickup* / habit_sync

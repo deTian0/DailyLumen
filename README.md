@@ -361,7 +361,7 @@ python -m review_tool ai-context 2026-09-15
   规则含单日上下限与次数合理性上限。**默认只启用俯卧撑**，  
   其他动作按同样结构追加一行即可。
 
-`tests/test_config.py` 会校验配置自洽性（权重与实现对应、alias 不互相抢匹配、  
+`tests/settings/test_config.py` 会校验配置自洽性（权重与实现对应、alias 不互相抢匹配、  
 阈值单调性、版本一致性），改错配置测试会直接报出来。
 
 ---

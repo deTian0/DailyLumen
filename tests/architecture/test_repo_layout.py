@@ -11,7 +11,9 @@ import os
 import re
 import unittest
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from tests import REPO_ROOT
+
+ROOT = REPO_ROOT
 GITIGNORE = os.path.join(ROOT, ".gitignore")
 SKILLS_DIR = os.path.join(ROOT, ".workbuddy", "skills")
 

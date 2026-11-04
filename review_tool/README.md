@@ -6,7 +6,7 @@
 
 ## 分层架构
 
-依赖只能自上而下，由 `tests/test_architecture.py` 用 ast 强制（破坏分层 → CI 红）：
+依赖只能自上而下，由 `tests/architecture/test_architecture.py` 用 ast 强制（破坏分层 → CI 红）：
 
 ```
 reports   ->  pipeline  ->  storage  ->  core
@@ -131,7 +131,7 @@ python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（�
 ## 数据与安全
 
 - `reviews.db` 是**唯一数据源**（含个人数据，勿提交）；`reviews.example.db` 是空库模板
-  （与当前 schema 同版，见 `tests/test_example_db.py` 守卫）。
+  （与当前 schema 同版，见 `tests/storage/test_example_db.py` 守卫）。
 - **分数单一权威（v1.4.0 起）**：库为准、md 由 `sync-docs` 渲染。改评分规则后跑
   `recompute-scores --apply && sync-docs` 全库统一；`doctor` 的 `[分数一致性]` 段
   会点名「库值与字段重算不符」的行。upsert 仍用 `COALESCE`，防止空值刷掉已有数据。

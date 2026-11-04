@@ -93,7 +93,7 @@ diff -u "$UP/skills/life-decision-guide/SKILL.md" "$DST"   # 只应看到上面�
 校验：
 
 ```bash
-python -m pytest tests/test_repo_layout.py -q     # frontmatter / name / 目录一致性
+python -m unittest tests.architecture.test_repo_layout -q     # frontmatter / name / 目录一致性
 ```
 
 ## 边界

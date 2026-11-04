@@ -22,7 +22,9 @@ import ast
 import os
 import unittest
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+from tests import REPO_ROOT
+
+ROOT = REPO_ROOT
 PKG = os.path.join(ROOT, "review_tool")
 LAYERS = ["core", "storage", "pipeline", "reports"]
 

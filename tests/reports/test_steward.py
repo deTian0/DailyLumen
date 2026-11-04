@@ -283,9 +283,10 @@ class TestStewardCLI(unittest.TestCase):
 
 class TestSkillLayout(unittest.TestCase):
     def test_life_steward_skill_present(self):
-        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        from tests import REPO_ROOT
+
         path = os.path.join(
-            root, ".workbuddy", "skills", "life-steward-daily", "SKILL.md"
+            REPO_ROOT, ".workbuddy", "skills", "life-steward-daily", "SKILL.md"
         )
         self.assertTrue(os.path.isfile(path), "缺 life-steward-daily skill")
         with open(path, encoding="utf-8") as f:

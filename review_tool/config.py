@@ -427,7 +427,7 @@ SUPPLEMENT_MARKER = "补剂"
 # 行为习惯（ClickUp「习惯与打卡」list；id 见 SETTINGS / local/.env）
 #
 # 与 PERSONAL_ITEMS（补剂 / 护肤）是**两套体系**（R3）：
-#   · 本表 aliases 不得与 PERSONAL_ITEMS aliases 冲突（tests/test_config.py 守卫）
+#   · 本表 aliases 不得与 PERSONAL_ITEMS aliases 冲突（tests/settings/test_config.py 守卫）
 #   · 落库进 habit_logs，绝不进 personal_tracks；不参与四维评分（G5）
 #   · 权威：ClickUp 执行层 → habit_logs 快照（唯一 ClickUp→库写方向）
 #
