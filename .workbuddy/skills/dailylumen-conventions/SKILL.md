@@ -336,7 +336,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
-| **下一步开发做什么** | **隐私与配置归一（M45–M50）**：`docs/隐私与配置归一路线图.md`。**M45–M48 ✅**；下一 **M49**（历史擦除 + force push）。**D1–D3 / D5–D7 已定稿**；未跟踪内容归一 **`local/`**。深用期历史见 `docs/深用期路线图.md`（M36–M44 ✅） |
+| **下一步开发做什么** | **隐私与配置归一（M45–M50）已全部完成（v1.52.2）**：见 `docs/隐私与配置归一路线图.md`。未跟踪内容归一 **`local/`**；运行时依赖 pydantic*；复盘/截图不入公开 git。深用期历史见 `docs/深用期路线图.md`（M36–M44 ✅） |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
