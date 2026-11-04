@@ -77,6 +77,17 @@ KS_DEFAULTS = {
     "cache_dir": SETTINGS.keepstrong_cache_dir,
 }
 
+# LLM 运行模式（L-1）—— 互斥 workbuddy|deepseek；真值源 Settings，密钥绝不写这里
+LLM_MODE = SETTINGS.llm_mode
+DEEPSEEK_BASE_URL = SETTINGS.deepseek_base_url
+DEEPSEEK_MODEL = SETTINGS.deepseek_model
+DEEPSEEK_TIMEOUT_S = SETTINGS.deepseek_timeout_s
+
+
+def get_llm_mode() -> str:
+    """当前互斥 LLM mode（``SETTINGS.llm_mode``；默认 workbuddy）。"""
+    return SETTINGS.llm_mode
+
 # 练练动作名 / actionId → item_key（M18）。未命中则走 TRAINING_MOVES，再 slugify。
 # 例：{"act_0ef8…": "goblet_squat", "壶铃深蹲": "goblet_squat"}
 KS_ACTION_MAP: dict[str, str] = {}

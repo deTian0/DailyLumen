@@ -18,7 +18,7 @@ import os
 from collections.abc import Mapping
 from typing import Annotated, Any
 
-from pydantic import ValidationError, ValidationInfo, field_validator
+from pydantic import AliasChoices, Field, ValidationError, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from pydantic_settings.exceptions import SettingsError as PydanticSettingsError
 
@@ -41,6 +41,13 @@ DEFAULT_KEEPSTRONG_CACHE_DIR = os.path.join(_BASE_DIR, ".workbuddy", "cache")
 # ClickUp 内置默认 —— v1.25.0 起与 KeepStrong 对称纳管
 DEFAULT_CLICKUP_BASE_URL = "https://api.clickup.com/api/v2"
 DEFAULT_CLICKUP_TIMEOUT_S = 60.0
+
+# DeepSeek（L-1）—— 仅 mode=deepseek 使用；默认与官方 OpenAI 兼容端点对齐
+DEFAULT_LLM_MODE = "workbuddy"
+DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
+DEFAULT_DEEPSEEK_TIMEOUT_S = 60.0
+ALLOWED_LLM_MODES = frozenset({"workbuddy", "deepseek"})
 
 # 环境变量名 ↔ 字段（错误消息与手工映射用）
 _ENV_TO_FIELD: dict[str, str] = {
@@ -71,6 +78,12 @@ _ENV_TO_FIELD: dict[str, str] = {
     "CLICKUP_LIST_WORK": "clickup_list_work",
     "CLICKUP_LIST_INCUBATOR": "clickup_list_incubator",
     "CLICKUP_LIST_ANNUAL": "clickup_list_annual",
+    # —— L-1 LLM mode / DeepSeek ——
+    "DAILYLUMEN_LLM_MODE": "llm_mode",
+    "DEEPSEEK_API_KEY": "deepseek_api_key",
+    "DEEPSEEK_BASE_URL": "deepseek_base_url",
+    "DEEPSEEK_MODEL": "deepseek_model",
+    "DEEPSEEK_TIMEOUT_S": "deepseek_timeout_s",
 }
 _FIELD_TO_ENV = {v: k for k, v in _ENV_TO_FIELD.items()}
 
@@ -100,6 +113,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         frozen=True,
+        populate_by_name=True,  # 允许 Field alias（如 DAILYLUMEN_LLM_MODE）与字段名并存
         # env_file 在 load_settings 里按路径动态传入，不写死在 model_config
     )
 
@@ -139,11 +153,24 @@ class Settings(BaseSettings):
     clickup_list_incubator: str = ""
     clickup_list_annual: str = ""
 
+    # —— L-1 LLM（互斥 mode；DeepSeek 凭据仅 deepseek 模式需要）——
+    # 环境变量名是 DAILYLUMEN_LLM_MODE（≠ 字段名大写 LLM_MODE），须显式 alias
+    llm_mode: str = Field(
+        default=DEFAULT_LLM_MODE,
+        validation_alias=AliasChoices("DAILYLUMEN_LLM_MODE", "llm_mode"),
+    )
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = DEFAULT_DEEPSEEK_BASE_URL
+    deepseek_model: str = DEFAULT_DEEPSEEK_MODEL
+    deepseek_timeout_s: float = DEFAULT_DEEPSEEK_TIMEOUT_S
+
     @field_validator(
         "keepstrong_base_url",
         "keepstrong_skill_version",
         "keepstrong_agent_name",
         "clickup_base_url",
+        "deepseek_base_url",
+        "deepseek_model",
         mode="before",
     )
     @classmethod
@@ -157,9 +184,25 @@ class Settings(BaseSettings):
                 "keepstrong_skill_version": DEFAULT_KEEPSTRONG_SKILL_VERSION,
                 "keepstrong_agent_name": DEFAULT_KEEPSTRONG_AGENT_NAME,
                 "clickup_base_url": DEFAULT_CLICKUP_BASE_URL,
+                "deepseek_base_url": DEFAULT_DEEPSEEK_BASE_URL,
+                "deepseek_model": DEFAULT_DEEPSEEK_MODEL,
             }
             return defaults.get(str(info.field_name), v)
         return v
+
+    @field_validator("llm_mode", mode="before")
+    @classmethod
+    def _normalize_llm_mode(cls, v: Any) -> str:
+        """空 → workbuddy；仅允许 workbuddy|deepseek（互斥）。"""
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return DEFAULT_LLM_MODE
+        s = str(v).strip().lower()
+        if s not in ALLOWED_LLM_MODES:
+            allowed = " | ".join(sorted(ALLOWED_LLM_MODES))
+            raise ValueError(
+                f"仅允许 {allowed}（互斥，同时仅一种）；得到 {v!r}"
+            )
+        return s
 
     @field_validator("history_src_dir", mode="before")
     @classmethod
@@ -262,6 +305,10 @@ def _wrap_validation_error(exc: ValidationError) -> SettingsError:
             return SettingsError(
                 f"{env_name} 期望 float，得到 {input_val!r}（无法转换）"
             )
+        if field == "llm_mode":
+            return SettingsError(
+                f"{env_name} 配置非法：{err.get('msg', exc)}"
+            )
         return SettingsError(
             f"{env_name} 配置非法（{typ}）：{err.get('msg', exc)}"
         )
@@ -279,7 +326,13 @@ def _settings_from_env_map(merged: Mapping[str, str]) -> Settings:
         if env_key not in merged:
             continue
         raw = merged[env_key]
-        if field in {"keepstrong_timeout_s", "clickup_timeout_s", "db_path", "keepstrong_cache_dir"}:
+        if field in {
+            "keepstrong_timeout_s",
+            "clickup_timeout_s",
+            "deepseek_timeout_s",
+            "db_path",
+            "keepstrong_cache_dir",
+        }:
             if isinstance(raw, str) and raw.strip() == "":
                 continue  # 空 → 用默认
         if field in _OPTIONAL_FLOAT_FIELDS and isinstance(raw, str) and raw.strip() == "":
@@ -344,13 +397,18 @@ def load_settings(
 SETTINGS = load_settings()
 
 __all__ = [
+    "ALLOWED_LLM_MODES",
     "DEFAULT_CLICKUP_BASE_URL",
     "DEFAULT_CLICKUP_TIMEOUT_S",
+    "DEFAULT_DEEPSEEK_BASE_URL",
+    "DEFAULT_DEEPSEEK_MODEL",
+    "DEFAULT_DEEPSEEK_TIMEOUT_S",
     "DEFAULT_KEEPSTRONG_AGENT_NAME",
     "DEFAULT_KEEPSTRONG_BASE_URL",
     "DEFAULT_KEEPSTRONG_CACHE_DIR",
     "DEFAULT_KEEPSTRONG_SKILL_VERSION",
     "DEFAULT_KEEPSTRONG_TIMEOUT_S",
+    "DEFAULT_LLM_MODE",
     "SETTINGS",
     "Settings",
     "SettingsError",

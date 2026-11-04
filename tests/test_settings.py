@@ -68,6 +68,9 @@ class TestLoadSettingsThreeStates(unittest.TestCase):
         # v1.25.0：ClickUp 端点与超时同样纳管（此前写死在 pipeline.clickup）
         self.assertEqual(s.clickup_base_url, DEFAULT_CLICKUP_BASE_URL)
         self.assertEqual(s.clickup_timeout_s, DEFAULT_CLICKUP_TIMEOUT_S)
+        # L-1：默认 workbuddy，无 DeepSeek key
+        self.assertEqual(s.llm_mode, "workbuddy")
+        self.assertEqual(s.deepseek_api_key, "")
 
     def test_environ_overrides_defaults(self):
         env = {
@@ -159,7 +162,11 @@ class TestPydanticSettingsStack(unittest.TestCase):
                     isinstance(node.value, ast.Attribute)
                     and node.value.attr == "environ"
                     and isinstance(node.slice, ast.Constant)
-                    and node.slice.value in {"KEEPSTRONG_API_KEY", "CLICKUP_API_KEY"}
+                    and node.slice.value in {
+                        "KEEPSTRONG_API_KEY",
+                        "CLICKUP_API_KEY",
+                        "DEEPSEEK_API_KEY",
+                    }
                 ):
                     offenders.append(f"L{node.lineno}: os.environ[{node.slice.value!r}]")
             if isinstance(node, ast.Call):
@@ -171,7 +178,11 @@ class TestPydanticSettingsStack(unittest.TestCase):
                     and func.value.attr == "environ"
                     and node.args
                     and isinstance(node.args[0], ast.Constant)
-                    and node.args[0].value in {"KEEPSTRONG_API_KEY", "CLICKUP_API_KEY"}
+                    and node.args[0].value in {
+                        "KEEPSTRONG_API_KEY",
+                        "CLICKUP_API_KEY",
+                        "DEEPSEEK_API_KEY",
+                    }
                 ):
                     offenders.append(f"L{node.lineno}: os.environ.get({node.args[0].value!r})")
         self.assertEqual(offenders, [], "config.py 不得直接读凭据环境变量")
@@ -187,6 +198,7 @@ class TestConfigFacade(unittest.TestCase):
             "PROFILE", "FEATURES", "DB_PATH", "CLICKUP_LISTS", "FOOD_LIB",
             "SCORE_THRESHOLDS", "HISTORY_SRC_DIR", "KS_DEFAULTS", "SETTINGS",
             "CLICKUP_BASE_URL", "CLICKUP_TIMEOUT_S", "LIST_DAILY", "LIST_HABITS",
+            "LLM_MODE", "get_llm_mode", "DEEPSEEK_BASE_URL", "DEEPSEEK_MODEL",
         ):
             self.assertTrue(hasattr(config, name), name)
 

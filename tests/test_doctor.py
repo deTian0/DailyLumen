@@ -609,7 +609,8 @@ class TestRender(_Fixture):
         self.conn.commit()
         self._md("复盘/2026-09/2026-09-21.md")
         text = doctor.render(self._run(today="2026-09-22"), encoding="utf-8")
-        for token in ("DailyLumen 体检报告", "[数据库]", "[新鲜度]", "[历史断更]",
+        for token in ("DailyLumen 体检报告", "[LLM 模式]", "[数据库]", "[新鲜度]",
+                      "[历史断更]",
                       "[文件 <-> 数据库对账]", "[数据完整度]", "[打卡归一化]",
                       "[运动时长来源]", "[训练日口径]", "[打卡依从率]", "[体征]",
                       "[独立指标]",

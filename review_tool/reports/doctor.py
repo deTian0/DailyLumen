@@ -41,6 +41,7 @@ from ..config import (
     PROFILE,
     PROMISE_DECLINED_BUCKET,
     TRACK_ADHERENCE_ALERT,
+    get_llm_mode,
 )
 from ..core.body import (
     WEEK_SPIKE_KG,
@@ -754,6 +755,13 @@ def render(result: dict, *, encoding: str | None = None) -> str:
     L.append("=" * 52)
     L.append("DailyLumen 体检报告")
     L.append("=" * 52)
+
+    L.append("")
+    L.append("[LLM 模式]")
+    L.append(
+        f"  当前 mode : {get_llm_mode()}"
+        "（互斥；workbuddy=宿主代劳 / deepseek=仓库调 API）"
+    )
 
     L.append("")
     L.append("[数据库]")

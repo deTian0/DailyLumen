@@ -370,6 +370,11 @@ API 失败**不写「否」**（CLI 明示离线兜底，留给 `fill_training_d
 
 ## 4. 生成「七、AI 评价与建议」
 
+> **宿主 / LLM 输入契约（L-2）**：通道 A（素材→字段/附录）与通道 B（事实→本节叙事）的
+> I/O 约定正文见 [`docs/LLM能力拆分草案.md`](../../../docs/LLM能力拆分草案.md) **§4**；
+> 运行模式互斥 `DAILYLUMEN_LLM_MODE=workbuddy|deepseek`（默认 workbuddy＝本 skill / 宿主代劳；
+> deepseek＝仓库调 API）。⛔ 无论哪种 mode，产出都**先落 md 再 `ingest`**，禁止只进库。
+
 先取确定性上下文，再据此撰写：
 
 ```bash

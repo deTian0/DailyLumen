@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.52.2**（M50：隐私与配置归一收尾；M45–M50 ✅）（历史：去本机路径；PROFILE 迁 env；Pydantic；local/ 归一；schema **v11**）｜测试 **915** 项
+> 当前版本 **1.53.0**（L-1：LLM mode 互斥 + DeepSeek 接线骨架）（历史：M50 隐私归一收尾；去本机路径；PROFILE 迁 env；Pydantic；local/ 归一；schema **v11**）｜测试数以全量跑为准
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
