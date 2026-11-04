@@ -66,11 +66,12 @@ python -m review_tool doctor                    # 结论须为「数据健康」
 
 ### 5. 数据库侧验证（快照脚本在用户级 skill 里）
 
-零依赖快照脚本：`***REMOVED***/.workbuddy/skills/sqlite-safe-migration/scripts/sqlite_snapshot.py`
+快照脚本在用户级 skill：`~/.workbuddy/skills/sqlite-safe-migration/scripts/sqlite_snapshot.py`
+（`$SK` = 该 skill 目录）。
 
 ```bash
-python "$SK/sqlite_snapshot.py" take review_tool/reviews.db before.json      # 改动前
-python "$SK/sqlite_snapshot.py" diff review_tool/reviews.db before.json --allow <允许字段>
+python "$SK/scripts/sqlite_snapshot.py" take local/reviews.db before.json      # 改动前
+python "$SK/scripts/sqlite_snapshot.py" diff local/reviews.db before.json --allow <允许字段>
 ```
 
 更狠的一招（**推荐**）：**「假装自己是 CI」** —— 删掉/换个临时库，只用仓库内 md 从零重建，再与真库**逐字段逐行**比对（排除 `ingested_at`）。集合级检查（日期集合、行数）看不见行级漂移；这一招挖出过 17 条陈旧打卡键。完整说明见 `sqlite-safe-migration` 的「重建可复现性自检」一节。

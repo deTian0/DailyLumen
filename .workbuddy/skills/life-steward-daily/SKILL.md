@@ -15,10 +15,10 @@ agent_created: true
 ## 统一命令
 
 ```bash
-PY="***REMOVED***/.workbuddy/binaries/python/versions/3.13.12/python.exe"
-$PY -m review_tool steward --slot morning [YYYY-MM-DD] [--todo "…"]…
-$PY -m review_tool steward --slot evening [YYYY-MM-DD]
-$PY -m review_tool steward --slot week [ISO周|YYYY-MM-DD]
+# 在仓库根；使用已安装本项目的 Python ≥3.10
+python -m review_tool steward --slot morning [YYYY-MM-DD] [--todo "…"]…
+python -m review_tool steward --slot evening [YYYY-MM-DD]
+python -m review_tool steward --slot week [ISO周|YYYY-MM-DD]
 # 结构化：加 --json
 ```
 

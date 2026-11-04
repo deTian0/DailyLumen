@@ -11,13 +11,12 @@ alwaysApply: true
 
 ## 项目坐标
 
-- **路径**：`***REMOVED***\每日复盘计划`
+- **路径**：本仓库根（`$REPO` / 当前工作区）；本机数据在 **`local/`**（远程仅占位）
 - **远端**：`git@github.com:deTian0/DailyLumen.git`（分支 `main`）
 - **运行时依赖**：`pydantic` + `pydantic-settings`（M46 / D2；见 `pyproject.toml`）。
   业务逻辑仍用标准库；**禁止**再另引第三方到业务层 / 测试（⛔ 不另引 `python-dotenv`）。
-- **Python ≥ 3.10**。本机托管解释器：
-  `***REMOVED***\.workbuddy\binaries\python\versions\3.13.12\python.exe`
-  （系统备选：`C:\Python314\python.exe`）。**Cursor 里请选其中一个，别用别的 venv。**
+- **Python ≥ 3.10**。优先用本机 WorkBuddy 托管解释器（见本机 MEMORY / binaries 布局）；
+  或系统 Python。**Cursor 里选已装 pydantic* 的解释器，别用无关 venv。**
 
 ## 开工前先读（口径的单一来源）
 
@@ -27,7 +26,7 @@ alwaysApply: true
 | `.workbuddy/skills/clickup-tracking/SKILL.md` | ClickUp 素材源、list ID、映射口径、`date_closed` 归日规则（含「次日早上补勾」回拨） |
 | `.workbuddy/skills/daily-review-intake/SKILL.md` | 素材（截图 / 文档 / ClickUp）→ 成品复盘的流程 |
 | `docs/设计说明.md` | 评分规则 / 统计口径 / 数据库字段速查 / **变更日志** |
-| **`docs/隐私与配置归一路线图.md`** | **下一阶段（M45–M50）**：M45 ✅ v1.50.2；下一做 **M46** Pydantic；**M49 前**不 force push。一次只做一个里程碑 |
+| **`docs/隐私与配置归一路线图.md`** | **隐私与配置归一（M45–M50）**：M45–M47 ✅；下一见总览表；**M49 前**不 force push。一次只做一个里程碑 |
 | **`docs/深用期路线图.md`** | **深用期 M36–M44 已全部完成（v1.50.1）**；历史留档，勿在本文追加新里程碑 |
 | **`docs/运营期路线图.md`** | M22–M35 历史留档（已全部完成） |
 | **`docs/生活管家路线图.md`** | M9–M21 历史留档（已全部完成）+ 文件级范围 / DDL 草案 |
@@ -39,8 +38,8 @@ alwaysApply: true
 ## 命令
 
 ```bash
-# 解释器（本机托管 Python 3.13）
-PY="***REMOVED***/.workbuddy/binaries/python/versions/3.13.12/python.exe"
+# 在仓库根执行；PY = 本机已选解释器（≥3.10，已 pip install -e .）
+PY=python
 
 $PY -m pip install -e .                  # 安装 pydantic*（首次 / 依赖变更后）
 $PY -m unittest discover -s tests -t .   # 全量测试（测试数以全量跑为准）
@@ -48,8 +47,8 @@ $PY -m review_tool                       # 列出所有子命令
 $PY -m review_tool doctor                # 数据体检（库是否健康、有无该补的）
 $PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
 
-# lint（ruff 装在托管 python 的 Scripts 里，不在 PATH）
-"***REMOVED***/.workbuddy/binaries/python/envs/default/Scripts/ruff.exe" check .
+# lint（若 ruff 不在 PATH，用本机工具环境的 ruff）
+ruff check .
 ```
 
 ## 硬规则（违反会出事）
@@ -103,9 +102,9 @@ $PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
 
 ## 一次只做一个里程碑
 
-**深用期 M36–M44 ✅**；**M45–M47 ✅**（v1.50.2 / v1.51.0 / v1.52.0）。
-**下一做 M48**（去本机绝对路径）。见 `docs/隐私与配置归一路线图.md`。
-**M49** 才 force push。严格一次一个里程碑，走通用 DoD，**不跨里程碑混提交**。
+**深用期 M36–M44 ✅**；**M45–M48 ✅**（至 v1.52.1）。
+**下一做 M49**（历史擦除 + force push；先 mirror）。见 `docs/隐私与配置归一路线图.md`。
+严格一次一个里程碑，走通用 DoD，**不跨里程碑混提交**。
 
 **范围内必须守的三条红线**（详见生活管家路线图 §2.2 / 深用期路线图 §2）：
 - **R1** 同一指标只能有一个算法来源，新报告**必须复用**既有实现（如 `reports/ai_review.py` 的饮食判定）。

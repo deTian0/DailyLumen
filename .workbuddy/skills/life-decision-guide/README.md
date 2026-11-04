@@ -34,14 +34,15 @@ WorkBuddy 扫的是 `<工作区>/.workbuddy/skills/<name>/SKILL.md`，靠 frontm
 
 ### 本机额外有一条用户级捷径
 
-`***REMOVED***\.workbuddy\skills\life-decision-guide` 是指向本目录的 **junction**（不入 git）。
+`%USERPROFILE%\.workbuddy\skills\life-decision-guide` 可以是指向本仓库
+`.workbuddy/skills/life-decision-guide` 的 **junction**（不入 git）。
 作用是在别的项目里也能用同一个 skill。因为是同一份文件，**改这里两边同时生效，不存在漂移**；
 换机后 junction 不存在属正常，想重建：
 
 ```powershell
 New-Item -ItemType Junction `
   -Path "$env:USERPROFILE\.workbuddy\skills\life-decision-guide" `
-  -Target "<本仓库路径>\.workbuddy\skills\life-decision-guide"
+  -Target "<$REPO>\.workbuddy\skills\life-decision-guide"
 ```
 
 ## 怎么用
