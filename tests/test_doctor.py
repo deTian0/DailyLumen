@@ -645,7 +645,7 @@ class TestBodyAdvisory(_Fixture):
         self.assertTrue(r["body"]["spikes"])
         self.assertTrue(doctor.is_healthy(r))
         text = doctor.render(r, encoding="utf-8")
-        self.assertIn("单周突变", text)
+        self.assertIn("单周波动", text)
 
 
 if __name__ == "__main__":

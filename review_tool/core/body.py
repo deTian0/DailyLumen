@@ -7,6 +7,8 @@ BMI 分档按中国成人标准：偏瘦 <18.5 / 正常 <24 / 超重 <28 / 肥�
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 
 def bmi(weight_kg: float | None, height_cm: float | None) -> float | None:
     """BMI 保留 1 位小数；身高或体重为空 / 身高 ≤0 返回 ``None``。"""
@@ -130,3 +132,85 @@ def trend_direction(
     if weekly_delta_kg > threshold_kg:
         return "up"
     return "flat"
+
+
+# 单周体重波动阈值（FR-B6 / M41）：7 日历日内 |Δ| ≥ 此值 → 预警。
+# doctor / body 报告必须复用本常量与 ``week_weight_spikes``（R1）。
+WEEK_SPIKE_KG = 1.5
+
+
+def week_weight_spikes(
+    dated_weights: list[tuple[str, float]],
+    *,
+    threshold: float = WEEK_SPIKE_KG,
+) -> list[dict]:
+    """7 日历日窗口内体重 |Δ| ≥ ``threshold`` 的突变列表（升序输入）。
+
+    每个终点只保留最近一次超阈突变。样本 < 2 点 → 空列表（调用方区分「未超阈」
+    与「样本不足」：不足时勿硬编）。
+
+    返回项：``{prev, next, delta, span_days, from_kg, to_kg}``。
+    """
+    spikes: list[dict] = []
+    for i, (d2, w2) in enumerate(dated_weights):
+        t2 = datetime.strptime(d2, "%Y-%m-%d").date()
+        for j in range(i - 1, -1, -1):
+            d1, w1 = dated_weights[j]
+            t1 = datetime.strptime(d1, "%Y-%m-%d").date()
+            span = (t2 - t1).days
+            if span > 7:
+                break
+            if span < 1:
+                continue
+            delta = round(w2 - w1, 2)
+            if abs(delta) >= threshold:
+                spikes.append({
+                    "prev": d1, "next": d2,
+                    "delta": delta, "span_days": span,
+                    "from_kg": w1, "to_kg": w2,
+                })
+                break
+    return spikes
+
+
+def spike_window_context(
+    spike: dict,
+    day_rows: list[dict],
+) -> dict:
+    """并联同窗 ``exercise_min`` / ``diet_kcal``（只陈述、不下因果）。
+
+    ``day_rows`` 为含 ``date`` / ``exercise_min`` / ``diet_kcal`` 的日行。
+    返回 ``{exercise_n, exercise_sum, diet_n, diet_mean, note}``。
+    """
+    prev, nxt = spike["prev"], spike["next"]
+    ex_vals: list[float] = []
+    diet_vals: list[float] = []
+    for r in day_rows:
+        d = r.get("date")
+        if d is None or d < prev or d > nxt:
+            continue
+        if r.get("exercise_min") is not None:
+            ex_vals.append(float(r["exercise_min"]))
+        if r.get("diet_kcal") is not None:
+            diet_vals.append(float(r["diet_kcal"]))
+    note_parts: list[str] = []
+    if ex_vals:
+        note_parts.append(
+            f"同窗运动 {len(ex_vals)} 天合计 {sum(ex_vals):.0f} min"
+        )
+    else:
+        note_parts.append("同窗运动样本不足")
+    if diet_vals:
+        mean = sum(diet_vals) / len(diet_vals)
+        note_parts.append(
+            f"同窗饮食 {len(diet_vals)} 天日均 {mean:.0f} kcal"
+        )
+    else:
+        note_parts.append("同窗饮食样本不足")
+    return {
+        "exercise_n": len(ex_vals),
+        "exercise_sum": round(sum(ex_vals), 1) if ex_vals else None,
+        "diet_n": len(diet_vals),
+        "diet_mean": round(sum(diet_vals) / len(diet_vals), 1) if diet_vals else None,
+        "note": "；".join(note_parts),
+    }

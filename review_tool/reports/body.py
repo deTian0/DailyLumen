@@ -14,12 +14,15 @@ import sys
 
 from ..config import BODY_TARGETS, PROFILE
 from ..core.body import (
+    WEEK_SPIKE_KG,
     bmi,
     bmi_band,
     distance_to_target,
     eta_weeks,
     moving_average,
+    spike_window_context,
     trend_direction,
+    week_weight_spikes,
     weekly_delta,
 )
 from ..storage.db import init_db, load_body_metrics
@@ -76,6 +79,21 @@ def collect(conn) -> dict:
         delta,
     )
 
+    dated = [
+        (s["date"], float(s["weight_kg"]))
+        for s in series if s.get("weight_kg") is not None
+    ]
+    spikes = week_weight_spikes(dated, threshold=WEEK_SPIKE_KG)
+    # 同窗运动 / 热量（只陈述）
+    day_rows = [
+        dict(r) for r in conn.execute(
+            "SELECT date, exercise_min, diet_kcal FROM daily_reviews "
+            "ORDER BY date"
+        )
+    ]
+    for sp in spikes:
+        sp["context"] = spike_window_context(sp, day_rows)
+
     return {
         "count": len(series),
         "height_cm": height,
@@ -89,6 +107,8 @@ def collect(conn) -> dict:
         "distance_to_target": dist,
         "eta_weeks": eta,
         "series": series,
+        "spikes": spikes,
+        "spike_threshold": WEEK_SPIKE_KG,
     }
 
 
@@ -163,6 +183,23 @@ def advice_lines(data: dict) -> list[str]:
         else:
             out.append(f"{base}；低于下限 {abs(dist):.2f} kg —— 先让趋势转向上行，"
                        "再谈外推")
+
+    # M41 / FR-B6：单周 |Δ| ≥ 阈值 → 预警 + 同窗运动/热量陈述（不下因果）
+    spikes = data.get("spikes") or []
+    thr = data.get("spike_threshold", WEEK_SPIKE_KG)
+    n_w = len([
+        s for s in data.get("series") or [] if s.get("weight_kg") is not None
+    ])
+    if spikes:
+        sp = spikes[-1]
+        ctx = (sp.get("context") or {}).get("note") or "同窗样本不足"
+        out.append(
+            f"预警：{sp['prev']}→{sp['next']}（{sp['span_days']} 天）"
+            f"体重 {sp['delta']:+.2f} kg（阈值 ≥{thr} kg）；{ctx}"
+            " —— 只陈述，不下因果"
+        )
+    elif n_w < 2:
+        out.append(f"单周波动：样本不足（需 ≥2 个体重点，现有 {n_w}）")
     return out
 
 

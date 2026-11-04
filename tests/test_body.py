@@ -44,6 +44,34 @@ class TestBmi(unittest.TestCase):
         self.assertIsNone(body_core.bmi_band(None))
 
 
+class TestWeekWeightSpikes(unittest.TestCase):
+    """M41 / FR-B6：超阈 / 未超阈 / 样本不足。"""
+
+    def test_over_threshold(self):
+        pts = [("2026-10-01", 80.0), ("2026-10-07", 81.6)]
+        spikes = body_core.week_weight_spikes(pts)
+        self.assertEqual(len(spikes), 1)
+        self.assertEqual(spikes[0]["delta"], 1.6)
+
+    def test_under_threshold(self):
+        pts = [("2026-10-01", 80.0), ("2026-10-07", 81.0)]
+        self.assertEqual(body_core.week_weight_spikes(pts), [])
+
+    def test_insufficient_sample(self):
+        self.assertEqual(body_core.week_weight_spikes([]), [])
+        self.assertEqual(body_core.week_weight_spikes([("2026-10-01", 80.0)]), [])
+
+    def test_context_states_sample(self):
+        sp = {"prev": "2026-10-01", "next": "2026-10-07", "delta": 1.6}
+        ctx = body_core.spike_window_context(sp, [])
+        self.assertIn("样本不足", ctx["note"])
+        ctx2 = body_core.spike_window_context(sp, [
+            {"date": "2026-10-03", "exercise_min": 30, "diet_kcal": 1800},
+        ])
+        self.assertIn("运动", ctx2["note"])
+        self.assertIn("饮食", ctx2["note"])
+
+
 class TestMovingAverage(unittest.TestCase):
     def test_skips_none_in_denominator(self):
         series = [70.0, None, 72.0]

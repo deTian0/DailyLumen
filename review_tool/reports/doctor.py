@@ -40,6 +40,7 @@ from ..config import (
     PROMISE_DECLINED_BUCKET,
     TRACK_ADHERENCE_ALERT,
 )
+from ..core.body import WEEK_SPIKE_KG, spike_window_context, week_weight_spikes
 from ..core.habits import detect_gaps, key_overlap
 from ..core.score import (
     compute_health_score,
@@ -51,9 +52,6 @@ from ..core.score import (
 from ..storage.db import SCHEMA_VERSION, init_db, load_body_metrics, load_habit_logs
 from .analyze import completeness
 from .fuse import find_fuses
-
-# 体征：单周体重突变阈值（kg）；建议性提示，不参与 is_healthy
-_BODY_WEEKLY_SPIKE_KG = 1.5
 
 
 def habit_track_key_overlap(conn) -> list[str]:
@@ -292,33 +290,27 @@ def body_status(conn, *, today: str) -> dict:
             - datetime.strptime(latest_date, "%Y-%m-%d")
         ).days
 
-    # 体重序列：按日期对齐，找「约 7 日历日」跨度上的突变
+    # 体重序列：复用 core.body.week_weight_spikes（R1 / M41）
     weights = [
-        (r["date"], r["weight_kg"]) for r in rows if r["weight_kg"] is not None
+        (r["date"], float(r["weight_kg"]))
+        for r in rows if r["weight_kg"] is not None
     ]
-    spikes: list[dict] = []
-    for i, (d2, w2) in enumerate(weights):
-        t2 = datetime.strptime(d2, "%Y-%m-%d").date()
-        for j in range(i - 1, -1, -1):
-            d1, w1 = weights[j]
-            t1 = datetime.strptime(d1, "%Y-%m-%d").date()
-            span = (t2 - t1).days
-            if span > 7:
-                break
-            if span < 1:
-                continue
-            delta = round(w2 - w1, 2)
-            if abs(delta) > _BODY_WEEKLY_SPIKE_KG:
-                spikes.append({
-                    "prev": d1, "next": d2,
-                    "delta": delta, "span_days": span,
-                })
-                break  # 每个终点只报最近一次超阈突变
+    spikes = week_weight_spikes(weights, threshold=WEEK_SPIKE_KG)
+    # 并联同窗运动 / 热量（只陈述）
+    day_rows = [
+        dict(r) for r in conn.execute(
+            "SELECT date, exercise_min, diet_kcal FROM daily_reviews "
+            "ORDER BY date"
+        )
+    ]
+    for sp in spikes:
+        sp["context"] = spike_window_context(sp, day_rows)
     return {
         "count": len(rows),
         "latest_date": latest_date,
         "stale_days": stale_days,
         "spikes": spikes,
+        "spike_threshold": WEEK_SPIKE_KG,
     }
 
 
@@ -859,12 +851,15 @@ def render(result: dict, *, encoding: str | None = None) -> str:
                      f" · 共 {body['count']} 条"
                      "（建议性，不影响数据健康）")
         spikes = body.get("spikes") or []
+        thr = body.get("spike_threshold", WEEK_SPIKE_KG)
         if spikes:
-            L.append(f"  {warn} {len(spikes)} 处体重单周突变"
-                     f" > {_BODY_WEEKLY_SPIKE_KG}kg（建议性，不影响数据健康）:")
+            L.append(f"  {warn} {len(spikes)} 处体重单周波动"
+                     f" ≥{thr}kg（建议性，不影响数据健康）:")
             for sp in spikes[:5]:
+                ctx = (sp.get("context") or {}).get("note") or ""
+                extra = f"；{ctx}" if ctx else ""
                 L.append(f"    - {sp['prev']} → {sp['next']}"
-                         f"（{sp['span_days']} 天）{sp['delta']:+.2f} kg")
+                         f"（{sp['span_days']} 天）{sp['delta']:+.2f} kg{extra}")
             if len(spikes) > 5:
                 L.append(f"    … 其余 {len(spikes) - 5} 处省略")
 
