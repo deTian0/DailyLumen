@@ -415,9 +415,24 @@ python -m review_tool ai-context YYYY-MM-DD     # 当日事实 + 近 7 日均值
 简短告知：**处理了哪一天**、**回填了哪些数据/素材**、**生成了哪个文件**（完整路径）、
 **给了几条评价与建议**。然后按项目 5 步协议写执行摘要（见 `dailylumen-conventions` §7）。
 
-### 6.1 复盘全项完成后的最后一步（2026-10-21 用户拍板）
+### 6.1 入库后分数收口（v1.45.0 / M38）
 
-复盘 md 回填 + 评分 + ingest 全部就位后，跑一次：
+`ingest` 之后务必跑一次（默认 dry-run，确认差异再 `--apply`）：
+
+```
+python -m review_tool finalize --date <日期> --apply
+```
+
+等价于该日的 `recompute-scores --apply` + `sync-docs`，收口库分与 md 分数漂移。
+`doctor` 的 `[分数一致性]` 不一致时也会提示本命令。
+⛔ **不要**指望默认 `ingest` 自动做这件事（刻意不改 ingest 副作用）。
+
+`daily-pull --apply` 跑完后若当晚还写了手填字段 / 改了数据块，同样收尾跑
+`finalize --date <当天> --apply`。
+
+### 6.2 复盘全项完成后的最后一步（2026-10-21 用户拍板）
+
+复盘 md 回填 + 评分 + ingest + finalize 全部就位后，跑一次：
 
 ```
 python -m review_tool clickup-push <日期> --apply

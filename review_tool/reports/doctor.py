@@ -718,8 +718,9 @@ def render(result: dict, *, encoding: str | None = None) -> str:
                      f"库 {it['stored']} → 重算 {it['recomputed']}")
         if len(drift) > 8:
             L.append(f"    … 其余 {len(drift) - 8} 处省略")
-        L.append("     → 以字段为准时重算后回写：")
-        L.append("       python -m review_tool recompute-scores && python -m review_tool sync-docs")
+        L.append("     → 以字段为准时一键收口：")
+        L.append("       python -m review_tool finalize --apply")
+        L.append("       （或指定日：python -m review_tool finalize --date D --apply）")
     else:
         L.append(f"  {ok} 库中四维 / 系统分与字段重算完全一致")
 

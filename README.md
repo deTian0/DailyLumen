@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.44.0**（`improve-draft`：近 7 日取数骨架 + skill 查书排序 → 改进点候选草稿，人勾 1 条回填）（历史：`three-things-draft` 今日三件事候选；日 / 周 / 月复盘必挂 `life-decision-guide`；`promise-draft`；熔断双条件；schema **v11**；标尺 v2）｜测试 **888** 项
+> 当前版本 **1.45.0**（`finalize`：ingest 后一键收口 `recompute-scores --apply` + `sync-docs`，doctor 分数不一致指向本命令）（历史：`improve-draft`；`three-things-draft`；`life-decision-guide`；熔断双条件；schema **v11**；标尺 v2）｜测试 **892** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -102,6 +102,7 @@
 | `clickup-push [YYYY-MM-DD] [--apply]`                | 复盘已入库 → 勾 ClickUp「每日复盘总结」（**默认 dry-run**） |
 | `keepstrong [--date D] [--write] [--ingest] / --set-weight … --yes` | 练练读/落 md；写回须 `--yes` |
 | `doctor`                                             | 数据体检：对账 / R3 习惯隔离 / 习惯断更 / 体征 / 熔断… |
+| `finalize [--date D] [--apply]`                      | 入库收尾：重算库分 + sync-docs 一键收口（默认 dry-run） |
 | `body [--json]`                                      | 体征趋势：最新体重 / BMI / 7 日均 / 周变化 / 距目标 + **建议段**（M23，趋势×带位×外推） |
 | `coach [YYYY-MM-DD] [--json]`                        | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据数字） |
 | `habits [--json] [--sync …]`                         | 行为习惯报告；`--sync` 从 ClickUp 写入 `habit_logs` |

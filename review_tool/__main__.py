@@ -18,6 +18,7 @@
     python -m review_tool promise-draft [--date YYYY-MM-DD] [--stdout]
     python -m review_tool three-things-draft [--date YYYY-MM-DD] [--stdout]
     python -m review_tool improve-draft [--date YYYY-MM-DD] [--stdout]
+    python -m review_tool finalize [--date YYYY-MM-DD] [--apply]
     python -m review_tool nutrition  [YYYY-MM-DD] [--json]
     python -m review_tool tutor      [YYYY-MM-DD] [--json]
     python -m review_tool steward    --slot morning|evening|week […]
@@ -72,6 +73,7 @@ from .reports.clickup_done import main as clickup_done_main
 from .reports.coach import main as coach_main
 from .reports.correlate import main as correlate_main
 from .reports.doctor import main as doctor_main
+from .reports.finalize import main as finalize_main
 from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
 from .reports.improve_draft import main as improve_draft_main
@@ -137,6 +139,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
         keepstrong_main,
         "keepstrong [--date D] [--write] [--ingest] | --set-weight/--log-body/--schedule --yes"),
     "doctor": (doctor_main, "doctor"),
+    "finalize": (
+        finalize_main,
+        "finalize [--date YYYY-MM-DD] [--apply]"),
     "body": (body_main, "body [--json]"),
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),
     "habits": (habits_main, "habits [--json] [--sync [YYYY-MM-DD] [--dry-run]]"),

@@ -14,6 +14,8 @@ M33（v1.39.0）。夜间 SOP 原本要依次跑三条命令（``keepstrong --wr
   退出码 = 任一步失败则 1。
 - 编排层不重算：全部沿用 keepstrong / habit_sync / ingest 既有实现，
   数据通道守 G1（先落 md 再入库，``--ingest`` 内建校验）。
+- **收尾**（v1.45.0 / M38）：本命令**不**内嵌 finalize；夜间若改了数据块 /
+  手填字段，另跑 ``finalize --date <当天> --apply`` 收口分数漂移。
 """
 from __future__ import annotations
 
