@@ -1,10 +1,12 @@
-# DailyLumen 运行时依赖：无（纯 Python 标准库，Python 3.10+）
+# DailyLumen 运行时依赖（M46 / D2）：pydantic Settings 栈
+# 安装：pip install -r requirements.txt
+# 或：pip install -e .
 
-# 跑本项目不需要安装任何包：
-#   python -m review_tool doctor
-#   python -m unittest discover -s tests -t .
+pydantic>=2.0
+pydantic-settings>=2.0
+# 注意：不另列 python-dotenv（由 pydantic-settings 间接引入即可）
 
-# 开发 / CI 可选依赖（不影响运行时零依赖）：
+# 开发 / CI 可选：
 #   pytest  —— 若偏好 pytest 而非 unittest
 #   ruff    —— 代码风格检查与格式化（配置见 pyproject.toml）
 #

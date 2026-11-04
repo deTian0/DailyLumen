@@ -160,12 +160,10 @@ class TestPublicApiIntact(unittest.TestCase):
         self.assertEqual(missing, [], f"公共 API 缺失: {missing}")
 
 
-class TestSettingsZeroDeps(unittest.TestCase):
-    """M16：settings.py 不得引入 pydantic / python-dotenv（零依赖硬规则）。"""
+class TestSettingsPydanticStack(unittest.TestCase):
+    """M46：settings.py 必须经 pydantic-settings；业务层不得散落 pydantic / dotenv。"""
 
-    def test_settings_forbids_pydantic_and_dotenv(self):
-        path = os.path.join(PKG, "settings.py")
-        self.assertTrue(os.path.isfile(path), "settings.py 缺失")
+    def _tops(self, path: str) -> set[str]:
         with open(path, encoding="utf-8") as f:
             tree = ast.parse(f.read())
         tops: set[str] = set()
@@ -175,8 +173,35 @@ class TestSettingsZeroDeps(unittest.TestCase):
                     tops.add(a.name.split(".")[0])
             elif isinstance(node, ast.ImportFrom) and node.module:
                 tops.add(node.module.split(".")[0])
-        bad = tops & {"pydantic", "dotenv", "python_dotenv"}
-        self.assertEqual(bad, set(), f"settings.py 引入了禁止依赖: {sorted(bad)}")
+        return tops
+
+    def test_settings_requires_pydantic_and_pydantic_settings(self):
+        path = os.path.join(PKG, "settings.py")
+        self.assertTrue(os.path.isfile(path), "settings.py 缺失")
+        tops = self._tops(path)
+        self.assertIn("pydantic", tops)
+        self.assertIn("pydantic_settings", tops)
+        self.assertEqual(
+            tops & {"dotenv", "python_dotenv"},
+            set(),
+            "settings.py 不得直接 import dotenv（仅经 pydantic-settings）",
+        )
+
+    def test_business_layers_forbid_pydantic_and_dotenv(self):
+        offenders = []
+        forbidden = {"pydantic", "pydantic_settings", "dotenv", "python_dotenv"}
+        for path in _iter_py():
+            layer, fn = _layer_of_file(path)
+            if layer == "root" and fn == "settings.py":
+                continue  # 唯允许点
+            bad = self._tops(path) & forbidden
+            if bad:
+                offenders.append(f"{layer}/{fn}: {sorted(bad)}")
+        self.assertEqual(
+            offenders,
+            [],
+            "pydantic* 仅允许出现在 settings.py：\n" + "\n".join(offenders),
+        )
 
 
 def _fn(path):

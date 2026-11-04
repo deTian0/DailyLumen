@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 运行时零依赖，故只需验证各 Python 版本下标准库行为一致
+        # M46 起有 pydantic* 运行时依赖；矩阵仍覆盖 3.10–3.13
         python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +20,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: 运行测试套件（零依赖）
+      - name: 安装运行时依赖
+        run: pip install -e .
+
+      - name: 运行测试套件
         run: python -m unittest discover -s tests -t . -v
 
       - name: 语法编译检查
@@ -59,8 +62,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: 安装 coverage
-        run: pip install coverage
+      - name: 安装依赖与 coverage
+        run: |
+          pip install -e .
+          pip install coverage
       - name: 统计覆盖率（终端输出 + 写入摘要）
         run: |
           coverage run -m unittest discover -s tests -t . -q
@@ -88,8 +93,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: 安装 ruff
-        run: pip install "ruff>=0.6"
+      - name: 安装依赖与 ruff
+        run: |
+          pip install -e .
+          pip install "ruff>=0.6"
       - name: ruff check
         run: ruff check .
       - name: ruff format --diff

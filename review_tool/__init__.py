@@ -1,7 +1,7 @@
 """DailyLumen · 每日复盘系统。
 
 把每天的结构化复盘沉淀进 SQLite 单一数据源，再做周/月分析。
-解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（零依赖）。
+解析、四维评分自动化、入库、分析与体检业务逻辑基于 Python 标准库；配置层使用 pydantic / pydantic-settings（M46）。
 
 典型用法:
     from review_tool import parse_text, compute_scores, init_db, upsert
@@ -88,7 +88,7 @@ from .storage.db import (
     upsert_personal_track,
 )
 
-__version__ = "1.50.2"
+__version__ = "1.51.0"
 
 __all__ = [
     # config

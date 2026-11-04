@@ -4,11 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dailylumen"
-version = "1.50.2"
+version = "1.51.0"
 description = "每日复盘系统：结构化复盘沉淀进 SQLite 单一数据源，自动评分并做周/月分析"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []  # 零运行时依赖，仅需 Python 标准库
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+]  # D2/M46：Settings 栈；不另列 python-dotenv（由 pydantic-settings 间接引入）
 
 [project.scripts]
 dailylumen = "review_tool.__main__:main"
@@ -22,7 +25,7 @@ pythonpath = ["."]
 testpaths = ["tests"]
 
 # ---------------------------------------------------------------------------
-# 开发期工具（不影响运行时零依赖：ruff 仅在本地/CI 安装）
+# 开发期工具（ruff 仅在本地/CI 安装；不进运行时 dependencies）
 # ---------------------------------------------------------------------------
 [tool.ruff]
 line-length = 110

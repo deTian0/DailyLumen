@@ -1,4 +1,4 @@
-"""M16：零依赖 Settings 层 —— .env 解析 / env 覆盖 / 类型校验 / 门面兼容。"""
+"""M16/M46：Pydantic Settings 层 —— .env 解析 / env 覆盖 / 类型校验 / 门面兼容。"""
 from __future__ import annotations
 
 import ast
@@ -123,8 +123,10 @@ class TestLoadSettingsThreeStates(unittest.TestCase):
         self.assertIn("float", msg)
 
 
-class TestZeroThirdParty(unittest.TestCase):
-    def test_settings_module_has_no_pydantic_or_dotenv(self):
+class TestPydanticSettingsStack(unittest.TestCase):
+    """M46：settings 必须走 pydantic / pydantic-settings；禁止直接 import dotenv。"""
+
+    def _top_imports(self) -> set[str]:
         with open(SETTINGS_PATH, encoding="utf-8") as f:
             tree = ast.parse(f.read())
         names: set[str] = set()
@@ -134,8 +136,47 @@ class TestZeroThirdParty(unittest.TestCase):
                     names.add(a.name.split(".")[0])
             elif isinstance(node, ast.ImportFrom) and node.module:
                 names.add(node.module.split(".")[0])
-        forbidden = {"pydantic", "dotenv", "python_dotenv"}
-        self.assertEqual(names & forbidden, set())
+        return names
+
+    def test_settings_uses_pydantic_stack(self):
+        names = self._top_imports()
+        self.assertIn("pydantic", names)
+        self.assertIn("pydantic_settings", names)
+
+    def test_settings_does_not_import_dotenv_directly(self):
+        names = self._top_imports()
+        self.assertEqual(names & {"dotenv", "python_dotenv"}, set())
+
+    def test_credentials_only_via_settings_not_os_environ_in_config(self):
+        """业务门面 config.py 不得用 os.environ 直接读 API Key（注释提及键名无妨）。"""
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        offenders: list[str] = []
+        for node in ast.walk(tree):
+            # os.environ["KEY"] / os.environ.get("KEY")
+            if isinstance(node, ast.Subscript):
+                if (
+                    isinstance(node.value, ast.Attribute)
+                    and node.value.attr == "environ"
+                    and isinstance(node.slice, ast.Constant)
+                    and node.slice.value in {"KEEPSTRONG_API_KEY", "CLICKUP_API_KEY"}
+                ):
+                    offenders.append(f"L{node.lineno}: os.environ[{node.slice.value!r}]")
+            if isinstance(node, ast.Call):
+                func = node.func
+                if (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "get"
+                    and isinstance(func.value, ast.Attribute)
+                    and func.value.attr == "environ"
+                    and node.args
+                    and isinstance(node.args[0], ast.Constant)
+                    and node.args[0].value in {"KEEPSTRONG_API_KEY", "CLICKUP_API_KEY"}
+                ):
+                    offenders.append(f"L{node.lineno}: os.environ.get({node.args[0].value!r})")
+        self.assertEqual(offenders, [], "config.py 不得直接读凭据环境变量")
+        with open(CONFIG_PATH, encoding="utf-8") as f:
+            self.assertIn("SETTINGS", f.read())
 
 
 class TestConfigFacade(unittest.TestCase):

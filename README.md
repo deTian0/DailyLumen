@@ -1,9 +1,9 @@
 # DailyLumen · 每日复盘系统
 
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
-复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
+业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.50.2**（M45：本机数据归一 local/；复盘/截图停跟踪；默认路径改指 local）（历史：`week-done`；独立指标统一段；习惯鲜度；`finalize`；schema **v11**；标尺 v2）｜测试 **911** 项
+> 当前版本 **1.51.0**（M46：Pydantic Settings；默认读 local/.env）（历史：local/ 归一；`week-done`；独立指标统一段；习惯鲜度；`finalize`；schema **v11**；标尺 v2）｜测试 **914** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -15,8 +15,8 @@
 每日复盘计划/                         # 项目根 (仓库名 DailyLumen)
 ├── README.md                         # 本文件：项目说明 + 怎么用
 ├── review_tool/README.md             # 包级速查：模块地图 + CLI + 数据安全约定
-├── pyproject.toml                    # 项目元数据 + pytest / ruff 配置（运行时零依赖）
-├── requirements.txt                  # 依赖说明（运行时零依赖）
+├── pyproject.toml                    # 项目元数据 + pydantic* 依赖 + pytest / ruff
+├── requirements.txt                  # 运行时依赖（pydantic / pydantic-settings）
 ├── 每日复盘模板.md                    # 空白模板（跟踪；无个人日记）
 ├── local/                            # 本机数据父目录（远程仅 .gitkeep + README）
 │   ├── .env                          # 凭据（gitignore）
@@ -29,7 +29,7 @@
 ├── docs/                             # 设计说明.md + 迁移指南.md + 路线图.md(M1-M8)
 │                                     #   + 生活管家需求文档.md + 生活管家路线图.md(M9–M21)
 │                                     #   + 运营期路线图.md(M22–M27) + 能力图谱.md
-├── tests/                            # 测试套件（标准库 unittest，零依赖，见下方测试数）
+├── tests/                            # 测试套件（标准库 unittest；需先 pip install -e .）
 ├── .github/workflows/ci.yml          # CI：多 Python 版本测试 + ruff 检查
 ├── .workbuddy/                       # 工作区配置（不参与运行；除 skills/ 外均不入 git）
 │   ├── skills/                       # 项目级 skill（**已入 git**，方法资产跟代码一起版本化）
@@ -164,7 +164,8 @@ python -m review_tool ingest --overwrite
 ### 运行测试
 
 ```bash
-python -m unittest discover -s tests -t .      # 见变更日志测试数，零依赖
+pip install -e .                               # 安装 pydantic*
+python -m unittest discover -s tests -t .      # 见变更日志 / 全量跑测试数
 ```
 
 覆盖：解析三种格式 / 打卡归一化 / 徒手训练折算 / 迁移幂等与表重建自愈 /  

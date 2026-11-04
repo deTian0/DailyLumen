@@ -26,7 +26,7 @@ reports   ->  pipeline  ->  storage  ->  core
 ### 包根
 | 模块 | 职责 |
 | --- | --- |
-| `settings.py` | 零依赖 Settings：`.env` 解析 + env 覆盖 + 类型校验（凭据 / 环境差异） |
+| `settings.py` | Pydantic Settings（M46）：默认读 `local/.env` + env 覆盖 + 类型校验 |
 | `config.py` | 门面：路径 + `PROFILE` / `PERSONAL_ITEMS` / `HABITS` / `FOOD_LIB` / `KS_DEFAULTS` / `SCORE_THRESHOLDS` / `BODYWEIGHT_MOVES` / `TRAINING_MOVES` / `COACH_RULES` |
 | `schema.sql` | 建表语句（含 CHECK 约束），与 `reviews*.db` 同在包根 |
 | `__init__.py` | 包公共 API（对外唯一契约，`__all__`） |

@@ -230,7 +230,9 @@ agent_created: true
 
 ## 6. 工程约定
 
-- **零依赖（至 M45）**：纯标准库。测试用 `unittest`（**33** 子命令，v1.50.2；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`。**M46** 将引入 pydantic*。
+- **运行时依赖（M46 / D2）**：业务逻辑纯标准库；配置层允许 **`pydantic` + `pydantic-settings`**
+  （⛔ 不另引 `python-dotenv` 为项目直接依赖）。测试用 `unittest`（子命令数 / 测试数以
+  README / 全量跑为准），`ruff` 在本机工具环境。`pip install -e .` 后再跑测试。
 - **CI 是阻塞的**：用 `tests/fixtures/corpus` 合成语料拷入 `local/每日复盘/` 从零重建 →
   `doctor` / `recompute-scores` / `sync-docs --check` **阻塞**；`fuse` 不阻塞。矩阵 3.10–3.13。
 - **四层架构（v1.5.0）**：`core`（零 I/O 纯规则）→ `storage`（SQLite 唯一出入口）→
@@ -259,10 +261,12 @@ agent_created: true
   服务端返回 `426 skillUpdateRequired` 就重新拉、重存、改 `settings.DEFAULT_KEEPSTRONG_SKILL_VERSION`。
   ⛔ **拉文档本身也要用 Key**，所以 Key 过期时连规格都拿不到 —— 换 Key 是第一步不是最后一步。
   | **环境差异** | `local/.env` 可覆盖，代码给默认值（`settings.Settings`） | baseUrl / timeout / `DAILYLUMEN_DB_PATH` |
-  | **个人参数** | `config.PROFILE` 等（**入 git**） | 身高 / 宏量目标 / 训练日 |
+  | **个人参数** | `config.PROFILE` 等（**入 git**；**M47** 迁 `local/.env`） | 身高 / 宏量目标 / 训练日 |
   | **业务规则** | 代码 | `SCORE_THRESHOLDS` / `FOOD_LIB` / `COACH_RULES` |
-  ⛔ **不引 Pydantic / python-dotenv** —— `review_tool/settings.py` 用标准库
-  `dataclass` + `os.environ`；`config.py` 是门面（既有名字全保留）。
+  ✅ **Settings = pydantic-settings**（M46）：`review_tool/settings.py` 用 `BaseSettings`，
+  默认读 `local/.env`；`config.py` 是门面（既有名字全保留）。
+  ⛔ **业务模块（core/storage/pipeline/reports）不得直接 import pydantic***；
+  ⛔ **不另引 `python-dotenv`**（仅经 pydantic-settings 间接使用）。
 - **CLI 参数单一来源**：`__main__.py` 是**纯路由**（`ROUTES` 表 + 原样透传 argv），
   参数只在各模块 `main(argv)` 里定义一次；顶层统一拦截 `<子命令> -h`
   （否则 `ingest -h` 会真的跑一遍入库）。
@@ -332,7 +336,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
-| **下一步开发做什么** | **隐私与配置归一（M45–M50）**：`docs/隐私与配置归一路线图.md`。**D1–D3 已定稿**（复盘/截图出 git；引入 pydantic；授权 M49 force push）；未跟踪内容归一 **`local/`**。深用期历史见 `docs/深用期路线图.md`（M36–M44 ✅） |
+| **下一步开发做什么** | **隐私与配置归一（M45–M50）**：`docs/隐私与配置归一路线图.md`。**M45–M46 ✅**；下一 **M47**（PROFILE 等迁 env）。**D1–D3 已定稿**；未跟踪内容归一 **`local/`**。深用期历史见 `docs/深用期路线图.md`（M36–M44 ✅） |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
