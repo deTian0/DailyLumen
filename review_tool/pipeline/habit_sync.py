@@ -3,6 +3,7 @@
 用法:
     python -m review_tool habits --sync                 # 同步今天
     python -m review_tool habits --sync 2026-10-15      # 指定日
+    python -m review_tool habits --sync 2026-10-01 2026-10-07  # 区间回填（含端点）
     python -m review_tool habits --sync --dry-run       # 只打印不写
     python -m review_tool clickup --with-habits         # 拉素材时顺带同步
 
@@ -33,7 +34,8 @@ from .clickup import (
     select_habits,
 )
 
-USAGE = "habits --sync [YYYY-MM-DD] [--dry-run] [--db PATH] [--overwrite-done]"
+USAGE = ("habits --sync [YYYY-MM-DD [YYYY-MM-DD]] "
+         "[--dry-run] [--db PATH] [--overwrite-done]")
 
 
 def day_done_for_task(task: dict, day: str, *, tz_hours: int | None = None,
@@ -102,9 +104,26 @@ def sync_habits(conn, day: str, tasks: list[dict] | None = None, *,
     }
 
 
-def _parse_sync_argv(argv: list[str]) -> tuple[str, bool, str | None, bool]:
-    """返回 ``(day, dry_run, db_path, overwrite_done)``。"""
-    day, dry_run, db_path, overwrite = "", False, None, False
+def _daterange(start: str, end: str) -> list[str]:
+    s = datetime.date.fromisoformat(start)
+    e = datetime.date.fromisoformat(end)
+    if e < s:
+        raise ValueError(f"结束日早于起始日: {start} > {end}")
+    out: list[str] = []
+    cur = s
+    while cur <= e:
+        out.append(cur.isoformat())
+        cur += datetime.timedelta(days=1)
+    return out
+
+
+def _parse_sync_argv(argv: list[str]) -> tuple[list[str], bool, str | None, bool]:
+    """返回 ``(days, dry_run, db_path, overwrite_done)``。
+
+    位置参数：0 个 = 今天；1 个 = 单日；2 个 = 闭区间回填。
+    """
+    days_args: list[str] = []
+    dry_run, db_path, overwrite = False, None, False
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -123,25 +142,29 @@ def _parse_sync_argv(argv: list[str]) -> tuple[str, bool, str | None, bool]:
         elif a.startswith("-"):
             raise ValueError(f"未知参数: {a}")
         else:
-            if day:
+            if len(days_args) >= 2:
                 raise ValueError(f"多余的参数: {a}")
-            day = a
+            days_args.append(a)
         i += 1
-    if day:
+    for d in days_args:
         try:
-            datetime.date.fromisoformat(day)
+            datetime.date.fromisoformat(d)
         except ValueError:
-            raise ValueError(f"日期格式应为 YYYY-MM-DD，收到: {day}") from None
+            raise ValueError(f"日期格式应为 YYYY-MM-DD，收到: {d}") from None
+    if not days_args:
+        days = [datetime.date.today().isoformat()]
+    elif len(days_args) == 1:
+        days = days_args
     else:
-        day = datetime.date.today().isoformat()
-    return day, dry_run, db_path, overwrite
+        days = _daterange(days_args[0], days_args[1])
+    return days, dry_run, db_path, overwrite
 
 
 def sync_main(argv: list[str] | None = None, *, fetch=None, env=None) -> int:
     """``habits --sync`` 的实现（也可被 ``clickup --with-habits`` 调用）。"""
     argv = list(argv or [])
     try:
-        day, dry_run, db_path, overwrite = _parse_sync_argv(argv)
+        days, dry_run, db_path, overwrite = _parse_sync_argv(argv)
     except ValueError as e:
         print(f"参数错误: {e}", file=sys.stderr)
         print(f"用法: python -m review_tool {USAGE}", file=sys.stderr)
@@ -153,12 +176,8 @@ def sync_main(argv: list[str] | None = None, *, fetch=None, env=None) -> int:
         print(f"凭据错误: {e}", file=sys.stderr)
         return 2
 
-    conn = init_db(db_path or DB_PATH)
     try:
-        summary = sync_habits(
-            conn, day, key=api_key, fetch=fetch,
-            dry_run=dry_run, overwrite_done=overwrite,
-        )
+        tasks = fetch_tasks(HABITS_LIST_ID, api_key, fetch=fetch)
     except urllib.error.HTTPError as e:
         code = getattr(e, "code", "?")
         print(f"取数失败: HTTP {code}", file=sys.stderr)
@@ -166,16 +185,31 @@ def sync_main(argv: list[str] | None = None, *, fetch=None, env=None) -> int:
     except urllib.error.URLError as e:
         print(f"取数失败: 网络不可达 —— {e.reason}", file=sys.stderr)
         return 1
+
+    conn = init_db(db_path or DB_PATH)
+    total_written = 0
+    try:
+        for day in days:
+            summary = sync_habits(
+                conn, day, tasks, key=api_key, fetch=fetch,
+                dry_run=dry_run, overwrite_done=overwrite,
+            )
+            total_written += summary["written"] if not dry_run else summary["matched"]
+            tag = "（dry-run）" if dry_run else ""
+            print(f"habit_sync {day}{tag}: 拉取 {summary['fetched']} 条，"
+                  f"匹配 {summary['matched']} 项，"
+                  f"{'将写入' if dry_run else '已写入'} {summary['matched']} 行")
+            if len(days) == 1:
+                for r in summary["rows"]:
+                    mark = "✓" if r["done"] else "·"
+                    print(f"  {mark} {r['habit_key']}: {r['item']} done={r['done']}")
     finally:
         conn.close()
 
-    tag = "（dry-run）" if dry_run else ""
-    print(f"habit_sync {day}{tag}: 拉取 {summary['fetched']} 条，"
-          f"匹配 {summary['matched']} 项，"
-          f"{'将写入' if dry_run else '已写入'} {summary['matched']} 行")
-    for r in summary["rows"]:
-        mark = "✓" if r["done"] else "·"
-        print(f"  {mark} {r['habit_key']}: {r['item']} done={r['done']}")
+    if len(days) > 1:
+        print(f"区间合计 {days[0]}…{days[-1]}："
+              f"{'将写入' if dry_run else '已写入'} {total_written} 行"
+              f"（{len(days)} 天）")
     return 0
 
 

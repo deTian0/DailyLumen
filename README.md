@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.45.0**（`finalize`：ingest 后一键收口 `recompute-scores --apply` + `sync-docs`，doctor 分数不一致指向本命令）（历史：`improve-draft`；`three-things-draft`；`life-decision-guide`；熔断双条件；schema **v11**；标尺 v2）｜测试 **892** 项
+> 当前版本 **1.46.0**（习惯鲜度守卫：`habit_logs` 落后告警 + `habits --sync` 区间回填；`daily-pull` 打印习惯写入行数）（历史：`finalize`；`improve-draft`；`three-things-draft`；熔断双条件；schema **v11**；标尺 v2）｜测试 **895** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -105,7 +105,7 @@
 | `finalize [--date D] [--apply]`                      | 入库收尾：重算库分 + sync-docs 一键收口（默认 dry-run） |
 | `body [--json]`                                      | 体征趋势：最新体重 / BMI / 7 日均 / 周变化 / 距目标 + **建议段**（M23，趋势×带位×外推） |
 | `coach [YYYY-MM-DD] [--json]`                        | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据数字） |
-| `habits [--json] [--sync …]`                         | 行为习惯报告；`--sync` 从 ClickUp 写入 `habit_logs` |
+| `habits [--json] [--sync [D [D]]]`                   | 行为习惯报告；`--sync` 支持单日 / 闭区间回填 → `habit_logs` |
 | `daily-pull [--date D] [--apply]`                    | 夜间采集拉齐：练练落 md + 习惯快照 + 入库一条命令（dry-run 默认；**仅夜间**，会打网） |
 | `promise-draft [--date D] [--stdout]`                | 明日 Top 3 候选草稿：ClickUp 到期任务 → 收件箱 md（草稿不入库，人勾选后回填） |
 | `three-things-draft [--date D] [--stdout]`           | 今日三件事候选草稿：ClickUp 当日已完成 → 收件箱 md（与明日候选分文件，人勾 ≤3 回填） |

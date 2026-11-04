@@ -20,6 +20,7 @@
 14. 体征：最新体征距今 / 体重单周突变 > 1.5kg（建议性，不影响 is_healthy）
 15. R3 隔离：habit_logs.habit_key ∩ personal_tracks.item_key 不得有交集（影响 is_healthy）
 16. 习惯断更：连续未完成 ≥ alert_days（建议性，不影响 is_healthy）
+17. 习惯鲜度：habit_logs 最新日落后复盘最新日 ≥ N 天（建议性，不影响 is_healthy）
 """
 from __future__ import annotations
 
@@ -32,6 +33,7 @@ from datetime import datetime, timedelta
 from ..config import (
     ARCHIVE_SRC_DIR,
     FUSE_RULES,
+    HABIT_FRESHNESS_LAG_DAYS,
     HABITS,
     INPUT_DIR,
     PROFILE,
@@ -95,6 +97,41 @@ def habit_gap_status(conn, *, today: str) -> dict:
     check_as = as_of or today
     gaps = detect_gaps(rows, as_of=check_as, items=HABITS)
     return {"as_of": check_as, "gaps": gaps, "count": len(gaps), "empty": False}
+
+
+def habit_freshness_status(
+    conn, *, lag_days: int = HABIT_FRESHNESS_LAG_DAYS,
+) -> dict:
+    """习惯鲜度（建议性）：``habit_logs`` 最新日落后复盘最新日 ≥ ``lag_days``。
+
+    返回 ``{review_latest, habit_latest, lag_days, lag, stale, empty, threshold}``。
+    空表 / 无复盘 → ``stale=False`` 但 ``empty=True``（渲染层提示同步，不算「落后」数字）。
+    """
+    tables = {
+        r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )
+    }
+    rev = conn.execute("SELECT MAX(date) FROM daily_reviews").fetchone()[0]
+    if "habit_logs" not in tables:
+        return {
+            "review_latest": rev, "habit_latest": None,
+            "lag_days": None, "lag": None, "stale": False,
+            "empty": True, "threshold": lag_days,
+        }
+    hab = conn.execute("SELECT MAX(date) FROM habit_logs").fetchone()[0]
+    if not rev or not hab:
+        return {
+            "review_latest": rev, "habit_latest": hab,
+            "lag_days": None, "lag": None, "stale": False,
+            "empty": hab is None, "threshold": lag_days,
+        }
+    lag = (_date.fromisoformat(rev) - _date.fromisoformat(hab)).days
+    return {
+        "review_latest": rev, "habit_latest": hab,
+        "lag_days": lag, "lag": lag, "stale": lag >= lag_days,
+        "empty": False, "threshold": lag_days,
+    }
 
 # 只认可「文件名主干 = 纯日期」的日复盘。历史上用 ``search`` 抓文件名里第一段日期，
 # 会把 ``周总结-W36-2026-08-31_09-06.md`` 误当成 08-31 的日复盘 —— 于是当 08-31
@@ -583,6 +620,8 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
 
         # 习惯断更（建议性；不影响 is_healthy）
         result["habit_gaps"] = habit_gap_status(conn, today=today)
+        # 习惯鲜度（建议性；落后 ≥ N 天）
+        result["habit_freshness"] = habit_freshness_status(conn)
     finally:
         conn.close()
     return result
@@ -864,6 +903,29 @@ def render(result: dict, *, encoding: str | None = None) -> str:
         if len(gaps) > 6:
             L.append(f"    … 其余 {len(gaps) - 6} 项省略")
 
+    L.append("")
+    L.append("[习惯鲜度]")
+    hf = result.get("habit_freshness") or {}
+    if hf.get("empty"):
+        L.append(f"  {warn} habit_logs 为空或无最新日（建议性）→ "
+                 "`habits --sync` 或区间回填 "
+                 "`habits --sync YYYY-MM-DD YYYY-MM-DD`")
+    elif hf.get("stale"):
+        L.append(
+            f"  {warn} habit_logs 最新 {hf.get('habit_latest')} 落后复盘最新 "
+            f"{hf.get('review_latest')} 共 {hf.get('lag')} 天"
+            f"（阈值 ≥{hf.get('threshold')}；建议性）"
+        )
+        L.append("     → 区间回填: python -m review_tool habits --sync "
+                 f"{hf.get('habit_latest')} {hf.get('review_latest')}")
+    else:
+        L.append(
+            f"  {ok} habit_logs 最新 {hf.get('habit_latest') or '—'} "
+            f"与复盘最新 {hf.get('review_latest') or '—'} 对齐"
+            f"（落后 {hf.get('lag') if hf.get('lag') is not None else '—'} 天"
+            f" < {hf.get('threshold')}；建议性）"
+        )
+
     if result["inbox_files"]:
         L.append("")
         pend, done = result["inbox_pending"], result["inbox_consumed"]
@@ -924,9 +986,9 @@ def is_healthy(result: dict) -> bool:
     - ``training_day`` 与星期约定不符：可能只是临时调整训练日，属合理的个人差异；
     - 新鲜度（距上次复盘超过 1 天）：属「该补录了」的建议，CI 里历史库必然过期；
     - 历史断更（相邻入库日空洞）：属可见性提示，不代表库坏了；
-    - 分数一致性 / 打卡对账 / 熔断 / 打卡依从率骤降 / 体征 / 习惯断更：手填覆盖合法、
-      陈旧打卡由 ``--prune-tracks`` 处理、熔断与依从率与体征与习惯断更属「人生指标」
-      告警，都不代表数据本身坏了。
+    - 分数一致性 / 打卡对账 / 熔断 / 打卡依从率骤降 / 体征 / 习惯断更 / 习惯鲜度：
+      手填覆盖合法、陈旧打卡由 ``--prune-tracks`` 处理、熔断与依从率与体征与习惯
+      属「人生指标」告警，都不代表数据本身坏了。
 
     真正算故障的是：库损坏、schema 版本不符、md 与库的日期集合对不上、库里一条记录
     都没有、``habit_logs`` 与 ``personal_tracks`` 的 key 交叉（R3）。

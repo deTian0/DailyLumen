@@ -103,8 +103,8 @@ def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if any(a in ("-h", "--help") for a in argv):
         print("用法: python -m review_tool habits [--json] [--sync ...]")
-        print("      python -m review_tool habits --sync [YYYY-MM-DD] "
-              "[--dry-run] [--db PATH]")
+        print("      python -m review_tool habits --sync "
+              "[YYYY-MM-DD [YYYY-MM-DD]] [--dry-run] [--db PATH]")
         return 0
 
     if "--sync" in argv:

@@ -99,7 +99,7 @@ def _report(day: str) -> None:
         conn.close()
     L = [f"[汇报] {day}（db: {DB_PATH}）"]
     L.append(f"  复盘入库: {'✓ 系统分 ' + str(rv[0]) if rv and rv[0] is not None else ('✓（未评分）' if rv else '✗ 尚无当日 md 或未 ingest')}")
-    L.append(f"  习惯快照: {habits} 行")
+    L.append(f"  习惯写入行数: {habits}（当日 habit_logs）")
     L.append(f"  体征记录: {body} 行")
     if train is not None:
         L.append(f"  训练日: {'是' if train[0] else '否'}")

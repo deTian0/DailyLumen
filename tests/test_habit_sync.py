@@ -7,7 +7,13 @@ import tempfile
 import unittest
 
 from review_tool.core.habits import HABIT_CATEGORY
-from review_tool.pipeline.habit_sync import rows_for_day, sync_habits
+from review_tool.pipeline.habit_sync import (
+    _daterange,
+    _parse_sync_argv,
+    rows_for_day,
+    sync_habits,
+    sync_main,
+)
 from review_tool.storage.db import init_db, load_habit_logs, upsert_habit_log
 
 
@@ -112,6 +118,50 @@ class TestHabitSync(unittest.TestCase):
             for r in load_habit_logs(self.conn, date=self.day)
         ]
         self.assertEqual(snap, again)
+
+    def test_daterange_and_parse(self):
+        self.assertEqual(
+            _daterange("2026-10-01", "2026-10-03"),
+            ["2026-10-01", "2026-10-02", "2026-10-03"],
+        )
+        days, dry, _db, _ow = _parse_sync_argv(
+            ["2026-10-01", "2026-10-03", "--dry-run"])
+        self.assertEqual(days, ["2026-10-01", "2026-10-02", "2026-10-03"])
+        self.assertTrue(dry)
+
+    def test_range_sync_idempotent(self):
+        """区间 sync 幂等：同 tasks 跑两遍行数不变。"""
+        import io
+        from contextlib import redirect_stdout
+        t15 = _habit_tasks("2026-10-15")
+        t16 = [
+            {**t, "id": f"b{t['id']}"} for t in _habit_tasks("2026-10-16")
+        ]
+        all_tasks = t15 + t16
+
+        def fake_fetch(path, key, **kw):
+            return {"tasks": all_tasks}
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = sync_main(
+                ["2026-10-15", "2026-10-16", "--db", self.db],
+                fetch=fake_fetch, env={"CLICKUP_API_KEY": "pk_x"},
+            )
+        self.assertEqual(rc, 0)
+        n1 = len(load_habit_logs(self.conn))
+        self.assertGreater(n1, 0)
+        with redirect_stdout(io.StringIO()):
+            rc2 = sync_main(
+                ["2026-10-15", "2026-10-16", "--db", self.db],
+                fetch=fake_fetch, env={"CLICKUP_API_KEY": "pk_x"},
+            )
+        self.assertEqual(rc2, 0)
+        # 重新打开看（sync_main 另开连接已 commit）
+        conn = init_db(self.db)
+        n2 = len(load_habit_logs(conn))
+        conn.close()
+        self.assertEqual(n1, n2)
 
 
 if __name__ == "__main__":

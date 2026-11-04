@@ -135,7 +135,7 @@ class TestReport(unittest.TestCase):
         text = buf.getvalue()
         self.assertIn("2026-10-22", text)
         self.assertIn("复盘入库", text)
-        self.assertIn("习惯快照", text)
+        self.assertIn("习惯写入行数", text)
 
 
 if __name__ == "__main__":

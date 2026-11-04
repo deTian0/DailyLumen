@@ -144,7 +144,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
         "finalize [--date YYYY-MM-DD] [--apply]"),
     "body": (body_main, "body [--json]"),
     "coach": (coach_main, "coach [YYYY-MM-DD] [--json]"),
-    "habits": (habits_main, "habits [--json] [--sync [YYYY-MM-DD] [--dry-run]]"),
+    "habits": (
+        habits_main,
+        "habits [--json] [--sync [YYYY-MM-DD [YYYY-MM-DD]] [--dry-run]]"),
     "daily-pull": (daily_pull_main, "daily-pull [--date YYYY-MM-DD] [--apply]"),
     "promise-draft": (
         promise_draft_main,

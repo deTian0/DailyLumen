@@ -19,7 +19,7 @@ from review_tool.core.habits import (
 from review_tool.core.tracks import normalize_item, resolve_item
 from review_tool.pipeline.clickup import select_habits
 from review_tool.reports.analyze import collect, render_summary, render_week_md
-from review_tool.reports.doctor import diagnose, is_healthy
+from review_tool.reports.doctor import diagnose, habit_freshness_status, is_healthy
 from review_tool.reports.doctor import render as render_doctor
 from review_tool.storage.db import (
     init_db,
@@ -209,6 +209,41 @@ class TestDoctorR3(unittest.TestCase):
         self.assertTrue(any(g["habit_key"] == "daily_review"
                             for g in r["habit_gaps"]["gaps"]))
         self.assertTrue(is_healthy(r))
+
+    def test_habit_freshness_stale_then_ok(self):
+        """落后 ≥ threshold → stale；拉齐后消失；不影响 is_healthy。"""
+        # 复盘最新 10-15，习惯最新 10-10 → lag=5 ≥ 3
+        upsert(self.conn, {
+            "date": "2026-10-15",
+            "health_score": 7, "work_score": 7,
+            "learn_score": 7, "life_score": 7, "system_score": 7.0,
+            "raw_path": os.path.join(self.input_dir, "2026-10-15.md"),
+        })
+        upsert_habit_log(self.conn, {
+            "date": "2026-10-10", "habit_key": "reading_30",
+            "category": HABIT_CATEGORY, "item": "每日阅读 30 分钟",
+            "done": 1, "src": "clickup",
+        })
+        self.conn.commit()
+        stale = habit_freshness_status(self.conn, lag_days=3)
+        self.assertTrue(stale["stale"])
+        self.assertEqual(stale["lag"], 5)
+        r = diagnose(db_path=self.db, input_dir=os.path.join(self.root, "每日复盘"),
+                     today="2026-10-15")
+        self.assertTrue(r["habit_freshness"]["stale"])
+        self.assertTrue(is_healthy(r))
+        self.assertIn("习惯鲜度", render_doctor(r))
+        self.assertIn("落后", render_doctor(r))
+        # 拉齐
+        upsert_habit_log(self.conn, {
+            "date": "2026-10-15", "habit_key": "reading_30",
+            "category": HABIT_CATEGORY, "item": "每日阅读 30 分钟",
+            "done": 1, "src": "clickup",
+        })
+        self.conn.commit()
+        ok = habit_freshness_status(self.conn, lag_days=3)
+        self.assertFalse(ok["stale"])
+        self.assertEqual(ok["lag"], 0)
 
 
 class TestWeekHabitSection(unittest.TestCase):

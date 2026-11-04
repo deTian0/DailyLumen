@@ -458,6 +458,9 @@ HABITS = [
 # ClickUp「习惯与打卡」list id（select_habits / habit_sync 默认源）
 HABITS_LIST_ID = LIST_HABITS
 
+# habit_logs 最新日落后复盘最新日 ≥ 此天数 → doctor 建议性鲜度告警（M39）
+HABIT_FRESHNESS_LAG_DAYS = 3
+
 
 # ---------------------------------------------------------------------------
 # 学习主题目录（可选）+ 间隔重复
