@@ -45,15 +45,18 @@ class TestMacrosBelowTarget(unittest.TestCase):
         self.assertFalse(any("碳水" in f for f in flags))
 
     def test_full_targets(self):
-        gaps = macros_below_target(DAY, PROFILE["macro_targets"])
+        # 显式目标：不依赖本机 local/.env（CI 无个人参数也能绿）
+        targets = {***REMOVED***, ***REMOVED***, ***REMOVED***}
+        gaps = macros_below_target(DAY, targets)
         cols = {g["col"] for g in gaps}
         self.assertEqual(cols, {"carbs_g", "protein_g", "fat_g"})
         protein = next(g for g in gaps if g["col"] == "protein_g")
         self.assertEqual(protein["deficit"], 23)  # 82 - 59
 
     def test_met_target_excluded(self):
+        targets = {***REMOVED***, ***REMOVED***, ***REMOVED***}
         day = dict(DAY, protein_g=90, carbs_g=230, fat_g=50)
-        self.assertEqual(macros_below_target(day, PROFILE["macro_targets"]), [])
+        self.assertEqual(macros_below_target(day, targets), [])
 
     def test_none_actual_skipped(self):
         day = {"protein_g": None, "carbs_g": 100}

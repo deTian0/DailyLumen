@@ -261,7 +261,7 @@ agent_created: true
   服务端返回 `426 skillUpdateRequired` 就重新拉、重存、改 `settings.DEFAULT_KEEPSTRONG_SKILL_VERSION`。
   ⛔ **拉文档本身也要用 Key**，所以 Key 过期时连规格都拿不到 —— 换 Key 是第一步不是最后一步。
   | **环境差异** | `local/.env` 可覆盖，代码给默认值（`settings.Settings`） | baseUrl / timeout / `DAILYLUMEN_DB_PATH` |
-  | **个人参数** | `config.PROFILE` 等（**入 git**；**M47** 迁 `local/.env`） | 身高 / 宏量目标 / 训练日 |
+  | **个人参数** | `local/.env`（M47；门面仍是 `config.PROFILE`） | 身高 / 宏量目标 / 训练日 / list ID |
   | **业务规则** | 代码 | `SCORE_THRESHOLDS` / `FOOD_LIB` / `COACH_RULES` |
   ✅ **Settings = pydantic-settings**（M46）：`review_tool/settings.py` 用 `BaseSettings`，
   默认读 `local/.env`；`config.py` 是门面（既有名字全保留）。
@@ -336,7 +336,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
-| **下一步开发做什么** | **隐私与配置归一（M45–M50）**：`docs/隐私与配置归一路线图.md`。**M45–M46 ✅**；下一 **M47**（PROFILE 等迁 env）。**D1–D3 已定稿**；未跟踪内容归一 **`local/`**。深用期历史见 `docs/深用期路线图.md`（M36–M44 ✅） |
+| **下一步开发做什么** | **隐私与配置归一（M45–M50）**：`docs/隐私与配置归一路线图.md`。**M45–M47 ✅**；下一 **M48**（去本机绝对路径）。**D1–D3 / D5–D7 已定稿**；未跟踪内容归一 **`local/`**。深用期历史见 `docs/深用期路线图.md`（M36–M44 ✅） |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |

@@ -84,13 +84,15 @@ $PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
     日志被 M11 的"执行摘要"整篇覆盖，六节内容全部丢失。写之前先把文件读完，只在**末尾**追加。
 12. **配置分层不许搞混**（M16 起）：**凭据**只进 `.env`（gitignore，永不入 git / 日志 / 报告）；
     **环境差异**（两源 baseUrl / timeout / 路径覆盖）`.env` 可覆盖、代码给默认值；
-    **个人参数**（身高 / 宏量目标 / 训练日）留 `config.PROFILE` **并随 git 走**；
-    **业务规则**（评分阈值 / `FOOD_LIB`）留代码。
+    **个人参数**（身高 / 宏量 / 体重带 / 训练日 / list ID）进 **`local/.env`**（M47）；
+    门面仍是 `config.PROFILE` / `LIST_*`（从 SETTINGS 组装）。
+    **业务规则**（评分阈值 / `FOOD_LIB`）与 `PERSONAL_ITEMS` / `HABITS` **留代码**（D6=B / D7=B）。
     ✅ Settings = **pydantic-settings**（M46），默认读 `local/.env`；⛔ 不另引 `python-dotenv`。
     ⛔ **端点别写死在业务模块**（v1.25.0 收口）：练练走 `SETTINGS.keepstrong_*`，
     ClickUp 走 `config.CLICKUP_BASE_URL` / `CLICKUP_TIMEOUT_S`。
-    **ClickUp list ID 只在 `config.LIST_*` 定义一次**，`CLICKUP_LISTS` / `HABITS_LIST_ID` /
-    `LEARNING_LIST_IDS` / `CLICKUP_REVIEW_TASK` 一律引用常量（AST 守卫测试会拦字面量回流）。
+    **ClickUp list ID 真值只在 `local/.env`**；代码侧 `config.LIST_*` 从 SETTINGS 读，
+    `CLICKUP_LISTS` / `HABITS_LIST_ID` / `LEARNING_LIST_IDS` / `CLICKUP_REVIEW_TASK`
+    一律引用常量（禁止再写 list id 字面量）。
 13. **练练健身 API 也是「输入通道」**（M17 起）：与截图同级，数据**先落 md → 再 `ingest`**；
     ⛔ 禁止「只进库不落 md」。**写回练练**（POST）只在用户明确要求时执行，**不落库、不作系统状态**。
     接口规格看 `docs/练练健身-API参考.md`；⚠️ 中文查询参数**必须 URL 编码**（未编码会静默返回空 `list`）。
@@ -101,8 +103,8 @@ $PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
 
 ## 一次只做一个里程碑
 
-**深用期 M36–M44 ✅**；**M45 ✅（v1.50.2）**；**M46 ✅（v1.51.0）** Pydantic Settings。
-**下一做 M47**（PROFILE 等迁 env）。见 `docs/隐私与配置归一路线图.md`。
+**深用期 M36–M44 ✅**；**M45–M47 ✅**（v1.50.2 / v1.51.0 / v1.52.0）。
+**下一做 M48**（去本机绝对路径）。见 `docs/隐私与配置归一路线图.md`。
 **M49** 才 force push。严格一次一个里程碑，走通用 DoD，**不跨里程碑混提交**。
 
 **范围内必须守的三条红线**（详见生活管家路线图 §2.2 / 深用期路线图 §2）：

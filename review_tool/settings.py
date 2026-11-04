@@ -1,13 +1,13 @@
 """Pydantic Settings 层：默认读 ``local/.env`` + 环境变量覆盖 + 类型校验。
 
-配置分层（见 ``docs/隐私与配置归一路线图.md`` M46 / conventions §6）：
+配置分层（见 ``docs/隐私与配置归一路线图.md`` M46–M47 / conventions §6）：
 
 | 层 | 放哪 | 本模块是否管 |
 | --- | --- | --- |
 | **凭据** | ``local/.env`` only | ✅ ``KEEPSTRONG_API_KEY`` / ``CLICKUP_API_KEY`` |
 | **环境差异** | ``local/.env`` 可覆盖，代码给默认值 | ✅ 两源 baseUrl / timeout / DB 路径等 |
-| **个人参数** | ``config.PROFILE``（入 git；M47 迁 env） | ⛔ 本里程碑不强制迁完 |
-| **业务规则** | 代码（``SCORE_THRESHOLDS`` / ``FOOD_LIB`` …） | ⛔ 不进本模块 |
+| **个人参数** | ``local/.env``（M47）；代码仅安全空默认 | ✅ 身高 / 宏量 / 体重带 / list ID |
+| **业务规则** | 代码（``SCORE_THRESHOLDS`` / ``FOOD_LIB`` …） | ⛔ 不进本模块（D7=B） |
 
 运行时依赖：``pydantic`` + ``pydantic-settings``（D2 ✅）。
 ⛔ 不另引 ``python-dotenv`` 作为项目直接依赖（由 pydantic-settings 间接使用即可）。
@@ -16,10 +16,11 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import ValidationError, ValidationInfo, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings.exceptions import SettingsError as PydanticSettingsError
 
 # 与 config 同口径的路径推导（settings 自洽，避免与 config 循环 import）
 _PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -55,8 +56,33 @@ _ENV_TO_FIELD: dict[str, str] = {
     "KEEPSTRONG_CACHE_DIR": "keepstrong_cache_dir",
     "CLICKUP_BASE_URL": "clickup_base_url",
     "CLICKUP_TIMEOUT_S": "clickup_timeout_s",
+    # —— M47 个人参数 / list ID（D5=A）——
+    "PROFILE_NAME": "profile_name",
+    "PROFILE_HEIGHT_CM": "profile_height_cm",
+    "PROFILE_CARBS_G": "profile_carbs_g",
+    "PROFILE_PROTEIN_G": "profile_protein_g",
+    "PROFILE_FAT_G": "profile_fat_g",
+    "PROFILE_TRAINING_WEEKDAYS": "profile_training_weekdays",
+    "PROFILE_BREAKFAST_WINDOW": "profile_breakfast_window",
+    "BODY_WEIGHT_KG_LOW": "body_weight_kg_low",
+    "BODY_WEIGHT_KG_HIGH": "body_weight_kg_high",
+    "CLICKUP_LIST_DAILY": "clickup_list_daily",
+    "CLICKUP_LIST_HABITS": "clickup_list_habits",
+    "CLICKUP_LIST_WORK": "clickup_list_work",
+    "CLICKUP_LIST_INCUBATOR": "clickup_list_incubator",
+    "CLICKUP_LIST_ANNUAL": "clickup_list_annual",
 }
 _FIELD_TO_ENV = {v: k for k, v in _ENV_TO_FIELD.items()}
+
+# 可空数值字段：空串 → None（未配置）
+_OPTIONAL_FLOAT_FIELDS = {
+    "profile_height_cm",
+    "profile_carbs_g",
+    "profile_protein_g",
+    "profile_fat_g",
+    "body_weight_kg_low",
+    "body_weight_kg_high",
+}
 
 
 class SettingsError(ValueError):
@@ -93,6 +119,26 @@ class Settings(BaseSettings):
     clickup_base_url: str = DEFAULT_CLICKUP_BASE_URL
     clickup_timeout_s: float = DEFAULT_CLICKUP_TIMEOUT_S
 
+    # —— 个人参数（M47；无 env 时为空/None，行为可预期）——
+    profile_name: str = ""
+    profile_height_cm: float | None = None
+    profile_carbs_g: float | None = None
+    profile_protein_g: float | None = None
+    profile_fat_g: float | None = None
+    # 逗号分隔「0=周一…6=周日」；未配置 → 空列表（离线兜底关闭）
+    # NoDecode：禁止 pydantic-settings 按 JSON 解 list（我们接受 "0,1,2,4,5"）
+    profile_training_weekdays: Annotated[list[int], NoDecode] = []
+    profile_breakfast_window: str = "08:00-09:00"
+    body_weight_kg_low: float | None = None
+    body_weight_kg_high: float | None = None
+
+    # —— ClickUp list ID（D5=A；未配置 → 空串，采集侧会表现为无 list）——
+    clickup_list_daily: str = ""
+    clickup_list_habits: str = ""
+    clickup_list_work: str = ""
+    clickup_list_incubator: str = ""
+    clickup_list_annual: str = ""
+
     @field_validator(
         "keepstrong_base_url",
         "keepstrong_skill_version",
@@ -123,6 +169,33 @@ class Settings(BaseSettings):
         if isinstance(v, str) and not v.strip():
             return None
         return v
+
+    @field_validator(
+        "profile_height_cm",
+        "profile_carbs_g",
+        "profile_protein_g",
+        "profile_fat_g",
+        "body_weight_kg_low",
+        "body_weight_kg_high",
+        mode="before",
+    )
+    @classmethod
+    def _empty_optional_float(cls, v: Any) -> Any:
+        if v is None:
+            return None
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("profile_training_weekdays", mode="before")
+    @classmethod
+    def _parse_training_weekdays(cls, v: Any) -> Any:
+        if v is None or v == "":
+            return []
+        if isinstance(v, list):
+            return [int(x) for x in v]
+        parts = [p.strip() for p in str(v).split(",") if p.strip()]
+        return [int(p) for p in parts]
 
     @field_validator("db_path", "keepstrong_cache_dir", mode="after")
     @classmethod
@@ -209,6 +282,9 @@ def _settings_from_env_map(merged: Mapping[str, str]) -> Settings:
         if field in {"keepstrong_timeout_s", "clickup_timeout_s", "db_path", "keepstrong_cache_dir"}:
             if isinstance(raw, str) and raw.strip() == "":
                 continue  # 空 → 用默认
+        if field in _OPTIONAL_FLOAT_FIELDS and isinstance(raw, str) and raw.strip() == "":
+            kwargs[field] = None
+            continue
         kwargs[field] = raw
 
     saved = dict(os.environ)
@@ -260,6 +336,8 @@ def load_settings(
         return Settings(_env_file=path)  # type: ignore[call-arg]
     except ValidationError as e:
         raise _wrap_validation_error(e) from e
+    except PydanticSettingsError as e:
+        raise SettingsError(str(e)) from e
 
 
 # 进程级单例：import config 时使用。测试请调用 ``load_settings(...)`` 注入。

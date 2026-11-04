@@ -2,24 +2,24 @@
 
 所有路径都相对「包目录」推导，因此无论项目放在何处都能正常工作。
 
-本文件是**门面**（M16）：对外名字（``PROFILE`` / ``FEATURES`` / ``DB_PATH`` /
-``CLICKUP_LISTS`` / ``FOOD_LIB`` …）全部保留；**凭据与环境差异**从
-``settings.SETTINGS`` 派生，**个人参数与业务规则**仍写在本文件（入 git）。
+本文件是**门面**（M16 / M47）：对外名字（``PROFILE`` / ``FEATURES`` / ``DB_PATH`` /
+``CLICKUP_LISTS`` / ``FOOD_LIB`` …）全部保留；**凭据 / 环境差异 / 个人参数 / list ID**
+从 ``settings.SETTINGS``（``local/.env``）派生；**业务规则**与目录类配置仍写在本文件。
 
 小伙伴适配自己时改这些即可：
 
-- ``PROFILE``      个人作息 / 目标 / 训练日约定（个人参数，⛔ 不进 ``.env``）
-- ``PERSONAL_ITEMS`` 个人打卡项定义（补剂 / 护肤 / 自定义）——解析与归一化的单一来源
-- ``HABITS``       行为习惯目录（ClickUp「习惯与打卡」）——与 PERSONAL_ITEMS **永不合并**
+- ``local/.env``   个人参数（身高 / 宏量 / 体重带 / 训练日）+ ClickUp list ID + 凭据
+- ``PERSONAL_ITEMS`` 个人打卡项定义（补剂 / 护肤 / 自定义）——解析与归一化的单一来源（D6=B 留代码）
+- ``HABITS``       行为习惯目录（ClickUp「习惯与打卡」）——与 PERSONAL_ITEMS **永不合并**（D6=B）
 - ``LEARNING_TOPICS`` 学习主题目录（可选；未命中则 slugify）
 - ``SPACED_REPEAT``   间隔重复天数（默认 1/3/7/16）
-- ``SCORE_THRESHOLDS`` 四维评分阈值与权重（同时驱动「AI 评价与建议」的关注点规则）
+- ``SCORE_THRESHOLDS`` 四维评分阈值与权重（D7=B 留代码）
 - ``FEATURES``     功能开关：默认关闭你用不到的子命令（当前只有 ``new_day``）
-- ``CLICKUP_LISTS`` 外部素材源（可选）：ClickUp list → 中文名 / 用途的一处定义
+- ``CLICKUP_LISTS`` 外部素材源（可选）：list id 来自 Settings，中文名 / 用途仍在此定义
 - ``CLICKUP_REVIEW_TASK`` 回写通道（可选）：「每日复盘总结」元任务的定位信息
-- 凭据 / 路径覆盖 / 两源 API 端点与超时（练练 + ClickUp）→ 见 ``settings.py`` + ``local/.env``
+- 凭据 / 路径覆盖 / 两源 API 端点与超时 → 见 ``settings.py`` + ``local/.env``
 
-改这几处即可，无需改动模板与其余代码。
+改 ``local/.env`` 与上述目录即可，无需改动模板与其余代码。
 """
 from __future__ import annotations
 
@@ -104,19 +104,19 @@ TEXT_FIELDS = {"weekday", "energy", "mood", "summary"}
 WEEKDAY_CN = ["一", "二", "三", "四", "五", "六", "日"]
 
 # ---------------------------------------------------------------------------
-# ClickUp list ID —— **单一事实源**（v1.25.0 收口）
+# ClickUp list ID —— **单一事实源**（v1.25.0 收口；M47 / D5=A 真值进 ``local/.env``）
 #
 # ⛔ 不要在别处再写字面量：``CLICKUP_LISTS`` / ``HABITS_LIST_ID`` /
 # ``LEARNING_LIST_IDS`` / ``CLICKUP_REVIEW_TASK`` 全部引用这里。
-# 换 list / 改名 / 删 list 只改这一处 —— 此前 ``***REMOVED***`` 在同一文件里
-# 出现 4 次，改一次要改四处，漏一处就静默指向错 list。
+# 换 list：改 ``local/.env`` 的 ``CLICKUP_LIST_*``（模板见根 ``.env.example``）。
+# 未配置时为空串 —— 采集侧表现为无 list（行为可预期，不静默指向错 id）。
 # ---------------------------------------------------------------------------
 
-LIST_DAILY = ***REMOVED***       # 日常事务（行为流水 + 学习进度 + 读书进度）
-LIST_HABITS = ***REMOVED***      # 习惯与打卡
-LIST_WORK = ***REMOVED***        # 工作（工时 / 工单记录）
-LIST_INCUBATOR = ***REMOVED***   # 项目孵化
-LIST_ANNUAL = ***REMOVED***      # 2026 年度目标
+LIST_DAILY = SETTINGS.clickup_list_daily
+LIST_HABITS = SETTINGS.clickup_list_habits
+LIST_WORK = SETTINGS.clickup_list_work
+LIST_INCUBATOR = SETTINGS.clickup_list_incubator
+LIST_ANNUAL = SETTINGS.clickup_list_annual
 
 # 时区口径**单一来源**：东八区。ClickUp 时间戳按小时算、练练 API 的
 # ``X-Timezone-Offset`` 按分钟算 —— 量纲各自换算，事实只此一处。
@@ -151,25 +151,34 @@ FEATURES = {
 }
 
 # ---------------------------------------------------------------------------
-# 个人化配置
+# 个人化配置（M47：真值在 ``local/.env``；此处从 SETTINGS 组装门面）
+#
+# 无 env 时：name=""、height=None、macro_targets={}、training_weekdays=[] ——
+# 报告显示「未配置」/ 跳过宏量检查 / 不做星期兜底；不抛错。
 # ---------------------------------------------------------------------------
 
+def _macro_targets_from_settings() -> dict[str, float]:
+    out: dict[str, float] = {}
+    if SETTINGS.profile_carbs_g is not None:
+        out["carbs_g"] = float(SETTINGS.profile_carbs_g)
+    if SETTINGS.profile_protein_g is not None:
+        out["protein_g"] = float(SETTINGS.profile_protein_g)
+    if SETTINGS.profile_fat_g is not None:
+        out["fat_g"] = float(SETTINGS.profile_fat_g)
+    return out
+
+
 PROFILE = {
-    ***REMOVED***,
+    "name": SETTINGS.profile_name,
     # 早餐作息窗口（仅用于模板展示与文档说明）
-    "breakfast_window": "08:00-09:00",
-    # 三大营养素每日目标（g）：供「AI 评价与建议」判定摄入是否达标，留空则不检查。
-    # 默认值 = 当前用户薄荷健康 App 的目标基线（2026-10-16 用户确认维持不变）。
-    "macro_targets": {***REMOVED***, ***REMOVED***, ***REMOVED***},
+    "breakfast_window": SETTINGS.profile_breakfast_window or "08:00-09:00",
+    # 三大营养素每日目标（g）；全空则不检查。
+    "macro_targets": _macro_targets_from_settings(),
     # 训练日约定：0=周一 … 6=周日。
-    # ⚠️ **2026-10-16 起降级为「离线兜底」** —— 训练日改为**动态**，以练练健身 App
-    # 为准（见 docs/生活管家路线图.md M20）：取被复盘日（= 执行日的「昨日」）
-    # 的**已完成**训练记录判定。本字段仅在练练取不到数据（无 Key / 断网）时由
-    # ingest.fill_training_day 兜底，避免「缺失」的天数静默从 WHERE training_day=1
-    # 的过滤中消失。⛔ 不再作为训练日的主判据。
-    "training_weekdays": [0, 1, 2, 4, 5],
-    # 身高 (cm)：供 BMI 渲染；未配置时 body 报告显示「未配置身高」，不报错（M9）。
-    ***REMOVED***,
+    # ⚠️ **离线兜底**（M20）：主判据仍是练练 completed；本字段仅无 Key / 断网时用。
+    "training_weekdays": list(SETTINGS.profile_training_weekdays),
+    # 身高 (cm)：未配置时 body 报告显示「未配置身高」，不报错（M9）。
+    "height_cm": SETTINGS.profile_height_cm,
 }
 
 # ---------------------------------------------------------------------------
@@ -324,12 +333,17 @@ NUTRITION_RULES = {
 }
 
 # 体征目标带（配置不是数据，不进表 —— G4）。未配置时报告显示「未配置」。
-# 2026-10-16 用户给定：目标体重 **65 kg**（起点 82.1 kg，减重方向）→ 设为
-# 65 ± 1 kg 的**达标带**。「距目标 / 预计达标周数」按最近端推算（core/body.py 口径）。
-BODY_TARGETS = {
-    ***REMOVED***,
-    ***REMOVED***,
-}
+# M47：真值在 ``local/.env`` 的 ``BODY_WEIGHT_KG_LOW`` / ``BODY_WEIGHT_KG_HIGH``。
+def _body_targets_from_settings() -> dict[str, float]:
+    out: dict[str, float] = {}
+    if SETTINGS.body_weight_kg_low is not None:
+        out["weight_kg_low"] = float(SETTINGS.body_weight_kg_low)
+    if SETTINGS.body_weight_kg_high is not None:
+        out["weight_kg_high"] = float(SETTINGS.body_weight_kg_high)
+    return out
+
+
+BODY_TARGETS = _body_targets_from_settings()
 
 # 体征字段登记（侧车 → body_metrics）。⛔ 禁止并入 FLOAT_FIELDS / daily_reviews COLUMNS。
 BODY_FLOAT_FIELDS = {"weight_kg", "body_fat_pct", "waist_cm"}
@@ -399,7 +413,7 @@ SUPPLEMENT_MARKER = "补剂"
 
 
 # ---------------------------------------------------------------------------
-# 行为习惯（ClickUp「习惯与打卡」list ***REMOVED***）
+# 行为习惯（ClickUp「习惯与打卡」list；id 见 SETTINGS / local/.env）
 #
 # 与 PERSONAL_ITEMS（补剂 / 护肤）是**两套体系**（R3）：
 #   · 本表 aliases 不得与 PERSONAL_ITEMS aliases 冲突（tests/test_config.py 守卫）

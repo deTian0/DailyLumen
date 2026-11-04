@@ -77,7 +77,10 @@ class TestStewardMorning(unittest.TestCase):
         self.assertGreaterEqual(data["fuse"]["absolute_count"], 1)
         self.assertIn("fuse.find_fuses", data["fuse"]["source"])
         self.assertEqual(len(data["todos"]["items"]), 3)  # Top 3 截断
-        self.assertIn("macro_targets", data["diet_targets"]["source"])
+        # 有宏量配置时 source 含 macro_targets；无配置时仍应有 diet_targets 结构
+        self.assertIn("diet_targets", data)
+        if PROFILE.get("macro_targets"):
+            self.assertIn("macro_targets", data["diet_targets"]["source"])
         text = render(data)
         self.assertIn("晨间 brief", text)
         self.assertIn("昨日四维", text)
@@ -110,7 +113,9 @@ class TestStewardMorning(unittest.TestCase):
 
     def test_morning_diet_targets_from_profile(self):
         data = collect_morning(self.conn, as_of=self.today)
-        targets = PROFILE["macro_targets"]
+        targets = PROFILE.get("macro_targets") or {}
+        if not targets:
+            self.skipTest("PROFILE macro_targets 未配置（无 local/.env 时预期）")
         self.assertEqual(data["diet_targets"]["protein_g"], targets["protein_g"])
         self.assertEqual(data["diet_targets"]["carbs_g"], targets["carbs_g"])
 

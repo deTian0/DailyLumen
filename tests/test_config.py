@@ -15,6 +15,7 @@ from review_tool.config import (
     HABITS,
     LEARNING_LIST_IDS,
     LEARNING_TOPICS,
+    LIST_DAILY,
     NUTRITION_RULES,
     PERSONAL_ITEMS,
     PROFILE,
@@ -119,17 +120,43 @@ class TestScoreThresholds(unittest.TestCase):
 
 class TestProfile(unittest.TestCase):
     def test_training_weekdays_valid(self):
+        """未配置 → 空列表（可预期）；已配置 → 必须在 0–6。"""
         wds = PROFILE["training_weekdays"]
-        self.assertTrue(wds)
+        self.assertIsInstance(wds, list)
         for d in wds:
             self.assertIn(d, range(7))
 
     def test_macro_targets_positive(self):
-        for k, v in PROFILE["macro_targets"].items():
+        """未配置 → {}；已配置 → 正数。"""
+        targets = PROFILE.get("macro_targets") or {}
+        self.assertIsInstance(targets, dict)
+        for k, v in targets.items():
             self.assertGreater(v, 0, k)
 
     def test_weekday_cn_has_seven(self):
         self.assertEqual(len(WEEKDAY_CN), 7)
+
+    def test_config_py_has_no_personal_literals(self):
+        """M47：跟踪的 config.py 不得再写身高/宏量/体重带/list id 真值字面量。"""
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(root, "review_tool", "config.py")
+        with open(path, encoding="utf-8") as f:
+            src = f.read()
+        forbidden = [
+            '***REMOVED***',
+            '***REMOVED***',
+            '***REMOVED***',
+            '***REMOVED***',
+            '"weight_kg_low": 64',
+            '"weight_kg_high": 66',
+            '***REMOVED***',
+            '***REMOVED***',
+            '***REMOVED***',
+            '***REMOVED***',
+            '***REMOVED***',
+        ]
+        hit = [s for s in forbidden if s in src]
+        self.assertEqual(hit, [], f"config.py 仍含个人真值字面量: {hit}")
 
 
 class TestPersonalItems(unittest.TestCase):
@@ -280,14 +307,15 @@ class TestLearningCatalog(unittest.TestCase):
 
     def test_learning_list_ids(self):
         # v1.24.0：成长课/阅读与学习两个 list 并入日常事务，证据链收敛到单一 list
-        self.assertEqual(LEARNING_LIST_IDS, (***REMOVED***,))
+        self.assertEqual(LEARNING_LIST_IDS, (LIST_DAILY,))
 
     def test_clickup_lists_merged(self):
         """v1.24.0：被并入日常事务的两个旧 list 不得残留在注册表里。"""
         ids = {item["id"] for item in CLICKUP_LISTS}
         self.assertNotIn("<CLICKUP_LIST_ID>", ids)
         self.assertNotIn("<CLICKUP_LIST_ID>", ids)
-        self.assertIn(***REMOVED***, ids)
+        if LIST_DAILY:
+            self.assertIn(LIST_DAILY, ids)
 
 
 class TestVersionConsistency(unittest.TestCase):
