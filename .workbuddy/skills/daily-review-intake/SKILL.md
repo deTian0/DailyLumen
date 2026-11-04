@@ -442,6 +442,30 @@ python -m review_tool clickup-push <日期> --apply
 ⭐ **先 dry-run 看一眼再 `--apply`**；失败（网络 / 凭据）不影响复盘本身完成，
 提示一句即可，不要重试超过一次。
 
+## 6.3 历史练练素材回填（v1.47.0 / M40）
+
+收件箱里的 `keepstrong-素材-YYYY-MM-DD.md` 是**对照素材**（不参与 ingest）。
+要把训练明细真正写入复盘并入库，须**按日重拉 API**（守 G1：先落 md 再 ingest）：
+
+```
+# 单日（可复制；先 dry-run 看「训练块=是/否」，再加 --write --ingest）
+python -m review_tool keepstrong --date 2026-10-30
+python -m review_tool keepstrong --date 2026-10-30 --write --ingest
+
+# 多日：逐日执行（--write 不支持跨天 --range）
+python -m review_tool keepstrong --date 2026-10-31 --write --ingest
+python -m review_tool keepstrong --date 2026-11-01 --write --ingest
+```
+
+口径：
+
+- 只认 `status == completed`（M20）；其余状态不写进附录、不算训练日。
+- **重复 `--write` 幂等**：同一 keepstrong 块整段替换，不产生双份附录。
+- 当日无 completed → stderr 明示「未写入训练明细」，**不**假装同步成功；
+  素材里写「（无训练记录）」是合法空结果（可能真没练，或 Key 过期静默空 list ——
+  先用 `keepstrong --date D --type body --stdout` 排查 401）。
+- 写完收尾：`finalize --date D --apply`；再 `doctor` 看训练日口径。
+
 ## 7. 与项目规约的衔接（别踩）
 
 - 改了评分规则 / 想调口径 → 走 CLI（`recompute-scores --apply` + `sync-docs`），

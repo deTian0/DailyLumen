@@ -240,6 +240,48 @@ class TestCli(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("连接 AI", err.getvalue())
 
+    def test_write_empty_records_warns_not_silent(self):
+        """M40：--write 遇空 completed 须 stderr 明示，不假装训练明细已写入。"""
+        import os
+        import tempfile
+
+        from review_tool.pipeline import keepstrong_sync as kss
+
+        def handler(req, timeout):
+            path = urllib.parse.urlparse(req.full_url).path
+            if path.endswith("/training/records"):
+                return _FakeResp({"list": [], "hasMore": False})
+            if path.endswith("/body/profile"):
+                return _FakeResp({"weight": 82})
+            if path.endswith("/body/logs"):
+                return _FakeResp({"list": [], "hasMore": False})
+            if path.endswith("/running-plans"):
+                return _FakeResp({"list": []})
+            return _FakeResp({})
+
+        with tempfile.TemporaryDirectory() as td:
+            md_dir = os.path.join(td, "2026-10")
+            os.makedirs(md_dir)
+            md = os.path.join(md_dir, "2026-10-08.md")
+            with open(md, "w", encoding="utf-8", newline="\n") as f:
+                f.write(
+                    "# 复盘\n\n```\n日期: 2026-10-08\n训练日: 否\n体重_kg:\n```\n"
+                )
+            err = io.StringIO()
+            out = io.StringIO()
+            with mock.patch.object(kss, "review_md_path", return_value=md), \
+                    mock.patch("sys.stderr", err), mock.patch("sys.stdout", out):
+                rc = ks.main(
+                    ["--date", "2026-10-08", "--write", "--out", td],
+                    env={"KEEPSTRONG_API_KEY": "test-key"},
+                    urlopen=_urlopen_factory(handler),
+                    now=lambda: "T",
+                )
+            self.assertEqual(rc, 0)
+            self.assertIn("未写入", err.getvalue())
+            self.assertIn("训练明细", err.getvalue())
+            self.assertIn("训练块=否", out.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

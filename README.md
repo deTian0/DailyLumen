@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.46.0**（习惯鲜度守卫：`habit_logs` 落后告警 + `habits --sync` 区间回填；`daily-pull` 打印习惯写入行数）（历史：`finalize`；`improve-draft`；`three-things-draft`；熔断双条件；schema **v11**；标尺 v2）｜测试 **895** 项
+> 当前版本 **1.47.0**（训练明细拉齐：空 completed 不静默假装写入；历史 keepstrong 素材回填 SOP）（历史：习惯鲜度；`finalize`；`improve-draft`；`three-things-draft`；schema **v11**；标尺 v2）｜测试 **896** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---

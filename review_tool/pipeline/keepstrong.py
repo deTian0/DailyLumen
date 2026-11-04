@@ -1046,6 +1046,21 @@ def main(
             f"训练日={td_s}；"
             f"体重={summary.get('weight_kg')}"
         )
+        # M40：空 completed 不静默假装「训练明细已写入」
+        n_raw = len(bundle.get("records") or [])
+        if opts["write"] and not summary.get("training_written"):
+            if n_raw == 0 and not day_records:
+                print(
+                    "⚠️ 当日无 status=completed 训练记录：未写入「附录 · 训练明细」"
+                    "（合法空结果；训练日已按「否」处理，勿当成写入成功）。",
+                    file=sys.stderr,
+                )
+            elif n_raw and not day_records:
+                print(
+                    f"⚠️ 拉到 {n_raw} 条记录但无一匹配当日 {opts['start']}："
+                    "未写入训练明细（检查 dayStr/date 归日）。",
+                    file=sys.stderr,
+                )
         if opts["ingest"]:
             if not opts["write"]:
                 print(
