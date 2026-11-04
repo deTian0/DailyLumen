@@ -230,7 +230,7 @@ agent_created: true
 
 ## 6. 工程约定
 
-- **零依赖**：纯标准库。测试用 `unittest`（**32** 子命令，v1.45.0；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
+- **零依赖**：纯标准库。测试用 `unittest`（**33** 子命令，v1.50.1；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
 - **CI 是阻塞的**：从仓库内 md 从零重建数据库 → `doctor` / `recompute-scores` / `sync-docs --check`
   **阻塞**（对账干净、分数与字段重算一致、md 无需回写）；`fuse` 不阻塞（人生指标告警）。
   矩阵 3.10–3.13。
@@ -334,7 +334,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
-| **下一步开发做什么（M36–M44 深用期计划）** | `docs/深用期路线图.md` |
+| **下一步开发做什么** | **深用期 M36–M44 已全部完成（v1.50.1）**；待下一阶段立项。历史见 `docs/深用期路线图.md` |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
