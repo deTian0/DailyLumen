@@ -17,6 +17,7 @@
     python -m review_tool daily-pull [--date YYYY-MM-DD] [--apply]
     python -m review_tool promise-draft [--date YYYY-MM-DD] [--stdout]
     python -m review_tool three-things-draft [--date YYYY-MM-DD] [--stdout]
+    python -m review_tool improve-draft [--date YYYY-MM-DD] [--stdout]
     python -m review_tool nutrition  [YYYY-MM-DD] [--json]
     python -m review_tool tutor      [YYYY-MM-DD] [--json]
     python -m review_tool steward    --slot morning|evening|week […]
@@ -73,6 +74,7 @@ from .reports.correlate import main as correlate_main
 from .reports.doctor import main as doctor_main
 from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
+from .reports.improve_draft import main as improve_draft_main
 from .reports.nutrition import main as nutrition_main
 from .reports.promises import main as promises_main
 from .reports.recompute import main as recompute_main
@@ -145,6 +147,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "three-things-draft": (
         three_things_draft_main,
         "three-things-draft [--date YYYY-MM-DD] [--stdout] [--out DIR]"),
+    "improve-draft": (
+        improve_draft_main,
+        "improve-draft [--date YYYY-MM-DD] [--stdout] [--out DIR]"),
     "nutrition": (nutrition_main, "nutrition [YYYY-MM-DD] [--json]"),
     "promises": (
         promises_main, "promises [起始日期] [结束日期] [--json]"),
