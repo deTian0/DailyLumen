@@ -55,7 +55,7 @@ OFFLINE_FALLBACK_HINT = (
 
 KeyGuidance = (
     f"请打开「{PRODUCT_CN}」App → 我的 → 连接 AI → 生成新 API Key → "
-    "复制「AI 连接信息」→ 写入仓库根 `.env` 的 `KEEPSTRONG_API_KEY=` 后重试。"
+    "复制「AI 连接信息」→ 写入 `local/.env` 的 `KEEPSTRONG_API_KEY=` 后重试。"
 )
 
 

@@ -990,7 +990,7 @@ def render_week_md(conn, iso_week: int) -> str | None:
     L: list[str] = [
         title, "",
         f"> 由 DailyLumen 周分析脚本（`python -m review_tool week {iso_week} --write`）生成，"
-        "数据源为 SQLite 单一库 `review_tool/reviews.db`。",
+        "数据源为 SQLite 单一库 `local/reviews.db`。",
         f"> 本周共 **{s['days']} 天**记录；数据完整度 "
         f"**{s['completeness']['rate_pct']}%**"
         + (
@@ -1148,7 +1148,7 @@ def render_week_md(conn, iso_week: int) -> str | None:
         "---",
         "",
         f"*生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')} ｜ "
-        f"数据来源：review_tool/reviews.db（ISO 周 {iso_week}）｜ "
+        f"数据来源：local/reviews.db（ISO 周 {iso_week}）｜ "
         f"脚本：`python -m review_tool week {iso_week} --write`*",
         "",
     ]
@@ -1278,7 +1278,7 @@ def render_month_md(conn, month: int) -> str | None:
         "---",
         "",
         f"*生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M')} ｜ "
-        f"数据来源：review_tool/reviews.db（月份 {month}）｜ "
+        f"数据来源：local/reviews.db（月份 {month}）｜ "
         f"脚本：`python -m review_tool month {month} --write`*",
         "",
     ]

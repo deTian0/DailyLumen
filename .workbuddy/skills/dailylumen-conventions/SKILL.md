@@ -138,8 +138,8 @@ agent_created: true
 - **语雀导入件（`2026-07/*` + `08-04`）保留九段式原文附录**，不强套新模板（会丢工作/学习/生活/偏离分析）；
   其现行形态即转换口径；但**数据块仍随库同步**。
 - **缺「七、AI 评价与建议」= 当日无 AI 建议**（内容事实），不补空占位。
-- **目录职责**：`复盘/YYYY-MM/` 是标准源（`ingest` 只扫这里）；`收件箱/`、`历史源复盘/`
-  不参与 ingest，各带 README 说明。
+- **目录职责**：本机 `local/每日复盘/复盘/YYYY-MM/` 是标准源（`ingest` 只扫这里）；
+  `收件箱/`、`历史源复盘/` 不参与 ingest。公开 git 仅有空白模板与 CI 合成 fixture。
 - **批量改文档** → 用 skill **`doc-corpus-normalize`**（探测 → parse 基线 → dry-run → apply →
   逐字段 diff → 入库后快照比对），别直接批量替换。
 - 🔴 **周报 / 月报 / 周总结都不在 `sync-docs` 覆盖范围内**（它只渲染日 md）。所以：
@@ -222,18 +222,17 @@ agent_created: true
 - **`reviews.example.db` 必须与当前 schema 同版**（`tests/test_example_db.py` 守卫），
   否则新用户复制后首次 ingest 会被 CHECK 拒绝。
 - schema 外的遗留列迁移时按**列交集**搬运，数据留档 `.workbuddy/backup/`；不存中间计算产物。
-- **`reviews.db` 可从 git 里的 md 100% 重建**（实测 72 天 / 504 打卡逐字段 0 差异，
-  2026-10-15 于 M9–M15 收口后复验；唯一例外是 `ingested_at` 这类「入库时刻」元数据列）——
-  所以库里出现疑问时，最有用的动作是"从零重建再逐字段比对"，而不是盯着真库猜。
+- **`local/reviews.db` 可从本机 `local/每日复盘/` 的 md 100% 重建**（公开 git 不再含日记；
+  实测曾 72 天 / 504 打卡逐字段 0 差异；唯一例外是 `ingested_at` 等入库时刻列）——
+  库里有疑问时，最有用的动作是"从本机 md 从零重建再逐字段比对"。
 
 ---
 
 ## 6. 工程约定
 
-- **零依赖**：纯标准库。测试用 `unittest`（**33** 子命令，v1.50.1；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`（托管 python 里没有）。
-- **CI 是阻塞的**：从仓库内 md 从零重建数据库 → `doctor` / `recompute-scores` / `sync-docs --check`
-  **阻塞**（对账干净、分数与字段重算一致、md 无需回写）；`fuse` 不阻塞（人生指标告警）。
-  矩阵 3.10–3.13。
+- **零依赖（至 M45）**：纯标准库。测试用 `unittest`（**33** 子命令，v1.50.2；测试数以 README / 全量跑为准），`ruff` 在 `envs/default/Scripts`。**M46** 将引入 pydantic*。
+- **CI 是阻塞的**：用 `tests/fixtures/corpus` 合成语料拷入 `local/每日复盘/` 从零重建 →
+  `doctor` / `recompute-scores` / `sync-docs --check` **阻塞**；`fuse` 不阻塞。矩阵 3.10–3.13。
 - **四层架构（v1.5.0）**：`core`（零 I/O 纯规则）→ `storage`（SQLite 唯一出入口）→
   `pipeline`（md ↔ 库）→ `reports`（读库产出）。依赖**只能自上而下**，
   由 `tests/test_architecture.py` 用 ast 强制；`import sqlite3` 只准出现在 storage；
@@ -241,12 +240,12 @@ agent_created: true
 - **配置分层（v1.20.0 / M16）** —— 四层不许混：
   | 层 | 放哪 | 例 |
   | --- | --- | --- |
-  | **凭据** | 仓库根 `.env`（gitignore；模板见 `.env.example`） | `KEEPSTRONG_API_KEY` / `CLICKUP_API_KEY` |
+  | **凭据** | `local/.env`（gitignore；模板见根 `.env.example`） | `KEEPSTRONG_API_KEY` / `CLICKUP_API_KEY` |
 
   ⚠️ **凭据会过期，且过期表现是「静默无数据」不是报错崩掉**（2026-10-21 实测）：
   `keepstrong` 返回 `401 apiKeyExpired` → CLI 打一行提示就**正常退出**，
   只留一句「离线兜底…」。这类失败不会让任何测试变红，容易被当成「本来就没数据」。
-  - 处置：练练 App → 我的 → 连接 AI → 生成新 API Key → 写入 `.env`；
+  - 处置：练练 App → 我的 → 连接 AI → 生成新 API Key → 写入 `local/.env`；
   - **诊断顺序**：先 `keepstrong --date <D> --type body --stdout` 看是否 401，
     再去怀疑代码 / 数据。
   - 同一现象也会出现在**从没跑过同步**上：`body_metrics` 0 行既可能是无数据，
@@ -259,7 +258,7 @@ agent_created: true
   每个非 skill 请求都必须带 `X-KeepStrong-Skill-Version` 与 `X-KeepStrong-Agent-Name`；
   服务端返回 `426 skillUpdateRequired` 就重新拉、重存、改 `settings.DEFAULT_KEEPSTRONG_SKILL_VERSION`。
   ⛔ **拉文档本身也要用 Key**，所以 Key 过期时连规格都拿不到 —— 换 Key 是第一步不是最后一步。
-  | **环境差异** | `.env` 可覆盖，代码给默认值（`settings.Settings`） | baseUrl / timeout / `DAILYLUMEN_DB_PATH` |
+  | **环境差异** | `local/.env` 可覆盖，代码给默认值（`settings.Settings`） | baseUrl / timeout / `DAILYLUMEN_DB_PATH` |
   | **个人参数** | `config.PROFILE` 等（**入 git**） | 身高 / 宏量目标 / 训练日 |
   | **业务规则** | 代码 | `SCORE_THRESHOLDS` / `FOOD_LIB` / `COACH_RULES` |
   ⛔ **不引 Pydantic / python-dotenv** —— `review_tool/settings.py` 用标准库
@@ -305,23 +304,22 @@ agent_created: true
 
 ## 8. 换机 / 迁移（v1.4.5 定版口径）
 
-**git 里有什么**：全部代码 + 测试 + CI + 全部复盘原文 + 空库模板 + 项目级 skill
-（`dailylumen-conventions` / `daily-review-intake` / `life-steward-daily` /
-`doc-corpus-normalize` / `clickup-tracking`）。
+**git 里有什么**：全部代码 + 测试 + CI + 空库模板 + `local/` 占位 + 项目级 skill；
+**不含**个人复盘 md / 截图（M45 / D1）。
 
 | 路径 | 迁移动作 |
 | --- | --- |
-| `reviews.db` | **手工搬运**（不进 git）。不带也行 —— 可从 md 重建；带了就照旧跑一次 `ingest` 核对"0 处不一致" |
-| `.workbuddy/memory/` | **不迁移** —— 项目口径已抽象为本 skill（入 git）；本机坑与日志随机器丢弃 |
-| `.workbuddy/backup/` | **不迁移**（DB 快照 + 一次性脚本 + `archived/`，留档价值为主） |
-| `.workbuddy/automations/` | 不迁移（自动化执行摘要）。**本项目当前无任何定时任务**，无需重建调度 |
-| `exports/` | **重建**（`python -m review_tool export`） |
-| `__pycache__/`、`.ruff_cache/` | **重建**（自动重生 / 重跑 ruff） |
+| `local/每日复盘/` | **必须搬**（或私有备份）—— 删库重建依赖此树 |
+| `local/.env` | **必须配**（从源机拷或按 `.env.example` 新建） |
+| `local/reviews.db` | **可选搬**；不带可从本机 md `ingest` 重建 |
+| `local/exports/` | **重建**（`python -m review_tool export`） |
+| `.workbuddy/memory/` | **不迁移** |
+| `.workbuddy/backup/` | **不迁移**（可逐步归并到 `local/backup/`） |
+| `__pycache__/`、`.ruff_cache/` | **重建** |
 
-**本项目不再需要任何定时任务**（v1.4.6 起）：原「晨间收集自动化」（每天 08:30）已删除 ——
-素材改为**用户手动投递**（对话里直接发截图 / 文档 / 文字简报），由按需加载的 skill
-**`daily-review-intake`** 处理。所以换机后**既不用搬记忆、也不用重建调度**，
-唯一的手工动作就是把 `reviews.db` 拷过来。
+**本项目不再需要任何定时任务**（v1.4.6 起）：素材手动投递，由 skill
+**`daily-review-intake`** 处理。换机后**既不用搬记忆、也不用重建调度**；
+手工焦点是恢复 **`local/`**（复盘树 + `.env` + 可选 db）。
 
 > 完整步骤 / 验证清单见 [`docs/迁移指南.md`](../../../docs/迁移指南.md)。
 
@@ -334,7 +332,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
-| **下一步开发做什么** | **深用期 M36–M44 已全部完成（v1.50.1）**；待下一阶段立项。历史见 `docs/深用期路线图.md` |
+| **下一步开发做什么** | **隐私与配置归一（M45–M50）**：`docs/隐私与配置归一路线图.md`。**D1–D3 已定稿**（复盘/截图出 git；引入 pydantic；授权 M49 force push）；未跟踪内容归一 **`local/`**。深用期历史见 `docs/深用期路线图.md`（M36–M44 ✅） |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |

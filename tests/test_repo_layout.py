@@ -42,14 +42,25 @@ class TestGitignoreWhitelist(unittest.TestCase):
                 any(p.startswith(f"!.workbuddy/{private}") for p in negated),
                 f".workbuddy/{private}/ 不应被白名单放行",
             )
-        # skills 白名单 + 仓库根 .env.example（M16 模板；真实 .env 仍被忽略）
+        # skills 白名单 + 仓库根 .env.example（M16）+ local/ 占位（M45）
         allowed = {
             "!.workbuddy/skills/",
             "!.workbuddy/skills/**",
             "!.env.example",
+            "!local/.gitkeep",
+            "!local/README.md",
         }
         self.assertEqual(set(negated), allowed,
-                         "白名单只应放行 skills/ 与 .env.example")
+                         "白名单只应放行 skills/、.env.example、local 占位")
+
+    def test_local_parent_dir_ignored_with_placeholders(self):
+        """M45：local/** 全忽略，仅反白 .gitkeep + README.md。"""
+        pats = _patterns()
+        self.assertIn("local/**", pats)
+        self.assertIn("!local/.gitkeep", pats)
+        self.assertIn("!local/README.md", pats)
+        self.assertIn(".idea/", pats)
+        self.assertIn("/每日复盘/", pats)
 
 
 class TestProjectSkills(unittest.TestCase):

@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.50.1**（深用期 M36–M44 一致性收尾：启动词 / 能力图谱 / stats 指针对齐；无新功能）（历史：`week-done`；独立指标统一段；习惯鲜度；`finalize`；schema **v11**；标尺 v2）｜测试 **910** 项
+> 当前版本 **1.50.2**（M45：本机数据归一 local/；复盘/截图停跟踪；默认路径改指 local）（历史：`week-done`；独立指标统一段；习惯鲜度；`finalize`；schema **v11**；标尺 v2）｜测试 **911** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -17,11 +17,15 @@
 ├── review_tool/README.md             # 包级速查：模块地图 + CLI + 数据安全约定
 ├── pyproject.toml                    # 项目元数据 + pytest / ruff 配置（运行时零依赖）
 ├── requirements.txt                  # 依赖说明（运行时零依赖）
-├── 每日复盘模板.md                    # 每天复盘的模板（一键生成时复制它）
-├── 每日复盘/                         # 数据源根目录
-│   ├── 复盘/2026-08/                # 标准复盘（按月份归档，ingest 扫描这里）
-│   ├── 历史源复盘/                   # 旧格式归档（不参与 ingest，需先转换）
-│   └── 收件箱/                       # 手动投放截图 / 简报的目录（不参与 ingest，无自动扫描）
+├── 每日复盘模板.md                    # 空白模板（跟踪；无个人日记）
+├── local/                            # 本机数据父目录（远程仅 .gitkeep + README）
+│   ├── .env                          # 凭据（gitignore）
+│   ├── reviews.db                    # 个人库（gitignore）
+│   ├── exports/                      # 导出产物（gitignore）
+│   └── 每日复盘/                     # 复盘 md / 收件箱截图 / 历史源（gitignore）
+│       ├── 复盘/YYYY-MM/             # 标准复盘（ingest 扫描）
+│       ├── 历史源复盘/               # 旧格式归档（不参与 ingest）
+│       └── 收件箱/                   # 手动投放截图 / 简报（不参与 ingest）
 ├── docs/                             # 设计说明.md + 迁移指南.md + 路线图.md(M1-M8)
 │                                     #   + 生活管家需求文档.md + 生活管家路线图.md(M9–M21)
 │                                     #   + 运营期路线图.md(M22–M27) + 能力图谱.md
@@ -41,8 +45,7 @@
     ├── __main__.py                   # 统一命令行入口 (python -m review_tool，纯路由)
     ├── config.py                     # ★ 可配置层：路径 + PROFILE / PERSONAL_ITEMS / HABITS / SCORE_THRESHOLDS / …
     ├── schema.sql                    # 建表语句（含 CHECK 约束）—— 与库文件同在包根
-    ├── reviews.db                    # 你的数据库（单一数据源，含个人数据，不入 git）
-    ├── reviews.example.db            # 空数据库模板（新用户复制为 reviews.db 即可）
+    ├── reviews.example.db            # 空库模板（新用户复制到 local/reviews.db）
     ├── core/                         # 领域层：零 I/O 纯规则（禁碰 SQLite / 文件系统）
     │   ├── util.py                   #   时间与数值转换、slug 生成
     │   ├── tracks.py                 #   打卡项归一化（自由文本 -> 规范 ID）★

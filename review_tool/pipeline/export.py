@@ -15,10 +15,10 @@ import json
 import os
 import sys
 
-from ..config import BASE_DIR
+from ..config import EXPORT_DIR
 from ..storage.db import COLUMNS, init_db
 
-DEFAULT_OUT_DIR = os.path.join(BASE_DIR, "exports")
+DEFAULT_OUT_DIR = EXPORT_DIR
 
 
 def _daily_rows(conn):

@@ -62,6 +62,8 @@ class TestLoadSettingsThreeStates(unittest.TestCase):
         self.assertEqual(s.keepstrong_skill_version, DEFAULT_KEEPSTRONG_SKILL_VERSION)
         self.assertEqual(s.keepstrong_timeout_s, DEFAULT_KEEPSTRONG_TIMEOUT_S)
         self.assertTrue(s.db_path.endswith("reviews.db"))
+        # M45：默认库落 local/reviews.db
+        self.assertIn(os.path.join("local", "reviews.db"), s.db_path.replace("/", os.sep))
         self.assertIsNone(s.history_src_dir)
         # v1.25.0：ClickUp 端点与超时同样纳管（此前写死在 pipeline.clickup）
         self.assertEqual(s.clickup_base_url, DEFAULT_CLICKUP_BASE_URL)

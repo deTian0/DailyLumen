@@ -27,7 +27,8 @@ alwaysApply: true
 | `.workbuddy/skills/clickup-tracking/SKILL.md` | ClickUp 素材源、list ID、映射口径、`date_closed` 归日规则（含「次日早上补勾」回拨） |
 | `.workbuddy/skills/daily-review-intake/SKILL.md` | 素材（截图 / 文档 / ClickUp）→ 成品复盘的流程 |
 | `docs/设计说明.md` | 评分规则 / 统计口径 / 数据库字段速查 / **变更日志** |
-| **`docs/深用期路线图.md`** | **深用期 M36–M44 已全部完成（v1.50.1）**；待下一阶段立项。历史留档，勿在本文追加新里程碑 |
+| **`docs/隐私与配置归一路线图.md`** | **下一阶段（M45–M50）**：M45 ✅ v1.50.2；下一做 **M46** Pydantic；**M49 前**不 force push。一次只做一个里程碑 |
+| **`docs/深用期路线图.md`** | **深用期 M36–M44 已全部完成（v1.50.1）**；历史留档，勿在本文追加新里程碑 |
 | **`docs/运营期路线图.md`** | M22–M35 历史留档（已全部完成） |
 | **`docs/生活管家路线图.md`** | M9–M21 历史留档（已全部完成）+ 文件级范围 / DDL 草案 |
 | **`docs/练练健身-API参考.md`** | 练练健身（KeepStrong）AI 接口规格 **v1.28.0** —— 认证头 / 端点 / 错误契约 / 实测踩坑（M17–M19 必读） |
@@ -59,7 +60,7 @@ $PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
 3. **写盘不可信**：本机（Windows）写文件会**间歇性「报告成功但不落盘」**。每次写文件后必须
    **回读校验**（哈希或子串断言），**不相信工具的成功回报**；`git` 的权威永远是 `git ls-remote`，
    不是 `git push` 的输出。（SOP：用户级 skill `safe-write`）
-4. **动 `reviews.db` 要谨慎**：任何 schema 变更 / 批量重算 → 先备份 → 副本验证 → 快照逐列 diff，
+4. **动 `local/reviews.db` 要谨慎**：任何 schema 变更 / 批量重算 → 先备份 → 副本验证 → 快照逐列 diff，
    确认无损才落到真库。（SOP：用户级 skill `sqlite-safe-migration`）
 5. **交付纪律（DoD）**：一个 feature = **一处版本号 + 一个 commit + 一个 tag**。版本号**四处对齐**：
    `pyproject.toml` / `review_tool/__init__.py` / `README.md` 头 / `docs/设计说明.md` 变更日志。
@@ -98,9 +99,9 @@ $PY -m review_tool clickup --stdout      # ClickUp 当日素材（只读）
 
 ## 一次只做一个里程碑
 
-**深用期 M36–M44 已全部完成**（收尾 v1.50.1）。新需求先写进**下一阶段路线图**再开工；
-历史阶段见 `docs/深用期路线图.md` / `docs/运营期路线图.md` / `docs/生活管家路线图.md` /
-`docs/路线图.md`。严格照对应节的「范围 + 验收」做，走通用 DoD，**不跨里程碑混提交**。
+**深用期 M36–M44 ✅**；**M45 ✅（v1.50.2）** 本机数据已归一 **`local/`**。
+**下一做 M46**（Pydantic Settings）。见 `docs/隐私与配置归一路线图.md`。
+**M49** 才 force push。严格一次一个里程碑，走通用 DoD，**不跨里程碑混提交**。
 
 **范围内必须守的三条红线**（详见生活管家路线图 §2.2 / 深用期路线图 §2）：
 - **R1** 同一指标只能有一个算法来源，新报告**必须复用**既有实现（如 `reports/ai_review.py` 的饮食判定）。

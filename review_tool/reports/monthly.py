@@ -22,14 +22,13 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
-from ..config import BASE_DIR, DB_PATH, INPUT_DIR
+from ..config import DB_PATH, EXPORT_DIR, INPUT_DIR
 from ..storage.db import init_db
 from . import chart as chart_mod
 from . import correlate, fuse
 from . import stats as stats_mod
 from .analyze import collect as analyze_collect
 
-EXPORT_DIR = os.path.join(BASE_DIR, "exports")
 CHART_DIR = os.path.join(EXPORT_DIR, "charts")
 
 

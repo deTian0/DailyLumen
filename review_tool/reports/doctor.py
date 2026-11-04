@@ -808,7 +808,7 @@ def render(result: dict, *, encoding: str | None = None) -> str:
         L.append(f"  {len(result['archive_only'])} 天的数据源只在「历史源复盘」（语雀原始格式）: "
                  + ", ".join(result["archive_only"][:8]))
         L.append("     → 建议升级为标准格式：")
-        L.append("       python -m review_tool import-history --src 每日复盘/历史源复盘")
+        L.append("       python -m review_tool import-history --src local/每日复盘/历史源复盘")
 
     L.append("")
     L.append("[数据完整度]")

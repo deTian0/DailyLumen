@@ -17,7 +17,7 @@
 - ``FEATURES``     功能开关：默认关闭你用不到的子命令（当前只有 ``new_day``）
 - ``CLICKUP_LISTS`` 外部素材源（可选）：ClickUp list → 中文名 / 用途的一处定义
 - ``CLICKUP_REVIEW_TASK`` 回写通道（可选）：「每日复盘总结」元任务的定位信息
-- 凭据 / 路径覆盖 / 两源 API 端点与超时（练练 + ClickUp）→ 见 ``settings.py`` + 仓库根 ``.env``
+- 凭据 / 路径覆盖 / 两源 API 端点与超时（练练 + ClickUp）→ 见 ``settings.py`` + ``local/.env``
 
 改这几处即可，无需改动模板与其余代码。
 """
@@ -37,14 +37,18 @@ PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 # 项目根目录（仓库根 = 每日复盘计划/）
 BASE_DIR = os.path.dirname(PACKAGE_DIR)
 
-# 数据库文件（可用 ``DAILYLUMEN_DB_PATH`` / ``.env`` 覆盖）
+# 本机未跟踪内容父目录（M45；远程仅 .gitkeep + README）
+LOCAL_DIR = os.path.join(BASE_DIR, "local")
+
+# 数据库文件（可用 ``DAILYLUMEN_DB_PATH`` / ``local/.env`` 覆盖；默认 local/reviews.db）
 DB_PATH = SETTINGS.db_path
 
 # 建表脚本
 SCHEMA_PATH = os.path.join(PACKAGE_DIR, "schema.sql")
 
 # 每日复盘 md 输入根目录（ingest 递归扫描，但跳过下面两个子目录）
-INPUT_DIR = os.path.join(BASE_DIR, "每日复盘")
+# M45：迁入 local/；删库重建依赖本机此树（公开 git 不再含日记全集）
+INPUT_DIR = os.path.join(LOCAL_DIR, "每日复盘")
 
 # 自动生成/回填的标准复盘目录（new-day / import-history 的输出根，按 YYYY-MM 归档）
 GENERATED_DIR = os.path.join(INPUT_DIR, "复盘")
@@ -55,11 +59,14 @@ INBOX_DIR = os.path.join(INPUT_DIR, "收件箱")
 # 旧源文件归档目录（语雀原始格式，**不参与 ingest 扫描**）
 ARCHIVE_SRC_DIR = os.path.join(INPUT_DIR, "历史源复盘")
 
-# 复盘模板
+# 复盘模板（空白、无个人日记 —— 留仓库根并跟踪）
 TEMPLATE_PATH = os.path.join(BASE_DIR, "每日复盘模板.md")
 
-# 历史语雀文件来源目录（``DAILYLUMEN_HISTORY_SRC`` / ``.env``；不内置个人路径）
+# 历史语雀文件来源目录（``DAILYLUMEN_HISTORY_SRC`` / ``local/.env``；不内置个人路径）
 HISTORY_SRC_DIR = SETTINGS.history_src_dir
+
+# 导出目录（个人数据；默认 local/exports/）
+EXPORT_DIR = os.path.join(LOCAL_DIR, "exports")
 
 # 练练健身（KeepStrong）环境默认 —— 密钥只从 SETTINGS / .env 读，绝不写在这里
 KS_DEFAULTS = {
@@ -945,7 +952,7 @@ TRACK_ADHERENCE_ALERT = {
 # ---------------------------------------------------------------------------
 
 # 凭据来源（本机，优先级从高到低）：
-#   1. 环境变量 / 仓库根 ``.env``（``CLICKUP_API_KEY`` / ``CLICKUP_TEAM_ID``，M16 Settings）
+#   1. 环境变量 / ``local/.env``（``CLICKUP_API_KEY`` / ``CLICKUP_TEAM_ID``；M45 迁路径）
 #   2. ``~/.workbuddy/mcp.json`` → ``mcpServers.clickup.env``（兼容旧路径）
 # ⛔ 本仓库入 git，**token 绝不写在这里**，运行时现读。
 # ClickUp 端点与超时 —— v1.25.0 起纳入 Settings（与 KeepStrong 对称）：

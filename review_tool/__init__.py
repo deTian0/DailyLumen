@@ -29,11 +29,13 @@ from .config import (
     BODYWEIGHT_RULES,
     DB_PATH,
     DIMENSIONS,
+    EXPORT_DIR,
     GENERATED_DIR,
     HABITS,
     HISTORY_SRC_DIR,
     INBOX_DIR,
     INPUT_DIR,
+    LOCAL_DIR,
     PACKAGE_DIR,
     PERSONAL_ITEMS,
     PROFILE,
@@ -86,12 +88,12 @@ from .storage.db import (
     upsert_personal_track,
 )
 
-__version__ = "1.50.1"
+__version__ = "1.50.2"
 
 __all__ = [
     # config
-    "BASE_DIR", "PACKAGE_DIR", "DB_PATH", "SCHEMA_PATH", "INPUT_DIR",
-    "GENERATED_DIR", "INBOX_DIR", "ARCHIVE_SRC_DIR",
+    "BASE_DIR", "PACKAGE_DIR", "LOCAL_DIR", "DB_PATH", "SCHEMA_PATH", "INPUT_DIR",
+    "GENERATED_DIR", "INBOX_DIR", "ARCHIVE_SRC_DIR", "EXPORT_DIR",
     "TEMPLATE_PATH", "HISTORY_SRC_DIR", "DIMENSIONS",
     "PROFILE", "PERSONAL_ITEMS", "HABITS", "SCORE_THRESHOLDS",
     "BODYWEIGHT_MOVES", "BODYWEIGHT_RULES",

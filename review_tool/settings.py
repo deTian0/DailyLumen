@@ -4,12 +4,13 @@
 
 | 层 | 放哪 | 本模块是否管 |
 | --- | --- | --- |
-| **凭据** | ``.env`` only | ✅ ``KEEPSTRONG_API_KEY`` / ``CLICKUP_API_KEY`` |
-| **环境差异** | ``.env`` 可覆盖，代码给默认值 | ✅ 两源 baseUrl / timeout / DB 路径等 |
-| **个人参数** | ``config.PROFILE``（入 git） | ⛔ 不进本模块 |
+| **凭据** | ``local/.env`` only | ✅ ``KEEPSTRONG_API_KEY`` / ``CLICKUP_API_KEY`` |
+| **环境差异** | ``local/.env`` 可覆盖，代码给默认值 | ✅ 两源 baseUrl / timeout / DB 路径等 |
+| **个人参数** | ``config.PROFILE``（入 git；M47 迁 env） | ⛔ 不进本模块 |
 | **业务规则** | 代码（``SCORE_THRESHOLDS`` / ``FOOD_LIB`` …） | ⛔ 不进本模块 |
 
-⛔ 零依赖：不引 pydantic / python-dotenv；标准库 ``dataclass`` + ``os.environ`` 即可。
+⛔ 零依赖（至 M45）：不引 pydantic / python-dotenv；标准库 ``dataclass`` + ``os.environ``。
+M46 将引入 pydantic-settings；默认仍读 ``local/.env``。
 """
 from __future__ import annotations
 
@@ -20,8 +21,11 @@ from dataclasses import dataclass
 # 与 config 同口径的路径推导（settings 自洽，避免与 config 循环 import）
 _PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 _BASE_DIR = os.path.dirname(_PACKAGE_DIR)
-_DEFAULT_DB_PATH = os.path.join(_PACKAGE_DIR, "reviews.db")
-_DEFAULT_ENV_PATH = os.path.join(_BASE_DIR, ".env")
+_LOCAL_DIR = os.path.join(_BASE_DIR, "local")
+# M45：本机数据归一到 local/（远程仅占位；见 docs/隐私与配置归一路线图.md §2.3）
+_DEFAULT_DB_PATH = os.path.join(_LOCAL_DIR, "reviews.db")
+_DEFAULT_ENV_PATH = os.path.join(_LOCAL_DIR, ".env")
+_LEGACY_ENV_PATH = os.path.join(_BASE_DIR, ".env")
 
 # 练练健身（KeepStrong）内置默认 —— M17 客户端与 .env.example 共用
 DEFAULT_KEEPSTRONG_BASE_URL = "https://lianlian.gzyunke.cn"
@@ -151,7 +155,8 @@ def load_settings(
     Parameters
     ----------
     env_path:
-        ``.env`` 路径；默认仓库根 ``.env``。传空串则跳过文件。
+        ``.env`` 路径；默认 ``local/.env``（若不存在则兼容探测仓库根旧 ``.env``）。
+        传空串则跳过文件。
     environ:
         环境变量映射；默认 ``os.environ``。测试可注入。
     apply_to_environ:
@@ -160,7 +165,15 @@ def load_settings(
         ⛔ 绝不覆盖已有环境变量（与常见 dotenv 行为一致）。
     """
     env_map: Mapping[str, str] = os.environ if environ is None else environ
-    path = _DEFAULT_ENV_PATH if env_path is None else os.fspath(env_path)
+    if env_path is None:
+        if os.path.isfile(_DEFAULT_ENV_PATH):
+            path = _DEFAULT_ENV_PATH
+        elif os.path.isfile(_LEGACY_ENV_PATH):
+            path = _LEGACY_ENV_PATH
+        else:
+            path = _DEFAULT_ENV_PATH
+    else:
+        path = os.fspath(env_path)
     file_vals = parse_env_file(path) if path else {}
 
     if apply_to_environ and environ is None and file_vals:

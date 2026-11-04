@@ -1,42 +1,54 @@
 # Cursor 启动词（贴进 Cursor 对话的第一段话）
 
-> ⚠️ **状态（2026-11-04）：深用期（M36–M44）已全部完成（收尾 v1.50.1）。**
-> **待下一阶段** —— 新需求先写进新的阶段路线图再开工；历史计划见
-> `docs/深用期路线图.md`（M36–M44 ✅）/ `docs/运营期路线图.md`（M22–M35 ✅）/
-> `docs/生活管家路线图.md`（M9–M21 ✅）。
-> 缺口判定依据见 `docs/能力图谱.md` 的 🔴 / 🟡 清单。
+> ⚠️ **状态（2026-11-04）：M45 ✅（v1.50.2）** —— `local/` 归一 + 复盘/截图停跟踪。
+> **下一未完成项**：**M46** Pydantic Settings。见 [`docs/隐私与配置归一路线图.md`](隐私与配置归一路线图.md)。
+> **决策已定稿**：D1 ✅；D2 pydantic@M46 ✅；D3 历史改写仅 M49 ✅。
+> **M49 检查单完成前**仍不 force push / 不改写历史。
 
 > 用法：开一个新 Cursor 会话，把下面「当前里程碑启动词」整段贴进去。
-> 下一阶段立项后，按新路线图总览表改 **里程碑编号 + 任务段**。
+> 按路线图总览表改 **里程碑编号 + 任务段**。
 > `.cursor/rules/dailylumen.mdc`（`alwaysApply: true`）已会自动加载项目硬规则，
 > 但**启动词负责把"现在做哪一个里程碑"钉死** —— 这是历史上最容易跑偏的地方
 > （曾出现规则文件里的指针停在上一代，导致 Cursor 从错误的里程碑开工）。
 
 ---
 
-## 当前里程碑启动词（**待下一阶段**）
+## 当前里程碑启动词（**隐私与配置归一 · M46 Pydantic Settings**）
 
-> 深用期无未完成项。下一阶段立项前，不要沿用历史里程碑正文开工。
+> M45 ✅（v1.50.2）。下一未完成项默认 **M46**（pydantic / pydantic-settings；默认读 `local/.env`）。
+> ⛔ **M49 之前**不 filter-repo / force push / 删远程 tag。
 
 ```text
-你是 DailyLumen 项目的开发搭档。当前深用期（M36–M44）已全部完成（v1.50.1）。
-本次会话不要擅自开新里程碑；若有新需求，先更新下一阶段路线图再动手。
+你是 DailyLumen 项目的开发搭档。当前阶段：隐私与配置归一（M45–M50），
+路线图见 docs/隐私与配置归一路线图.md。本次会话只做用户点名的一个里程碑
+（默认 M46；M49 前不 force push / 不 filter-repo）。
+
+已完成
+- M45 ✅ v1.50.2：local/ 归一、停跟踪复盘/截图、默认路径改指 local/
+
+已拍板（勿再标待问）
+- D1：复盘 md / 截图出 git（当前树 M45；历史 M49）
+- D2：引入 pydantic（+ pydantic-settings），打破零依赖 → 本里程碑 M46
+- D3：授权历史改写 + force push → 仅 M49
+- 本机数据在 local/（远程仅 .gitkeep + README）
 
 项目坐标
-- 路径：***REMOVED***\每日复盘计划
-- Python：***REMOVED***\.workbuddy\binaries\python\versions\3.13.12\python.exe
-- ruff：***REMOVED***/.workbuddy/binaries/python/envs/default/Scripts/ruff.exe
-- 分支 main，远端 git@github.com:deTian0/DailyLumen.git（当前 v1.50.1）
+- 仓库根：本工作区（勿把本机绝对路径写进新文档）
+- 本机数据：local/（见 local/README.md 与路线图 §2.3）
+- Python / ruff：本机托管解释器（见 .cursor/rules 或本机 MEMORY；≥3.10）
+- 分支 main，远端 git@github.com:deTian0/DailyLumen.git（基线 v1.50.2）
 
 动手前先按顺序读完
 1. .cursor/rules/dailylumen.mdc
 2. .workbuddy/skills/dailylumen-conventions/SKILL.md
-3. docs/能力图谱.md（缺口）+ docs/深用期路线图.md（已完成历史）
-4. 若用户已给出下一阶段路线图，只做其中「下一未完成项」
+3. docs/隐私与配置归一路线图.md（M46 节）+ §2.3 local/
+4. 只做总览表里「下一未完成项」；冲突时以路线图本阶段约束为准
 
 红线
-- ⛔ 零依赖；不改四维评分 / 不动历史分 / 不建定时任务 / 不打开 FEATURES["new_day"]
-- ⛔ 不跨里程碑混提交；一次只做一个已立项里程碑
+- ⛔ M49 检查单未完成前不 git filter-repo / force push / 删远程 tag
+- ⛔ 不改四维评分 / 不动历史分 / 不建定时任务 / 不打开 FEATURES["new_day"]
+- ⛔ 不把 local/.env / 日记 / db 加入 git
+- ⛔ 不跨里程碑混提交；不另引 python-dotenv（仅 pydantic-settings）
 ```
 
 ---

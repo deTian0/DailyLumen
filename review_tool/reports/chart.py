@@ -16,11 +16,9 @@ import sys
 from collections.abc import Callable
 from datetime import datetime
 
-from ..config import BASE_DIR, BODY_TARGETS
+from ..config import BODY_TARGETS, EXPORT_DIR
 from ..core.body import moving_average
 from ..storage.db import init_db, load_body_metrics
-
-EXPORT_DIR = os.path.join(BASE_DIR, "exports")
 
 CHART_TYPES = ("trends", "body", "training", "nutrition", "all")
 

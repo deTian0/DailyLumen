@@ -34,11 +34,14 @@ jobs:
           python -m review_tool doctor -h
           python -m review_tool month 199901 --json
 
-      - name: 端到端管道自检（从仓库内复盘 md 从零重建数据库）
-        # reviews.db 不入库（含个人数据），这里用仓库里的复盘 md 从零重建，再把整条
-        # 链路跑一遍。doctor / recompute-scores / sync-docs 在这条链路里都是**阻塞**的
-        # —— 对账必须干净、分数必须与字段重算一致、md 无需回写，否则 CI 失败。
+      - name: 端到端管道自检（合成语料 fixture → 从零重建）
+        # M45：真实复盘 md 已出 git（本机 local/每日复盘/）。CI 用 tests/fixtures/corpus
+        # 合成日记做端到端：doctor / recompute-scores / sync-docs 仍阻塞。
+        env:
+          DAILYLUMEN_DB_PATH: local/reviews.db
         run: |
+          mkdir -p local
+          cp -a tests/fixtures/corpus/每日复盘 local/
           python -m review_tool ingest
           python -m review_tool doctor
           python -m review_tool recompute-scores

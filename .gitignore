@@ -1,9 +1,23 @@
 # DailyLumen - 每日复盘分析工具
 
+# ---------------------------------------------------------------------------
+# 本机未跟踪内容的唯一父目录（隐私与配置归一 · local/ · M45）
+#   远程只跟踪占位：local/.gitkeep + local/README.md
+#   实体（复盘 md / 截图 / db / exports / .env / 备份…）本机写入、全部忽略
+#   详见 docs/隐私与配置归一路线图.md §2.3
+# ---------------------------------------------------------------------------
+local/**
+!local/.gitkeep
+!local/README.md
+
+# IDE（固定仓库根路径，不迁入 local/ —— 路线图例外）
+.idea/
+
 # 项目本地记忆 (敏感/本地状态, 不入库)
 #   例外：skills/ 是可复用的方法资产，跟代码一起版本化、打 tag
 #   ⚠️ 必须用 `.workbuddy/*` 而不是 `.workbuddy/` —— 后者会连同目录一起排除，
 #      导致 git 不再向下遍历，白名单 `!` 规则失效
+#   ⚠️ .workbuddy 是工具链惯例路径，与 local/ 并列为例外（不强制迁入）
 .workbuddy/*
 !.workbuddy/skills/
 !.workbuddy/skills/**
@@ -12,14 +26,16 @@
 __pycache__/
 *.pyc
 
-# 个人每日复盘数据（私人记录，不入库；仓库仅提供空的 reviews.example.db 作为 schema 模板）
+# 遗留路径（M45 已迁入 local/；保留规则防旧路径回流）
+# ⚠️ 必须带仓库根锚点 `/`，否则会误伤 tests/fixtures/corpus/每日复盘/
+/每日复盘/
 review_tool/reviews.db
-
-# 导出的数据文件（含个人数据，由 python -m review_tool export 生成）
-exports/
+/exports/
 
 # 密钥 / 凭据（严禁入库）
-#   ClickUp token 一律放本机 ~/.workbuddy/mcp.json（该目录不在任何 git 仓库内），
+#   推荐落点：local/.env（与「全部归一」一致；local/** 已覆盖）
+#   根 .env 过渡期仍忽略；模板 .env.example 留根并跟踪
+#   ClickUp token 亦可在本机 ~/.workbuddy/mcp.json（该目录不在本仓库跟踪面），
 #   仓库里只允许出现变量名（如 CLICKUP_API_KEY），不允许出现 pk_ 明文值。
 .env
 .env.*
