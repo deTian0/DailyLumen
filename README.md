@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 复盘模板、数据解析、四维评分自动化、入库、分析与体检全部基于 Python 标准库（**零依赖**）。
 
-> 当前版本 **1.42.0**（日 / 周 / 月复盘写死必挂 `life-decision-guide`：改进点候选与建议段先查《高性价比人生指南》条目，注明第几节第几条，候选用户勾选后才落 md）（历史：项目级 skill `life-decision-guide`：人生决策问答按《高性价比人生指南》查条目再答；`promise-draft`：ClickUp 到期任务 → 明日 Top 3 候选草稿，写承诺降摩擦；`daily-pull` 夜间采集拉齐一条命令；熔断双条件：稳定低位不再报警；修复 keepstrong 写入器空行吞下一行；ClickUp 归属口径修正；承诺可写「今天不设」显式放弃；`clickup_done` 作工作旁证，schema **v11**；食物明细 `nutrition_items`；标尺 v2 = 锚点插值 + 健康死档拆分）｜测试 **866** 项
+> 当前版本 **1.43.0**（`three-things-draft`：ClickUp 当日已完成 → 今日三件事候选草稿，对称 `promise-draft`，人勾选后回填）（历史：日 / 周 / 月复盘写死必挂 `life-decision-guide`；`promise-draft`：ClickUp 到期任务 → 明日 Top 3 候选草稿；`daily-pull` 夜间采集拉齐；熔断双条件；schema **v11**；标尺 v2 = 锚点插值 + 健康死档拆分）｜测试 **880** 项
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -107,6 +107,7 @@
 | `habits [--json] [--sync …]`                         | 行为习惯报告；`--sync` 从 ClickUp 写入 `habit_logs` |
 | `daily-pull [--date D] [--apply]`                    | 夜间采集拉齐：练练落 md + 习惯快照 + 入库一条命令（dry-run 默认；**仅夜间**，会打网） |
 | `promise-draft [--date D] [--stdout]`                | 明日 Top 3 候选草稿：ClickUp 到期任务 → 收件箱 md（草稿不入库，人勾选后回填） |
+| `three-things-draft [--date D] [--stdout]`           | 今日三件事候选草稿：ClickUp 当日已完成 → 收件箱 md（与明日候选分文件，人勾 ≤3 回填） |
 | `nutrition [YYYY-MM-DD] [--json]`                    | 营养缺口：当日/近窗 vs macro_targets + FOOD_LIB 具体动作 |
 | `tutor [YYYY-MM-DD] [--json]`                        | 学习/复习：今日待复习 + 本周主题/投入/产出物（独立指标区） |
 | `steward --slot morning\|evening\|week […]`          | 总管家编排：晨间 brief / 夜间复盘指引 / 周度六段合一（只调用既有模块） |
