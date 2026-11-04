@@ -617,6 +617,45 @@ class TestRender(_Fixture):
                       "结论:"):
             self.assertIn(token, text)
 
+    def test_llm_section_advice_no_key_leak(self):
+        from review_tool.pipeline import llm_runlog as rl
+
+        with tempfile.TemporaryDirectory() as tmp:
+            log = os.path.join(tmp, "llm_last_run.json")
+            rl.write_llm_last_run(
+                {
+                    "command": "llm-vision",
+                    "mode": "deepseek",
+                    "ok": False,
+                    "day": "2099-01-01",
+                    "error_kind": "DeepSeekCredError",
+                    "error_summary": "DEEPSEEK_API_KEY 未配置",
+                    "missing_fields": ["脂肪_g"],
+                    "api_key": "sk-leaked-should-not",
+                },
+                path=log,
+            )
+            snap = {
+                "mode": "deepseek",
+                "deepseek_key_configured": False,
+                "key_hint": "未配置",
+                "last_run": rl.read_llm_last_run(log),
+                "last_run_path": log,
+                "contract_field_count": 3,
+                "advice": doctor._llm_advice(
+                    "deepseek", False, rl.read_llm_last_run(log)
+                ),
+            }
+            r = self._run(today="2026-09-22")
+            r["llm"] = snap
+            text = doctor.render(r, encoding="utf-8")
+            self.assertIn("[LLM 模式]", text)
+            self.assertIn("未配置", text)
+            self.assertIn("失败摘要", text)
+            self.assertIn("脂肪_g", text)
+            self.assertNotIn("sk-leaked", text)
+            self.assertNotIn("sk-", text)
+
 
 class TestIndependentMetrics(_Fixture):
     """M42：训练连续缺席进独立指标段；不影响 is_healthy / fuse。"""

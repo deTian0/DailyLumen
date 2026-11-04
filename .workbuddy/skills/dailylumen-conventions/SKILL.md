@@ -21,8 +21,10 @@ agent_created: true
 ## 0. 范围边界（先划清）
 
 - **本项目 = 个人健康 / 复盘系统**：md 复盘 → `review_tool` → `reviews.db` → 评分 / 熔断 / 报告。
-- **LLM / 宿主边界（L-1）**：互斥 mode `workbuddy`（默认，宿主代劳）| `deepseek`（仓库调 API）；
-  契约见 [`docs/LLM能力拆分草案.md`](../../../docs/LLM能力拆分草案.md)；产出仍先落 md 再 ingest。
+- **LLM / 宿主边界（L-1～打磨 / v1.55.0）**：互斥 mode `workbuddy`（默认，宿主代劳）|
+  `deepseek`（`llm-review` / `llm-vision` 可多图 / `--diff`）；契约见
+  [`docs/LLM能力拆分草案.md`](../../../docs/LLM能力拆分草案.md) + skill `llm-host-contract`；
+  产出仍先落 md 再 ingest；⛔ 无 WorkBuddy HTTP API。
 - ⛔ **不混"重装备份 / win-reinstall-toolkit"那套** —— 那是跨项目基础设施，与本系统**相互独立**。
   不要在本仓库文档里引用备份脚本，也不要把本仓库内容写进备份清单。
 - **运动主数据源（v1.21.0–v1.26.0 / M17–M20）**：练练健身 API → `keepstrong` 素材 → `--write` 落 md → `ingest`（G1）；写回（`--set-weight` / `--log-body` / `--schedule`）须 `--yes`，不落库。**M20 起**训练日主判据 = 被复盘日 `status=="completed"`（`training_weekdays` 仅离线兜底）。**M21 / v1.27.0** 起 `coach` / `steward` / `doctor` 不再把星期兜底写成「应为 / 休息日 / 计划课次」。

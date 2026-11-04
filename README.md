@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.53.0**（L-1：LLM mode 互斥 + DeepSeek 接线骨架）（历史：M50 隐私归一收尾；去本机路径；PROFILE 迁 env；Pydantic；local/ 归一；schema **v11**）｜测试数以全量跑为准
+> 当前版本 **1.55.0**（DeepSeek 可独立跑打磨：多图 / 重试 / `--diff` / doctor 可观测；宿主契约 skill）（历史：L-3/读图；L-1 mode；M50 隐私归一；schema **v11**）｜测试数以全量跑为准
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -101,6 +101,8 @@
 | `week [ISO周] [--json] [--write]` / `month …`         | 周 / 月分析；`--write` 落盘结构化总结（v1.32.0 起含「数据要点」段）；`month <YYYYMM> --deep` 聚合深评素材（概览 + 月窗图 + 相关 + 熔断 + 快照） |
 | `week-done [ISO周] [--json]`                         | 本周做成了什么：ClickUp 完成 + 复盘三件事只读清单（FR-A4） |
 | `ai-context [YYYY-MM-DD]`                            | 输出「七、AI 评价与建议」的确定性上下文                  |
+| `llm-review [YYYY-MM-DD] [--write]`                  | DeepSeek：ai-context → 写「七、AI」草稿（默认 dry-run；仅 mode=deepseek） |
+| `llm-vision --image PATH --date D [--write]`         | DeepSeek 读图 → 契约字段写入 md 数据块（默认 dry-run；不直写库） |
 | `import-history [--check] [--src DIR]`               | 语雀历史文件转换为标准格式                          |
 | `clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--with-habits]` | 拉 ClickUp 当日素材；`--with-habits` 附习惯段并同步 `habit_logs` |
 | `clickup-push [YYYY-MM-DD] [--apply]`                | 复盘已入库 → 勾 ClickUp「每日复盘总结」（**默认 dry-run**） |

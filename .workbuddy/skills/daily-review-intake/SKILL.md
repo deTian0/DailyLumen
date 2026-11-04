@@ -372,13 +372,43 @@ API 失败**不写「否」**（CLI 明示离线兜底，留给 `fill_training_d
 
 > **宿主 / LLM 输入契约（L-2）**：通道 A（素材→字段/附录）与通道 B（事实→本节叙事）的
 > I/O 约定正文见 [`docs/LLM能力拆分草案.md`](../../../docs/LLM能力拆分草案.md) **§4**；
+> **短表（字段 / 拒估 / checklist）**见 skill **`llm-host-contract`**（宿主对话优先引用）。
 > 运行模式互斥 `DAILYLUMEN_LLM_MODE=workbuddy|deepseek`（默认 workbuddy＝本 skill / 宿主代劳；
 > deepseek＝仓库调 API）。⛔ 无论哪种 mode，产出都**先落 md 再 `ingest`**，禁止只进库。
+> ⛔ **无** WorkBuddy HTTP API / SDK——`workbuddy` 模式只能由宿主在对话里履约落 md。
+
+### 4.0 双 mode 操作步骤（v1.55.0）
+
+先看 `doctor` 的 `[LLM 模式]`，或 `local/.env` 里的 `DAILYLUMEN_LLM_MODE`。
+
+#### A. `workbuddy`（默认 · 宿主清单）
+
+1. 用户投递截图 / 口述 → **本 skill §3** 读图填数据块 / 附录（缺项留空；对照 `llm-host-contract`）。  
+2. `python -m review_tool ai-context <日>` + `doctor`（熔断 / 相对基线）。  
+3. 建议段挂 `life-decision-guide`；宿主撰写「七、AI」评价 2–3 + 建议 2–4 → **写入 md**。  
+4. `ingest` → `finalize --apply`（评价与 summary 写完后再 ingest 一次）。  
+5. ⛔ **不要**跑 `llm-review` / `llm-vision`（mode≠deepseek 会拒绝）。
+
+#### B. `deepseek`（仓库 CLI）
+
+前置：`local/.env` 设 `DAILYLUMEN_LLM_MODE=deepseek` + `DEEPSEEK_API_KEY=…`。
+
+1. **读图填数**（可选；支持多图）：  
+   `python -m review_tool llm-vision --image <图A> --image <图B> --date <日> [--diff]`  
+   （默认 dry-run）→ 确认字段后加 `--write` → **只改 md 数据块**。  
+2. 其它素材仍可按 §3 手填 / 宿主补。  
+3. **评价草稿**：  
+   `python -m review_tool llm-review <日> [--diff]`（默认 dry-run / stdout）  
+   → `--write` 写入「七、AI」并标注**草稿/待人审**。  
+4. **人审**改写或确认 → `ingest` → `finalize --apply`。  
+5. ⛔ CLI **不**直写库；⛔ 勿把真实隐私截图提交进 git；运行摘要可落 `local/llm_last_run.json`（无密钥）。
 
 先取确定性上下文，再据此撰写：
 
 ```bash
 python -m review_tool ai-context YYYY-MM-DD     # 当日事实 + 近 7 日均值 + 规则命中的关注点
+# deepseek 模式可接着：
+# python -m review_tool llm-review YYYY-MM-DD --write
 ```
 
 | 部分 | 要求 |

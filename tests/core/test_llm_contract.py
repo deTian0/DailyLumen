@@ -30,6 +30,16 @@ class TestExtractAndNormalize(unittest.TestCase):
         with self.assertRaises(ValueError):
             lc.extract_json_object("")
 
+    def test_merge_contract_field_dicts(self):
+        a = {"饮食热量_kcal": 1000, "碳水_g": 100, "_unknown": {"x": 1}}
+        b = {"饮食热量_kcal": 1850, "脂肪_g": 60, "_unknown": {"y": 2}}
+        m = lc.merge_contract_field_dicts(a, b)
+        self.assertEqual(m["饮食热量_kcal"], 1850)
+        self.assertEqual(m["碳水_g"], 100)
+        self.assertEqual(m["脂肪_g"], 60)
+        self.assertEqual(m["_unknown"]["x"], 1)
+        self.assertEqual(m["_unknown"]["y"], 2)
+
     def test_render_data_block_lines(self):
         body = lc.render_data_block_lines(
             {"饮食热量_kcal": 1800, "体重_kg": 70},
@@ -44,6 +54,12 @@ class TestExtractAndNormalize(unittest.TestCase):
     def test_contract_fields_cover_intake_core(self):
         for k in ("饮食热量_kcal", "碳水_g", "脂肪_g", "蛋白质_g", "体重_kg"):
             self.assertIn(k, lc.CONTRACT_DATA_FIELDS)
+
+    def test_merge_data_block_fields(self):
+        md = "```data\n日期: 2099-01-01\n饮食热量_kcal: 1\n```\n"
+        out = lc.merge_data_block_fields(md, {"饮食热量_kcal": 1800, "体重_kg": 70})
+        self.assertIn("饮食热量_kcal: 1800", out)
+        self.assertIn("体重_kg: 70", out)
 
 
 if __name__ == "__main__":

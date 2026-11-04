@@ -6,6 +6,8 @@
     python -m review_tool week       [ISO周] [--json] [--write] [--force] [--check]
     python -m review_tool month      [YYYYMM] [--json] [--write] [--force] [--check]
     python -m review_tool ai-context [YYYY-MM-DD]
+    python -m review_tool llm-review [YYYY-MM-DD] [--write] [--dry-run] [--diff] [--stdout]
+    python -m review_tool llm-vision --image PATH [--image PATH ...] --date D [--write] [--diff]
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID] [--with-habits]
     python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
@@ -66,6 +68,7 @@ from .pipeline.new_day import main as new_day_main
 from .pipeline.promise_draft import main as promise_draft_main
 from .pipeline.sync_docs import main as sync_docs_main
 from .pipeline.three_things_draft import main as three_things_draft_main
+from .pipeline.vision_intake import main as llm_vision_main
 from .reports.ai_review import main as ai_context_main
 from .reports.analyze import main as analyze_main
 from .reports.body import main as body_main
@@ -78,6 +81,7 @@ from .reports.finalize import main as finalize_main
 from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
 from .reports.improve_draft import main as improve_draft_main
+from .reports.llm_review import main as llm_review_main
 from .reports.nutrition import main as nutrition_main
 from .reports.promises import main as promises_main
 from .reports.recompute import main as recompute_main
@@ -125,6 +129,12 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
         week_done_main, "week-done [ISO周] [--json]"),
     "month": (_month, "month [YYYYMM] [--json] [--write] [--force] [--check] [--deep]"),
     "ai-context": (ai_context_main, "ai-context [YYYY-MM-DD]"),
+    "llm-review": (
+        llm_review_main,
+        "llm-review [YYYY-MM-DD] [--write] [--dry-run] [--diff] [--stdout] [--md PATH]"),
+    "llm-vision": (
+        llm_vision_main,
+        "llm-vision --image PATH [--image ...] --date D [--write] [--diff] [--dry-run]"),
     "import-history": (
         import_history_main, "import-history [--check] [--src DIR]"),
     "clickup": (

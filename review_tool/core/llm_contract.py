@@ -125,6 +125,29 @@ def parse_model_structured(text: str) -> tuple[dict[str, Any], dict[str, list[st
     return fields, classify_contract_fields(fields)
 
 
+def merge_contract_field_dicts(*parts: Mapping[str, Any]) -> dict[str, Any]:
+    """多图 / 多段契约字段合并：后写覆盖先写；``_unknown`` 字典并集。
+
+    空串 / None 不覆盖已有非空值。纯规则，零 I/O。
+    """
+    out: dict[str, Any] = {}
+    unknown: dict[str, Any] = {}
+    for part in parts:
+        if not part:
+            continue
+        for k, v in part.items():
+            if k == "_unknown":
+                if isinstance(v, Mapping):
+                    unknown.update(dict(v))
+                continue
+            if v is None or (isinstance(v, str) and not v.strip()):
+                continue
+            out[k] = v
+    if unknown:
+        out["_unknown"] = unknown
+    return out
+
+
 def render_data_block_lines(fields: Mapping[str, Any], *, date: str, weekday: str) -> str:
     """渲染 ```data 块内常用行（仅写出有值的契约字段 + 日期/星期）。"""
     lines = [f"日期: {date}", f"星期: {weekday}"]
@@ -132,6 +155,40 @@ def render_data_block_lines(fields: Mapping[str, Any], *, date: str, weekday: st
         if key in fields and fields[key] not in (None, ""):
             lines.append(f"{key}: {fields[key]}")
     return "\n".join(lines)
+
+
+_DATA_BLOCK_RE = re.compile(r"(```data\s*\n)(.*?)(```)", re.S)
+# 行内空白用 [ \t]*，避免 \s 吞换行误伤下一行（同 keepstrong_sync 口径）
+_FIELD_LINE_TMPL = r"^([ \t]*{key}[ \t]*[:：])[ \t]*(.*)$"
+
+
+def merge_data_block_fields(md_text: str, fields: Mapping[str, Any]) -> str:
+    """把契约字段幂等写入 md 的 ```data``` 块；缺字段不写（留空合法）。
+
+    已有同名行则替换值；没有则追加在块末。不含 ``_unknown``。纯字符串，零 I/O。
+    """
+    updates = {
+        k: v
+        for k, v in fields.items()
+        if k in CONTRACT_DATA_FIELDS and v not in (None, "")
+    }
+    if not updates:
+        return md_text
+    text = md_text.replace("\r\n", "\n")
+    if not _DATA_BLOCK_RE.search(text):
+        return text
+
+    def _sub(m: re.Match) -> str:
+        body = m.group(2)
+        for key, val in updates.items():
+            pat = re.compile(_FIELD_LINE_TMPL.format(key=re.escape(key)), re.M)
+            if pat.search(body):
+                body = pat.sub(rf"\g<1> {val}", body, count=1)
+            else:
+                body = body.rstrip("\n") + f"\n{key}: {val}\n"
+        return m.group(1) + body + m.group(3)
+
+    return _DATA_BLOCK_RE.sub(_sub, text, count=1)
 
 
 __all__ = [
@@ -142,6 +199,8 @@ __all__ = [
     "SLEEP_FIELDS",
     "classify_contract_fields",
     "extract_json_object",
+    "merge_contract_field_dicts",
+    "merge_data_block_fields",
     "normalize_contract_fields",
     "parse_model_structured",
     "render_data_block_lines",

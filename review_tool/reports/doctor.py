@@ -40,9 +40,12 @@ from ..config import (
     INPUT_DIR,
     PROFILE,
     PROMISE_DECLINED_BUCKET,
+    SETTINGS,
     TRACK_ADHERENCE_ALERT,
     get_llm_mode,
 )
+from ..core.llm_contract import CONTRACT_DATA_FIELDS
+from ..pipeline.llm_runlog import default_llm_last_run_path, read_llm_last_run
 from ..core.body import (
     WEEK_SPIKE_KG,
     distance_to_target,
@@ -598,6 +601,71 @@ def marks_for_encoding(encoding: str | None = None) -> dict[str, str]:
     return dict(_MARK_ASCII)
 
 
+def llm_observability(*, settings=None) -> dict:
+    """LLM 可观测摘要（建议性；不含密钥 / 正文）。供 diagnose / render 共用。"""
+    s = SETTINGS if settings is None else settings
+    mode = get_llm_mode() if settings is None else getattr(s, "llm_mode", "workbuddy")
+    key = (getattr(s, "deepseek_api_key", "") or "").strip()
+    last = read_llm_last_run()
+    return {
+        "mode": mode,
+        "deepseek_key_configured": bool(key),
+        "key_hint": "已配置" if key else "未配置",
+        "last_run": last,
+        "last_run_path": default_llm_last_run_path(),
+        "contract_field_count": len(CONTRACT_DATA_FIELDS),
+        "advice": _llm_advice(mode, bool(key), last),
+    }
+
+
+def _llm_advice(mode: str, key_ok: bool, last: dict | None) -> list[str]:
+    """可操作建议列表（无密钥）。"""
+    tips: list[str] = []
+    if mode == "deepseek":
+        if not key_ok:
+            tips.append(
+                "mode=deepseek 但 DEEPSEEK_API_KEY 未配置 → 写入 local/.env 后重试；"
+                "勿把密钥贴进对话/报告/git"
+            )
+        else:
+            tips.append(
+                "可用: python -m review_tool llm-vision --image 图 --date 日 "
+                "[可重复 --image]；llm-review 日 [--diff]；默认 dry-run，人审后 ingest"
+            )
+    else:
+        tips.append(
+            "mode=workbuddy：读图/写评价由宿主按 daily-review-intake + "
+            "llm-host-contract 履约；⛔ 不要调 llm-review / llm-vision（会拒绝）"
+        )
+        tips.append("仓库无 WorkBuddy HTTP API / SDK 可调；勿假装有进程内宿主接口")
+    if last:
+        if last.get("ok") is False:
+            kind = last.get("error_kind") or "error"
+            summary = last.get("error_summary") or "（无摘要）"
+            tips.append(
+                f"最近一次 {last.get('command', 'llm')} 失败"
+                f"（{kind}）：{summary}"
+            )
+        miss = last.get("missing_fields") or []
+        if miss and last.get("command") == "llm-vision":
+            tips.append(
+                "最近读图缺字段（留空合法，勿估算）："
+                + ", ".join(miss[:12])
+                + ("…" if len(miss) > 12 else "")
+            )
+        if last.get("ok") and last.get("command"):
+            tips.append(
+                f"最近成功：{last.get('command')} · day={last.get('day')}"
+                f" · {last.get('ts', '')}"
+            )
+    else:
+        tips.append(
+            f"尚无 local LLM 运行摘要（落点 {default_llm_last_run_path()}；"
+            "跑过 llm-review / llm-vision 后会出现）"
+        )
+    return tips
+
+
 def diagnose(db_path: str | None = None, input_dir: str | None = None,
              *, today: str | None = None) -> dict:
     """执行体检并返回结构化结果（不打印），便于测试与复用。"""
@@ -606,6 +674,7 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
     conn = init_db(db_path)
 
     result: dict = {}
+    result["llm"] = llm_observability()
     try:
         result["schema_version"] = conn.execute("PRAGMA user_version").fetchone()[0]
         result["schema_expected"] = SCHEMA_VERSION
@@ -758,10 +827,47 @@ def render(result: dict, *, encoding: str | None = None) -> str:
 
     L.append("")
     L.append("[LLM 模式]")
+    llm = result.get("llm") or llm_observability()
+    _llm = llm.get("mode") or get_llm_mode()
     L.append(
-        f"  当前 mode : {get_llm_mode()}"
+        f"  当前 mode : {_llm}"
         "（互斥；workbuddy=宿主代劳 / deepseek=仓库调 API）"
     )
+    if _llm == "deepseek":
+        L.append(
+            f"  DEEPSEEK_API_KEY : {llm.get('key_hint', '未配置')}"
+            "（仅显示是否已配置，永不打印密钥）"
+        )
+        L.append(
+            "  deepseek CLI : llm-vision 可多图 --image；"
+            "llm-review / llm-vision 支持 --diff；默认 dry-run，人审后 ingest"
+        )
+    else:
+        L.append(
+            "  workbuddy   : 读图 / 写评价走宿主 + daily-review-intake / "
+            "llm-host-contract；勿调 llm-review / llm-vision"
+        )
+        L.append("  说明       : 无 WorkBuddy HTTP API；勿在仓库内调宿主 SDK")
+    last = llm.get("last_run")
+    if last:
+        ok_mark = ok if last.get("ok") else warn
+        L.append(
+            f"  最近运行   : {ok_mark} {last.get('command')} · "
+            f"day={last.get('day')} · ok={last.get('ok')} · "
+            f"{last.get('ts', '')}"
+        )
+        if last.get("ok") is False and last.get("error_summary"):
+            L.append(f"  失败摘要   : {last.get('error_kind')}: "
+                     f"{last.get('error_summary')}")
+        miss = last.get("missing_fields") or []
+        if miss:
+            L.append("  契约缺字段 : " + ", ".join(miss[:10])
+                     + ("…" if len(miss) > 10 else "")
+                     + "（留空合法，⛔ 估算）")
+    else:
+        L.append(f"  最近运行   : （无 {llm.get('last_run_path', 'local/llm_last_run.json')}）")
+    for tip in llm.get("advice") or []:
+        L.append(f"  → {tip}")
 
     L.append("")
     L.append("[数据库]")

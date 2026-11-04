@@ -161,11 +161,52 @@ class TestClientChatMock(unittest.TestCase):
             raise _FakeHTTPError(401, {"error": {"message": "bad key"}})
 
         client = ds.Client(
-            "sk-x", mode="deepseek", urlopen=_urlopen_factory(handler)
+            "sk-x", mode="deepseek", urlopen=_urlopen_factory(handler),
+            max_retries=0,
         )
         with self.assertRaises(ds.DeepSeekError) as ctx:
             client.chat_completions([{"role": "user", "content": "x"}])
         self.assertIn("401", str(ctx.exception))
+        self.assertIn("密钥", str(ctx.exception))
+
+    def test_retry_on_429_then_ok(self):
+        calls = {"n": 0}
+        sleeps: list[float] = []
+
+        def handler(req, timeout):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise _FakeHTTPError(429, {"error": {"message": "rate"}})
+            return _FakeResp({
+                "choices": [{"message": {"content": "ok"}}],
+            })
+
+        client = ds.Client(
+            "sk-x",
+            mode="deepseek",
+            urlopen=_urlopen_factory(handler),
+            max_retries=2,
+            retry_backoff_s=0.01,
+            sleeper=sleeps.append,
+        )
+        got = client.chat_completions([{"role": "user", "content": "x"}])
+        self.assertEqual(calls["n"], 2)
+        self.assertTrue(sleeps)
+        self.assertEqual(got["choices"][0]["message"]["content"], "ok")
+
+    def test_friendly_http_hint_429(self):
+        msg = ds.friendly_http_hint(429, "quota")
+        self.assertIn("限流", msg)
+        self.assertNotIn("sk-", msg)
+
+    def test_multi_image_vision_content(self):
+        urls = [
+            ds.image_bytes_to_data_url(b"a", mime="image/png"),
+            ds.image_bytes_to_data_url(b"b", mime="image/png"),
+        ]
+        parts = ds.vision_user_content("多图", urls)
+        self.assertEqual(parts[0]["type"], "text")
+        self.assertEqual(sum(1 for p in parts if p["type"] == "image_url"), 2)
 
     def test_defaults_align_with_settings_constants(self):
         client = ds.Client("sk-x", mode="deepseek", urlopen=lambda *a, **k: None)
