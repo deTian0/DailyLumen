@@ -245,6 +245,29 @@ class TestDoctorR3(unittest.TestCase):
         self.assertFalse(ok["stale"])
         self.assertEqual(ok["lag"], 0)
 
+    def test_independent_section_covers_habit(self):
+        """M42：独立指标段复用习惯鲜度；不影响 is_healthy。"""
+        upsert(self.conn, {
+            "date": "2026-10-15",
+            "health_score": 7, "work_score": 7,
+            "learn_score": 7, "life_score": 7, "system_score": 7.0,
+            "raw_path": os.path.join(self.input_dir, "2026-10-15.md"),
+        })
+        upsert_habit_log(self.conn, {
+            "date": "2026-10-01", "habit_key": "reading_30",
+            "category": HABIT_CATEGORY, "item": "每日阅读 30 分钟",
+            "done": 1, "src": "clickup",
+        })
+        self.conn.commit()
+        r = diagnose(db_path=self.db, input_dir=os.path.join(self.root, "每日复盘"),
+                     today="2026-10-15")
+        self.assertIn("independent", r)
+        self.assertTrue(r["independent"]["habit_stale"])
+        text = render_doctor(r)
+        self.assertIn("[独立指标]", text)
+        self.assertIn("习惯", text)
+        self.assertTrue(is_healthy(r))
+
 
 class TestWeekHabitSection(unittest.TestCase):
     def setUp(self):

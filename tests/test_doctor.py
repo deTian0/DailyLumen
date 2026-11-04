@@ -612,8 +612,32 @@ class TestRender(_Fixture):
         for token in ("DailyLumen 体检报告", "[数据库]", "[新鲜度]", "[历史断更]",
                       "[文件 <-> 数据库对账]", "[数据完整度]", "[打卡归一化]",
                       "[运动时长来源]", "[训练日口径]", "[打卡依从率]", "[体征]",
+                      "[独立指标]",
                       "结论:"):
             self.assertIn(token, text)
+
+
+class TestIndependentMetrics(_Fixture):
+    """M42：训练连续缺席进独立指标段；不影响 is_healthy / fuse。"""
+
+    def test_training_absence_alert(self):
+        for d in ("2026-09-19", "2026-09-20", "2026-09-21"):
+            upsert(self.conn, {
+                "date": d, "training_day": 1,
+                "health_score": 7, "work_score": 7,
+                "learn_score": 7, "life_score": 7, "system_score": 7.0,
+            })
+            self._md(f"复盘/2026-09/{d}.md")
+        self.conn.commit()
+        ta = doctor.training_absence_status(self.conn, alert_days=3)
+        self.assertTrue(ta["alert"])
+        self.assertEqual(ta["streak"], 3)
+        r = self._run(today="2026-09-21")
+        self.assertTrue(r["independent"]["training_absence"]["alert"])
+        text = doctor.render(r, encoding="utf-8")
+        self.assertIn("[独立指标]", text)
+        self.assertIn("连续缺席", text)
+        self.assertTrue(doctor.is_healthy(r))
 
 
 class TestBodyAdvisory(_Fixture):

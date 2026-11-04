@@ -189,5 +189,25 @@ class TestRender(_Fixture):
         self.assertIn("阈值失效提示", text)
 
 
+class TestFuseExitCode(_Fixture):
+    """M42 回归：fuse rc=1 语义不被独立指标改动污染。"""
+
+    def test_active_fuse_main_rc_1(self):
+        self._add("2026-09-01", learn_score=8)
+        for d in ("2026-09-02", "2026-09-03", "2026-09-04"):
+            self._add(d, learn_score=3)
+        r = find_fuses(self.conn, rules=RULES)
+        self.assertTrue(has_active_fuse(r))
+        # has_active_fuse → main 的 return 映射不变（独立指标不得污染）
+        self.assertEqual(1 if has_active_fuse(r) else 0, 1)
+
+    def test_no_fuse_rc_0(self):
+        self._add("2026-09-01", learn_score=8, health_score=8,
+                  work_score=8, life_score=8)
+        r = self._run()
+        self.assertFalse(has_active_fuse(r))
+        self.assertEqual(1 if has_active_fuse(r) else 0, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

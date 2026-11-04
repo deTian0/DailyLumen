@@ -21,6 +21,7 @@
 15. R3 隔离：habit_logs.habit_key ∩ personal_tracks.item_key 不得有交集（影响 is_healthy）
 16. 习惯断更：连续未完成 ≥ alert_days（建议性，不影响 is_healthy）
 17. 习惯鲜度：habit_logs 最新日落后复盘最新日 ≥ N 天（建议性，不影响 is_healthy）
+18. 独立指标统一段：体重偏离带 / 习惯鲜度 / 训练连续缺席（建议性；不改 fuse rc）
 """
 from __future__ import annotations
 
@@ -32,6 +33,7 @@ from datetime import datetime, timedelta
 
 from ..config import (
     ARCHIVE_SRC_DIR,
+    BODY_TARGETS,
     FUSE_RULES,
     HABIT_FRESHNESS_LAG_DAYS,
     HABITS,
@@ -40,7 +42,12 @@ from ..config import (
     PROMISE_DECLINED_BUCKET,
     TRACK_ADHERENCE_ALERT,
 )
-from ..core.body import WEEK_SPIKE_KG, spike_window_context, week_weight_spikes
+from ..core.body import (
+    WEEK_SPIKE_KG,
+    distance_to_target,
+    spike_window_context,
+    week_weight_spikes,
+)
 from ..core.habits import detect_gaps, key_overlap
 from ..core.score import (
     compute_health_score,
@@ -95,6 +102,114 @@ def habit_gap_status(conn, *, today: str) -> dict:
     check_as = as_of or today
     gaps = detect_gaps(rows, as_of=check_as, items=HABITS)
     return {"as_of": check_as, "gaps": gaps, "count": len(gaps), "empty": False}
+
+
+# 训练连续缺席：近端连续 training_day=1 且无 training_sessions 的天数阈值
+_TRAINING_ABSENCE_ALERT_DAYS = 3
+
+
+def training_absence_status(
+    conn, *, alert_days: int = _TRAINING_ABSENCE_ALERT_DAYS,
+) -> dict:
+    """训练连续缺席（建议性）：从最新复盘日往回，连续「训练日=1 且无课次」天数。
+
+    可复算：对照 ``daily_reviews.training_day`` 与 ``training_sessions.date``。
+    """
+    tables = {
+        r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )
+    }
+    if "daily_reviews" not in tables:
+        return {"streak": 0, "alert": False, "days": [], "threshold": alert_days}
+    session_dates: set[str] = set()
+    if "training_sessions" in tables:
+        session_dates = {
+            r[0] for r in conn.execute(
+                "SELECT DISTINCT date FROM training_sessions"
+            )
+        }
+    rows = conn.execute(
+        "SELECT date, training_day FROM daily_reviews ORDER BY date DESC"
+    ).fetchall()
+    absent: list[str] = []
+    for d, td in rows:
+        if td != 1:
+            # 非训练日打断「连续缺席」计数
+            if absent:
+                break
+            continue
+        if d in session_dates:
+            break
+        absent.append(d)
+    absent.reverse()
+    streak = len(absent)
+    return {
+        "streak": streak,
+        "alert": streak >= alert_days,
+        "days": absent,
+        "threshold": alert_days,
+        "latest_absent": absent[-1] if absent else None,
+    }
+
+
+def independent_metrics_status(conn, *, today: str,
+                               body: dict | None = None,
+                               habit_freshness: dict | None = None,
+                               habit_gaps: dict | None = None) -> dict:
+    """独立指标统一汇总（FR-G5 / M42）：体重偏离 / 习惯鲜度 / 训练缺席。
+
+    复用既有判定，不另写第二套阈值；**不**影响 ``is_healthy`` / ``fuse`` rc。
+    """
+    body = body if body is not None else body_status(conn, today=today)
+    hf = (habit_freshness if habit_freshness is not None
+          else habit_freshness_status(conn))
+    hg = (habit_gaps if habit_gaps is not None
+          else habit_gap_status(conn, today=today))
+    ta = training_absence_status(conn)
+
+    # 体重偏离目标带：最新体重 vs BODY_TARGETS
+    weight_alert = None
+    rows = load_body_metrics(conn)
+    if rows and rows[-1]["weight_kg"] is not None:
+        w = float(rows[-1]["weight_kg"])
+        dist = distance_to_target(
+            w,
+            BODY_TARGETS.get("weight_kg_low"),
+            BODY_TARGETS.get("weight_kg_high"),
+        )
+        spikes = body.get("spikes") or []
+        if dist is not None and dist != 0:
+            weight_alert = {
+                "kind": "band",
+                "date": rows[-1]["date"],
+                "weight_kg": w,
+                "distance": dist,
+                "note": (
+                    f"低于下限 {abs(dist):.2f} kg" if dist < 0
+                    else f"高于上限 {abs(dist):.2f} kg"
+                ),
+            }
+        elif spikes:
+            sp = spikes[-1]
+            weight_alert = {
+                "kind": "spike",
+                "date": sp["next"],
+                "weight_kg": sp.get("to_kg"),
+                "distance": sp["delta"],
+                "note": (
+                    f"{sp['prev']}→{sp['next']} 波动 {sp['delta']:+.2f} kg"
+                    f"（阈值 ≥{WEEK_SPIKE_KG}）"
+                ),
+            }
+
+    return {
+        "weight": weight_alert,
+        "habit_freshness": hf,
+        "habit_gaps_count": (hg.get("count") or 0) if not hg.get("empty") else 0,
+        "habit_stale": bool(hf.get("stale") or hf.get("empty")),
+        "training_absence": ta,
+    }
 
 
 def habit_freshness_status(
@@ -614,6 +729,13 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
         result["habit_gaps"] = habit_gap_status(conn, today=today)
         # 习惯鲜度（建议性；落后 ≥ N 天）
         result["habit_freshness"] = habit_freshness_status(conn)
+        # 独立指标统一段（FR-G5 / M42；建议性；不改 fuse rc / is_healthy）
+        result["independent"] = independent_metrics_status(
+            conn, today=today,
+            body=result["body"],
+            habit_freshness=result["habit_freshness"],
+            habit_gaps=result["habit_gaps"],
+        )
     finally:
         conn.close()
     return result
@@ -964,6 +1086,45 @@ def render(result: dict, *, encoding: str | None = None) -> str:
         elif fuse.get("drift"):
             L.append("  [相对基线] 各维度均无明显漂移")
         L.append("     → 详情: python -m review_tool fuse")
+
+    L.append("")
+    L.append("[独立指标]")
+    ind = result.get("independent") or {}
+    any_alert = False
+    w = ind.get("weight")
+    if w:
+        any_alert = True
+        L.append(f"  {warn} 体重：{w.get('note')}（{w.get('date')}；建议性）")
+    else:
+        L.append(f"  {ok} 体重：目标带内或样本不足（建议性）")
+    if ind.get("habit_stale"):
+        any_alert = True
+        hf = ind.get("habit_freshness") or {}
+        if hf.get("empty"):
+            L.append(f"  {warn} 习惯：habit_logs 空/未同步（建议性）")
+        else:
+            L.append(
+                f"  {warn} 习惯：鲜度落后 {hf.get('lag')} 天"
+                f"（{hf.get('habit_latest')} → 复盘 {hf.get('review_latest')}；建议性）"
+            )
+    else:
+        L.append(f"  {ok} 习惯：鲜度对齐（建议性）")
+    ta = ind.get("training_absence") or {}
+    if ta.get("alert"):
+        any_alert = True
+        days = ta.get("days") or []
+        span = f"{days[0]}…{days[-1]}" if days else "—"
+        L.append(
+            f"  {warn} 训练：连续缺席 {ta.get('streak')} 天"
+            f"（{span}；阈值 ≥{ta.get('threshold')}；建议性）"
+        )
+    else:
+        L.append(
+            f"  {ok} 训练：无连续缺席告警"
+            f"（streak {ta.get('streak', 0)}；建议性）"
+        )
+    if not any_alert:
+        L.append("  （独立指标均未触发；不参与 fuse / is_healthy）")
 
     L.append("")
     L.append("-" * 52)
