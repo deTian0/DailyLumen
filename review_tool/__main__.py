@@ -19,6 +19,7 @@
     python -m review_tool three-things-draft [--date YYYY-MM-DD] [--stdout]
     python -m review_tool improve-draft [--date YYYY-MM-DD] [--stdout]
     python -m review_tool finalize [--date YYYY-MM-DD] [--apply]
+    python -m review_tool week-done [ISO周] [--json]
     python -m review_tool nutrition  [YYYY-MM-DD] [--json]
     python -m review_tool tutor      [YYYY-MM-DD] [--json]
     python -m review_tool steward    --slot morning|evening|week […]
@@ -83,6 +84,7 @@ from .reports.recompute import main as recompute_main
 from .reports.stats import main as stats_main
 from .reports.steward import main as steward_main
 from .reports.tutor import main as tutor_main
+from .reports.week_done import main as week_done_main
 
 
 def ensure_utf8_stdio() -> None:
@@ -119,6 +121,8 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "new-day": (new_day_main, "new-day [YYYY-MM-DD] [--force]"),
     "ingest": (ingest_main, "ingest [路径.md] [--overwrite] [--prune-tracks]"),
     "week": (_week, "week [ISO周] [--json] [--write] [--force] [--check]"),
+    "week-done": (
+        week_done_main, "week-done [ISO周] [--json]"),
     "month": (_month, "month [YYYYMM] [--json] [--write] [--force] [--check] [--deep]"),
     "ai-context": (ai_context_main, "ai-context [YYYY-MM-DD]"),
     "import-history": (
