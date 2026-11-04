@@ -70,11 +70,11 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 | 层级 | 名称 | ID | 形态 |
 | --- | --- | --- | --- |
 | Space | ls 的空间 | `90142766516` | — |
-| Folder 生活 | 日常事务 | `***REMOVED***` | 每日流水 + **学习进度/读书进度**（v1.24.0 起原「成长」文件夹两 list 已并入：成长课 42 条 + 书单 60 条；课程靠任务名「成长课/主课/书名」分类） |
-| Folder 生活 | 习惯与打卡 | `***REMOVED***` | 6 条长期习惯，见下 |
-| 顶层 | 工作 | `***REMOVED***` | **工时 / 工单记录**（形如「TeammateA-2h-修复…」，含请假工时）；**v1.11.0 起默认日采** |
-| 顶层 | 项目孵化 | `***REMOVED***` | 想法 / 待孵化 |
-| 顶层 | 2026 年度目标 | `***REMOVED***` | 12 个 Flag（父任务「计划-2026Flag」+ 11 子任务） |
+| Folder 生活 | 日常事务 | `<CLICKUP_LIST_ID>` | 每日流水 + **学习进度/读书进度**（v1.24.0 起原「成长」文件夹两 list 已并入：成长课 42 条 + 书单 60 条；课程靠任务名「成长课/主课/书名」分类） |
+| Folder 生活 | 习惯与打卡 | `<CLICKUP_LIST_ID>` | 6 条长期习惯，见下 |
+| 顶层 | 工作 | `<CLICKUP_LIST_ID>` | **工时 / 工单记录**（形如「TeammateA-2h-修复…」，含请假工时）；**v1.11.0 起默认日采** |
+| 顶层 | 项目孵化 | `<CLICKUP_LIST_ID>` | 想法 / 待孵化 |
+| 顶层 | 2026 年度目标 | `<CLICKUP_LIST_ID>` | 12 个 Flag（父任务「计划-2026Flag」+ 11 子任务） |
 | Space | 个人 | `90144434151` | 空 |
 
 > ⚠️ **list 清单有两处，改要一起改**：本文是**口径与语义**的来源；代码侧的采集清单在
@@ -99,7 +99,7 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 | 成长课 · 14周计划 | 学习进度 | `学习投入_h` 的证据；可进 `learning_logs`（md 附录） | 只读素材 |
 | 阅读与学习 | 读书进度 | `学习投入_h` 的证据；可进 `learning_logs`（md 附录） | 只读素材 |
 | 工作 · 当日完成项 | 当天工作产出（工时 / 工单） | 「二、今日三件事」工作栏 / `深度工作_h` 的证据 | 只读 |
-| 项目孵化 | 副业想法推进 | 同上（默认不采，按需 `--list ***REMOVED***`） | 只读 |
+| 项目孵化 | 副业想法推进 | 同上（默认不采，按需 `--list <CLICKUP_LIST_ID>`） | 只读 |
 | 2026 年度目标 | 长期方向 | 「四、明日 Top 3」的对照锚点 | 只读 |
 
 **两条受控写方向（互不干扰）**
@@ -120,7 +120,7 @@ python -m review_tool clickup-push 2026-10-12 --apply    # 真写 + GET 回读
 | 冲突规则 | 内容 |
 | --- | --- |
 | 权威方向 | **复盘（库）为权威 → ClickUp 为下游**。永远不由 ClickUp 反推复盘 |
-| 写谁 | 只写 `config.CLICKUP_REVIEW_TASK`（默认 list `***REMOVED***` + 名「每日复盘总结」） |
+| 写谁 | 只写 `config.CLICKUP_REVIEW_TASK`（默认 list `<CLICKUP_LIST_ID>` + 名「每日复盘总结」） |
 | 幂等 | 已 complete / closed → 跳过 |
 | 默认安全 | 默认 dry-run；显式 `--apply` 才真写 |
 | 失败保守 | PUT 后 GET 回读；不符重试一次，仍失败则非 0 退出（不信状态码） |
@@ -137,7 +137,7 @@ python -m review_tool clickup-push 2026-10-12 --apply    # 真写 + GET 回读
 ```bash
 python -m review_tool clickup 2026-10-13            # 落 每日复盘/收件箱/clickup-素材-2026-10-13.md
 python -m review_tool clickup 2026-10-13 --stdout   # 只看不落文件
-python -m review_tool clickup --list ***REMOVED***   # 换一批 list（可重复，也可逗号分隔）
+python -m review_tool clickup --list <CLICKUP_LIST_ID>   # 换一批 list（可重复，也可逗号分隔）
 ```
 
 v1.8.1 起素材简报除「当日完成 / 当日到期未完成」外，还带 **进行中 / 逾期 /
@@ -177,7 +177,7 @@ def get(path):
     with urllib.request.urlopen(r, timeout=60) as resp:
         return json.loads(resp.read().decode('utf-8'))
 
-for lid in ['***REMOVED***', '***REMOVED***', '***REMOVED***']:   # 日常事务 / 习惯与打卡 / 工作
+for lid in ['<CLICKUP_LIST_ID>', '<CLICKUP_LIST_ID>', '<CLICKUP_LIST_ID>']:   # 日常事务 / 习惯与打卡 / 工作
     ts = get('/list/%s/task?subtasks=true&include_closed=true&page=0' % lid).get('tasks', [])
     hit = [t for t in ts if t.get('date_closed') and completion_day(t) == DAY]
     print('== list %s  当日完成 %d 条 ==' % (lid, len(hit)))
@@ -209,9 +209,9 @@ PY=$(cat ~/.workbuddy/clickup-tools/python_path.txt)
 CLI=~/.workbuddy/clickup-tools/clickup_client.py
 $PY $CLI whoami                      # 确认连得上（认证失败 = token 失效/已轮换）
 $PY $CLI tree                        # 整个工作区结构
-$PY $CLI ls ***REMOVED*** --all       # 看某个 list（--all = 含已完成）
+$PY $CLI ls <CLICKUP_LIST_ID> --all       # 看某个 list（--all = 含已完成）
 $PY $CLI show <task_id>              # 单条任务详情
-$PY $CLI add ***REMOVED*** "任务名" --due 2026-10-20 --tags 生活 --priority 3
+$PY $CLI add <CLICKUP_LIST_ID> "任务名" --due 2026-10-20 --tags 生活 --priority 3
 $PY $CLI done <task_id>              # 标完成（写后会回读 status）
 $PY $CLI archive <list_id>           # 归档 list（可 Unarchive 还原）
 ```

@@ -143,20 +143,21 @@ class TestProfile(unittest.TestCase):
         with open(path, encoding="utf-8") as f:
             src = f.read()
         forbidden = [
-            '***REMOVED***',
-            '***REMOVED***',
-            '***REMOVED***',
-            '***REMOVED***',
+            '"height_cm": 170',
+            '"carbs_g": 220',
+            '"protein_g": 82',
+            '"fat_g": 46',
             '"weight_kg_low": 64',
             '"weight_kg_high": 66',
-            '***REMOVED***',
-            '***REMOVED***',
-            '***REMOVED***',
-            '***REMOVED***',
-            '***REMOVED***',
         ]
         hit = [s for s in forbidden if s in src]
         self.assertEqual(hit, [], f"config.py 仍含个人真值字面量: {hit}")
+        # list id 不得以 12+ 位数字字面量出现在跟踪源码
+        import re
+        self.assertIsNone(
+            re.search(r'["\']9\d{11,}["\']', src),
+            "config.py 仍含 ClickUp list id 数字字面量",
+        )
 
 
 class TestPersonalItems(unittest.TestCase):
@@ -312,8 +313,8 @@ class TestLearningCatalog(unittest.TestCase):
     def test_clickup_lists_merged(self):
         """v1.24.0：被并入日常事务的两个旧 list 不得残留在注册表里。"""
         ids = {item["id"] for item in CLICKUP_LISTS}
-        self.assertNotIn("<CLICKUP_LIST_ID>", ids)
-        self.assertNotIn("<CLICKUP_LIST_ID>", ids)
+        self.assertNotIn("list-fake-1625", ids)
+        self.assertNotIn("list-fake-3733", ids)
         if LIST_DAILY:
             self.assertIn(LIST_DAILY, ids)
 

@@ -40,13 +40,13 @@ class TestMacrosBelowTarget(unittest.TestCase):
     """与 ai_review 既有文案字节级对齐（R1）。"""
 
     def test_flag_text_matches_legacy(self):
-        flags = format_macro_below_flags(DAY, {***REMOVED***})
+        flags = format_macro_below_flags(DAY, {"protein_g": 82})
         self.assertEqual(flags, ["蛋白质 59g 低于目标 82g"])
         self.assertFalse(any("碳水" in f for f in flags))
 
     def test_full_targets(self):
         # 显式目标：不依赖本机 local/.env（CI 无个人参数也能绿）
-        targets = {***REMOVED***, ***REMOVED***, ***REMOVED***}
+        targets = {"carbs_g": 220, "protein_g": 82, "fat_g": 46}
         gaps = macros_below_target(DAY, targets)
         cols = {g["col"] for g in gaps}
         self.assertEqual(cols, {"carbs_g", "protein_g", "fat_g"})
@@ -54,19 +54,19 @@ class TestMacrosBelowTarget(unittest.TestCase):
         self.assertEqual(protein["deficit"], 23)  # 82 - 59
 
     def test_met_target_excluded(self):
-        targets = {***REMOVED***, ***REMOVED***, ***REMOVED***}
+        targets = {"carbs_g": 220, "protein_g": 82, "fat_g": 46}
         day = dict(DAY, protein_g=90, carbs_g=230, fat_g=50)
         self.assertEqual(macros_below_target(day, targets), [])
 
     def test_none_actual_skipped(self):
         day = {"protein_g": None, "carbs_g": 100}
-        gaps = macros_below_target(day, {***REMOVED***, ***REMOVED***})
+        gaps = macros_below_target(day, {"protein_g": 82, "carbs_g": 220})
         self.assertEqual(len(gaps), 1)
         self.assertEqual(gaps[0]["col"], "carbs_g")
 
     def test_ai_review_uses_shared(self):
         """attention_flags 宏量段必须走共享函数（行为不变）。"""
-        flags = attention_flags(dict(DAY), [], {***REMOVED***})
+        flags = attention_flags(dict(DAY), [], {"protein_g": 82})
         self.assertTrue(any("蛋白质 59g 低于目标 82g" in f for f in flags))
 
 

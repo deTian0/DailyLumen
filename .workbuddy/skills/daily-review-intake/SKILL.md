@@ -363,7 +363,7 @@ API 失败**不写「否」**（CLI 明示离线兜底，留给 `fill_training_d
 | 队列 | stage 由历史学习次数推算；间隔 1/3/7/16；可从 logs 完全重建 |
 | 与四维 | **不参与**（G5） |
 
-证据链素材：`python -m review_tool clickup --list ***REMOVED***`（v1.24.0 起成长课与书单已并入日常事务）。
+证据链素材：`python -m review_tool clickup --list <CLICKUP_LIST_ID>`（v1.24.0 起成长课与书单已并入日常事务）。
 讲解 / 出题交给对话现场能力，不落库。
 
 ⛔ 禁止「只进库不落 md」。

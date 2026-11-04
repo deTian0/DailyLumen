@@ -21,6 +21,7 @@ import unittest
 import urllib.error
 from unittest import mock
 
+from review_tool import config as cfg
 from review_tool.pipeline import clickup as cu
 
 TZ = datetime.timezone(datetime.timedelta(hours=8))
@@ -409,17 +410,39 @@ class TestBulkHint(unittest.TestCase):
 class TestCli(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
-        self.env = {"CLICKUP_API_KEY": "pk_test", "CLICKUP_TEAM_ID": "9014643172"}
+        self.env = {"CLICKUP_API_KEY": "pk_test", "CLICKUP_TEAM_ID": "team-fake"}
+        # 测试自带假 list id，不读本机 local/.env 真值（开源 CI / 本机均可绿）
+        self._lists = [
+            {"id": "list-daily", "name": "日常事务", "role": "行为流水", "daily": True},
+            {"id": "list-habits", "name": "习惯与打卡", "role": "长期习惯", "daily": True},
+            {"id": "list-work", "name": "工作", "role": "工作产出", "daily": True},
+        ]
         self.api = _FakeAPI({
-            ***REMOVED***: [_task("a", "整理日报", closed="2026-10-14T21:32")],
-            ***REMOVED***: [],
+            "list-daily": [_task("a", "整理日报", closed="2026-10-14T21:32")],
+            "list-habits": [],
+            "list-work": [],
         })
-        self._patch = mock.patch.object(cu, "CLICKUP_MCP_PATH",
-                                        os.path.join(self.dir, "absent.json"))
-        self._patch.start()
+        meta = {x["id"]: x for x in self._lists}
+        daily_ids = tuple(x["id"] for x in self._lists if x.get("daily"))
+        self._patches = [
+            mock.patch.object(cu, "CLICKUP_MCP_PATH", os.path.join(self.dir, "absent.json")),
+            mock.patch.object(cu, "CLICKUP_LIST_META", meta),
+            mock.patch.object(cu, "CLICKUP_DAILY_IDS", daily_ids),
+            mock.patch.object(cu, "HABITS_LIST_ID", "list-habits"),
+            mock.patch.object(cfg, "CLICKUP_LISTS", self._lists),
+            mock.patch.object(cfg, "CLICKUP_LIST_META", meta),
+            mock.patch.object(cfg, "CLICKUP_DAILY_IDS", daily_ids),
+            mock.patch.object(cfg, "HABITS_LIST_ID", "list-habits"),
+            mock.patch.object(cfg, "LIST_DAILY", "list-daily"),
+            mock.patch.object(cfg, "LIST_HABITS", "list-habits"),
+            mock.patch.object(cfg, "LIST_WORK", "list-work"),
+        ]
+        for p in self._patches:
+            p.start()
 
     def tearDown(self):
-        self._patch.stop()
+        for p in reversed(self._patches):
+            p.stop()
         shutil.rmtree(self.dir, ignore_errors=True)
 
     def test_help_does_not_fetch(self):
@@ -451,12 +474,12 @@ class TestCli(unittest.TestCase):
         self.assertEqual(cu._parse([])[1], cu.INBOX_DIR)
 
     def test_list_filter(self):
-        api = _FakeAPI({***REMOVED***: [_task("c", "每日阅读", closed="2026-10-14T23:04")]})
-        rc, out, _ = _capture(cu.main, [DAY, "--stdout", "--list", ***REMOVED***],
+        api = _FakeAPI({"list-habits": [_task("c", "每日阅读", closed="2026-10-14T23:04")]})
+        rc, out, _ = _capture(cu.main, [DAY, "--stdout", "--list", "list-habits"],
                               fetch=api, env=self.env)
         self.assertEqual(rc, 0)
         self.assertIn("每日阅读", out)
-        self.assertNotIn(***REMOVED***, "".join(api.paths))
+        self.assertNotIn("list-daily", "".join(api.paths))
 
     def test_bad_date_is_usage_error(self):
         rc, _, err = _capture(cu.main, ["2026/10/14"], fetch=self.api, env=self.env)

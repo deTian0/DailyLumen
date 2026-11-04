@@ -4,7 +4,7 @@
 
     python -m review_tool clickup-pull                 # 全量拉取（工作 + 日常事务）
     python -m review_tool clickup-pull --days 30       # 只要最近 30 天有归属日的
-    python -m review_tool clickup-pull --list ***REMOVED***
+    python -m review_tool clickup-pull --list <CLICKUP_LIST_ID>
     python -m review_tool clickup-done 2026-10-20      # 看某天完成了什么
 
 设计红线

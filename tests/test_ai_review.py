@@ -73,7 +73,7 @@ class TestAttentionFlags(unittest.TestCase):
         self.assertTrue(any("1175kcal" in f and "低于" in f for f in flags))
 
     def test_macro_targets_from_arg(self):
-        flags = self._flags(targets={***REMOVED***})
+        flags = self._flags(targets={"protein_g": 82})
         self.assertTrue(any("蛋白质 59g 低于目标 82g" in f for f in flags))
         # 未给目标时不检查碳水/脂肪
         self.assertFalse(any("碳水" in f for f in flags))
@@ -108,7 +108,7 @@ class TestAttentionFlags(unittest.TestCase):
             "phone_h": 5.0, "deepwork_h": 5, "learn_h": 2, "life_h": 2,
             "work_score": 7, "learn_score": 7, "life_score": 7,
         }
-        self.assertEqual(attention_flags(good, [], {***REMOVED***, ***REMOVED***, ***REMOVED***}), [])
+        self.assertEqual(attention_flags(good, [], {"carbs_g": 220, "protein_g": 82, "fat_g": 46}), [])
 
     def test_trend_streak_bedtime(self):
         recent = [dict(DAY, date=f"2026-09-{10 + i}") for i in range(3)]

@@ -6,7 +6,7 @@
     python -m review_tool tutor 2026-10-15
 
 不参与四维（G5）。「讲解 / 出题」不写代码——那是 AI 现场能力。
-证据链：``clickup --list ***REMOVED***``（日常事务 —— v1.24.0 起阅读与成长课已并入该 list）。
+证据链：``clickup --list <CLICKUP_LIST_ID>``（日常事务 —— v1.24.0 起阅读与成长课已并入该 list）。
 """
 from __future__ import annotations
 
