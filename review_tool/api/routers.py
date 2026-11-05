@@ -9,5 +9,6 @@ from typing import Any
 
 def default_routers(*, db_path: str | None = None) -> list[Any]:
     from .routes_clickup import build_router as clickup_router
+    from .routes_reports import build_router as reports_router
 
-    return [clickup_router(db_path=db_path)]
+    return [clickup_router(db_path=db_path), reports_router(db_path=db_path)]
