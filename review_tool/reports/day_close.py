@@ -64,8 +64,13 @@ def assess_day_ready(
     md_path: str | None = None,
     db_path: str | None = None,
     input_dir: str | None = None,
+    conn=None,
 ) -> dict[str, Any]:
-    """评估指定日能否收工（含红绿灯）。"""
+    """评估指定日能否收工（含红绿灯）。
+
+    :param conn: 可选外部连接（如 Web API 只读连接）。传入时不调用 ``init_db``
+        （不建库、不迁移），也不由本函数关闭。
+    """
     day = day or datetime.date.today().isoformat()
     path = md_path or review_md_path(day)
     md_exists = os.path.isfile(path)
@@ -78,14 +83,17 @@ def assess_day_ready(
         filled = _parse_data_filled(text)
 
     ingested = False
-    conn = init_db(db_path)
+    owns_conn = conn is None
+    if owns_conn:
+        conn = init_db(db_path)
     try:
         row = conn.execute(
             "SELECT 1 FROM daily_reviews WHERE date=? LIMIT 1", (day,)
         ).fetchone()
         ingested = bool(row)
     finally:
-        conn.close()
+        if owns_conn:
+            conn.close()
 
     miss = missing_focus_fields(filled)
     opt_miss = [

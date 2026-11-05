@@ -177,9 +177,15 @@ def attention_flags(day: dict, recent: list[dict],
 
 
 def build_context(date_str: str | None = None, db_path: str | None = None,
-                  recent_days: int = 7) -> dict:
-    """构建「AI 评价与建议」所需上下文。"""
-    conn = init_db(db_path)
+                  recent_days: int = 7, *, conn=None) -> dict:
+    """构建「AI 评价与建议」所需上下文。
+
+    :param conn: 可选外部连接（如 Web API 只读连接）。传入时不调用 ``init_db``
+        （不建库、不迁移），也不由本函数关闭。
+    """
+    owns_conn = conn is None
+    if owns_conn:
+        conn = init_db(db_path)
     try:
         if not date_str:
             row = conn.execute("SELECT MAX(date) FROM daily_reviews").fetchone()
@@ -187,7 +193,8 @@ def build_context(date_str: str | None = None, db_path: str | None = None,
         day = fetch_day(conn, date_str)
         recent = fetch_recent(conn, date_str, recent_days)
     finally:
-        conn.close()
+        if owns_conn:
+            conn.close()
 
     if day:
         # 补齐四维（不覆盖已有值）与系统分，便于评价引用

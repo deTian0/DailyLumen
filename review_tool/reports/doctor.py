@@ -685,11 +685,17 @@ def _llm_advice(mode: str, key_ok: bool, last: dict | None) -> list[str]:
 
 
 def diagnose(db_path: str | None = None, input_dir: str | None = None,
-             *, today: str | None = None) -> dict:
-    """执行体检并返回结构化结果（不打印），便于测试与复用。"""
+             *, today: str | None = None, conn=None) -> dict:
+    """执行体检并返回结构化结果（不打印），便于测试与复用。
+
+    :param conn: 可选外部连接（如 Web API 的只读连接）。传入时**不**调用
+        ``init_db``（不建库、不迁移），且不由本函数关闭，生命周期归调用方。
+    """
     input_dir = input_dir or INPUT_DIR
     today = today or _date.today().isoformat()
-    conn = init_db(db_path)
+    owns_conn = conn is None
+    if owns_conn:
+        conn = init_db(db_path)
 
     result: dict = {}
     result["llm"] = llm_observability()
@@ -824,23 +830,29 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
             habit_freshness=result["habit_freshness"],
             habit_gaps=result["habit_gaps"],
         )
+        # 今日能否收工红绿灯（建议性；不改 is_healthy）
+        from .day_close import assess_day_ready
+
+        ready_day = today
+        # 优先「被复盘日」：执行日的昨日（日常收工看昨天）
+        try:
+            yday = (
+                datetime.strptime(today, "%Y-%m-%d") - timedelta(days=1)
+            ).strftime("%Y-%m-%d")
+            ready_day = yday
+        except ValueError:
+            ready_day = result.get("latest_date") or today
+        if owns_conn:
+            # CLI 路径：保持原语义（assess_day_ready 自行开连接）
+            day_ready_conn = None
+        else:
+            day_ready_conn = conn
     finally:
-        conn.close()
+        if owns_conn:
+            conn.close()
 
-    # 今日能否收工红绿灯（建议性；不改 is_healthy）
-    from .day_close import assess_day_ready
-
-    ready_day = today
-    # 优先「被复盘日」：执行日的昨日（日常收工看昨天）
-    try:
-        yday = (
-            datetime.strptime(today, "%Y-%m-%d") - timedelta(days=1)
-        ).strftime("%Y-%m-%d")
-        ready_day = yday
-    except ValueError:
-        ready_day = result.get("latest_date") or today
     result["day_ready"] = assess_day_ready(
-        ready_day, db_path=db_path, input_dir=input_dir,
+        ready_day, db_path=db_path, input_dir=input_dir, conn=day_ready_conn,
     )
     return result
 

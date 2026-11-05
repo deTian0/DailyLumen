@@ -54,7 +54,7 @@
 | --- | --- | --- | --- | --- |
 | W0 | 清场 + 拍板 + 本路线图 | ✅ | `b71686b`（lint 清零）+ 本文档提交 | `v1.60.1` |
 | W1 | serve 壳 / health / 架构守卫扩 api 层 / optional extra | ✅ | 见 W1 详情 | `v1.61.0` |
-| W2 | 只读编排抽取与对拍框架 | 未开始 | — | — |
+| W2 | 只读编排抽取与对拍框架 | ✅ | 见 W2 详情 | `v1.62.0` |
 | W3 | ClickUp 今日 API | 未开始 | — | — |
 | W4 | 报告与分析 API | 未开始 | — | — |
 | W5 | 前端脚手架 + P0 页面 + dist 入库 | 未开始 | — | — |
@@ -125,5 +125,22 @@
   返回 403。
 - 全量测试 1051 通过 / 2 跳过（新增 22 个：19 个 API + 3 个架构守卫）；`ruff check .` 全绿。
 - `review_tool/__init__.py` 文档计数同步为 41 子命令。
+
+---
+
+### W2 — 只读编排抽取与对拍框架
+
+**PRE-02 盘点结论**：body/coach/habits/nutrition/tutor/steward/promises/stats/correlate/
+week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`，可零改动复用；
+缺口只有 `doctor.diagnose`、`day_close.assess_day_ready`、`ai_review.build_context`
+（内部写死 `init_db`，会建库/迁移）→ 加可选 `conn=None` 注入，CLI 路径不变。
+`finalize` / `day_help` 仅 `main`，留待 W7/W10 需要时再抽。
+
+**产出**：`reports/analyze.py` 新增 `default_month` / `default_week` / `week_iso_years`；
+`review_tool/api/queries.py`（只读查询编排，不依赖 fastapi）；`tests/api/test_queries.py` 25 例对拍。
+
+**PRE-06 结论**：CLI `week N` 按周号聚合不变；Web 用 `year+week`，年不符 404、跨年混叠 409。
+
+**验收**：全量 1076 通过 / 2 跳过；ruff 全绿。
 
 ---

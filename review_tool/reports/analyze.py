@@ -665,7 +665,7 @@ def report_week(conn, iso_week: int | None = None, *, as_json: bool = False) -> 
 def report_month(conn, month: int | None = None, *, as_json: bool = False) -> dict | None:
     """月汇总（含与上月的系统分趋势）。`as_json=True` 时输出结构化结果。"""
     if month is None:
-        month = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
+        month = default_month(conn)
     if month is None:
         if not as_json:
             print("无任何数据。")
@@ -731,6 +731,35 @@ def _md_bar(v: float | None, width: int = 10) -> str:
         return "—"
     filled = max(0, min(width, int(round(float(v) / 10 * width))))
     return "█" * filled + "░" * (width - filled)
+
+
+def default_month(conn) -> int | None:
+    """默认月份 = 库内最新月（CLI ``month`` 与 Web 月报共用口径）。"""
+    return conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
+
+
+def default_week(conn) -> tuple[int, int] | None:
+    """默认周 = 库内最新入库日所在的 ``(ISO 年, ISO 周)``。无数据返回 None。"""
+    latest = conn.execute("SELECT MAX(date) FROM daily_reviews").fetchone()[0]
+    if not latest:
+        return None
+    y, w, _ = datetime.strptime(latest, "%Y-%m-%d").isocalendar()
+    return y, w
+
+
+def week_iso_years(conn, iso_week: int) -> list[int]:
+    """库内 ``iso_week`` 命中行实际分布在哪些 ISO 年（PRE-06 跨年歧义探测）。
+
+    库只存 ``iso_week`` 整数不存年；CLI ``week N`` 口径保持不变（按周号聚合），
+    Web 侧据此校验 ``year`` 与数据一致、并在多年混叠时显式报歧义。
+    """
+    years = {
+        datetime.strptime(r[0], "%Y-%m-%d").isocalendar()[0]
+        for r in conn.execute(
+            "SELECT date FROM daily_reviews WHERE iso_week=?", (iso_week,)
+        )
+    }
+    return sorted(years)
 
 
 def _week_date_span(conn, iso_week: int) -> tuple[str, str] | None:
@@ -1457,7 +1486,7 @@ def main(argv: list[str] | None = None) -> int:
             mon = int(pos[1]) if len(pos) > 1 else None
             if "--deep" in argv:
                 if mon is None:
-                    mon = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
+                    mon = default_month(conn)
                 if mon is None:
                     print("无任何数据。")
                     return 1
@@ -1471,7 +1500,7 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             if do_polish:
                 if mon is None:
-                    mon = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
+                    mon = default_month(conn)
                 if mon is None:
                     print("无任何数据。")
                     return 1
@@ -1479,7 +1508,7 @@ def main(argv: list[str] | None = None) -> int:
                 return _run_polish(kind="month", path=path, write=do_write)
             if do_write or do_check:
                 if mon is None:
-                    mon = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
+                    mon = default_month(conn)
                 if mon is None:
                     print("无任何数据。")
                     return 1
