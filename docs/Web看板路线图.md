@@ -53,7 +53,7 @@
 | 里程碑 | 内容 | 状态 | commit | tag |
 | --- | --- | --- | --- | --- |
 | W0 | 清场 + 拍板 + 本路线图 | ✅ | `b71686b`（lint 清零）+ 本文档提交 | `v1.60.1` |
-| W1 | serve 壳 / health / 架构守卫扩 api 层 / optional extra | 未开始 | — | — |
+| W1 | serve 壳 / health / 架构守卫扩 api 层 / optional extra | ✅ | 见 W1 详情 | `v1.61.0` |
 | W2 | 只读编排抽取与对拍框架 | 未开始 | — | — |
 | W3 | ClickUp 今日 API | 未开始 | — | — |
 | W4 | 报告与分析 API | 未开始 | — | — |
@@ -76,5 +76,54 @@
 - 清查 5 个幽灵 `M` 文件，确认无实质差异，刷新索引 stat 缓存。
 - 记录 lint 基线（见上）。
 - 提交 `docs/Web看板PRD.md`（之前未入库）与本路线图文档。
+
+---
+
+### W1 — serve 壳 / health / 架构守卫扩 api 层 / optional extra
+
+**产出**：
+
+- `pyproject.toml`：新增 `[project.optional-dependencies] web`（`fastapi==0.162.0` /
+  `uvicorn==0.54.0`，钉版本）与 `[dependency-groups] dev`（`ruff==0.17.3` / `httpx==0.28.1`）；
+  `uv.lock` 入库。
+- `tests/architecture/test_architecture.py`（PRE-01）：`LAYERS` 加入 `"api"`；
+  `ALLOWED["api"]` 可依赖其余全部层；新增 `TestApiLayerGuard` 断言「其余层不得依赖 api」+
+  「fastapi/uvicorn 只准出现在 api/」；`TestSettingsPydanticStack` 的 pydantic 白名单从
+  「仅 `settings.py`」扩为「`settings.py` 与 `api/`」（PRE-03 / D-1）。
+- `review_tool/storage/db.py`：新增 `get_readonly_conn()`（SQLite URI `mode=ro` +
+  `PRAGMA query_only`，库不存在抛 `FileNotFoundError`）——Web API 读库的唯一入口，
+  物理上不可能通过它写库。
+- `review_tool/api/`（新层）：
+  - `health.py`：`build_health()` 白名单构造（`status/version/llm_mode/integrations/
+    ai_enabled/db_present/readonly`），用 `review_tool.__version__` + `config.get_llm_mode()` +
+    `integrations.flags.is_enabled()`，不读任何凭据字段。
+  - `app.py`：`create_app()` 应用工厂——Host/Origin 中间件（默认仅回环，防 DNS rebinding
+    与跨站写请求 PRE-07）、统一错误体 `{error:{code,message}}`、`/api/health`、dist 静态托管
+    + SPA fallback（防路径穿越）、无 dist 时的提示页（503）。提供 `extra_routers` 参数作为
+    **后续里程碑业务路由的标准接入点**（必须在 SPA 通配路由之前 `include_router`，
+    不能在 `create_app` 返回后 `add_api_route`——否则会被 SPA 通配先截获，已用测试固定
+    这条路由注册顺序约束）。
+  - `serve.py`：`python -m review_tool serve [--host H] [--port P] [--dist DIR]
+    [--enable-write]`；默认 `127.0.0.1:8765`、只读；非回环地址启动时打印安全警告；
+    缺 `fastapi`/`uvicorn` 时给安装提示并退出码 2（不抛栈）。
+- `review_tool/__main__.py`：注册 `serve` 路由（`_serve` 延迟 import `api.serve`，
+  避免未装 web extra 时 `import review_tool` 就失败）。
+- `tests/api/test_app_shell.py`：19 个用例，覆盖 health 形状/无密钥、Host 守卫、
+  Origin 守卫（写方法）、自定义 allowed_hosts、404 统一错误体、未处理异常不泄露
+  （用 `extra_routers` 正规接入，不用事后 `add_api_route`）、无 dist 提示页、
+  SPA fallback、assets 静态资源、路径穿越防护、serve 缺依赖提示、`--host` 非回环警告。
+  未装 `web` extra 时整组 `skipUnless` 跳过，不影响不装 Web 依赖的用户跑全量测试。
+- 依赖收敛文案同步：`.cursor/rules/dailylumen.mdc` 规则 2、
+  `.workbuddy/skills/dailylumen-conventions/SKILL.md` §6，补充
+  「`review_tool/api/` 例外：可用 pydantic（FastAPI 模型），范围不扩大到其余业务层」。
+
+**验收**：
+
+- 架构守卫新断言通过（`api` 反向依赖会被拦住；fastapi/uvicorn 越界会被拦住）。
+- `uv run python -m review_tool serve` 真实启动，`curl /api/health` 返回
+  `{"status":"ok","version":"1.61.0",...,"readonly":true}`，伪造 `Host: evil.example.com`
+  返回 403。
+- 全量测试 1051 通过 / 2 跳过（新增 22 个：19 个 API + 3 个架构守卫）；`ruff check .` 全绿。
+- `review_tool/__init__.py` 文档计数同步为 41 子命令。
 
 ---

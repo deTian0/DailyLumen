@@ -26,6 +26,15 @@ local/**
 __pycache__/
 *.pyc
 
+# uv / 打包产物（uv.lock 入库；虚拟环境与 egg-info 不入库）
+.venv/
+*.egg-info/
+.ruff_cache/
+
+# Web 前端（web/dist 入库可开箱；依赖与缓存不入库）
+web/node_modules/
+web/.vite/
+
 # 遗留路径（M45 已迁入 local/；保留规则防旧路径回流）
 # ⚠️ 必须带仓库根锚点 `/`，否则会误伤 tests/fixtures/corpus/每日复盘/
 /每日复盘/

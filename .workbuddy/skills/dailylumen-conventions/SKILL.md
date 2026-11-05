@@ -281,6 +281,10 @@ agent_created: true
   ✅ **Settings = pydantic-settings**（M46）：`review_tool/settings.py` 用 `BaseSettings`，
   默认读 `local/.env`；`config.py` 是门面（既有名字全保留）。
   ⛔ **业务模块（core/storage/pipeline/reports）不得直接 import pydantic***；
+  ✅ **例外（Web 看板 D-1 / v1.61.0）**：最上层 `review_tool/api/`（HTTP 薄壳）可用
+  `fastapi` / `uvicorn` / `pydantic`（optional extra `web`，uv 管理 + `uv.lock`）；
+  其余层⛔不得依赖 `api` 或 import Web 栈（架构守卫强制）；
+  `api` 只编排、不另写口径，读库走 `storage.get_readonly_conn`；
   ⛔ **不另引 `python-dotenv`**（仅经 pydantic-settings 间接使用）。
 - **CLI 参数单一来源**：`__main__.py` 是**纯路由**（`ROUTES` 表 + 原样透传 argv），
   参数只在各模块 `main(argv)` 里定义一次；顶层统一拦截 `<子命令> -h`

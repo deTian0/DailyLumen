@@ -36,6 +36,7 @@
     python -m review_tool export     [--format csv|json] [--out DIR] [--stdout]
     python -m review_tool chart      [--type body|training|nutrition|all] [--out DIR] [--stdout]
     python -m review_tool correlate  [--json] [--min-samples N]
+    python -m review_tool serve      [--host H] [--port P] [--dist DIR] [--enable-write]
     python -m review_tool version
 
 任意子命令加 ``-h`` 可查看该项用法。
@@ -124,6 +125,13 @@ def _week(rest: list[str]) -> int:
 
 def _month(rest: list[str]) -> int:
     return analyze_main(["month", *rest])
+
+
+def _serve(rest: list[str]) -> int:
+    # 延迟导入：api.serve 内部才按需加载 fastapi/uvicorn（optional extra web）
+    from .api.serve import main as serve_main
+
+    return serve_main(rest)
 
 
 def _version(_rest: list[str]) -> int:
@@ -225,6 +233,8 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
         "chart [--type body|training|nutrition|all] [--out DIR] [--stdout]"),
     "correlate": (
         correlate_main, "correlate [--json] [--min-samples N]"),
+    "serve": (
+        _serve, "serve [--host H] [--port P] [--dist DIR] [--enable-write]"),
     "version": (_version, "version"),
 }
 

@@ -15,6 +15,9 @@ alwaysApply: true
 - **远端**：`git@github.com:deTian0/DailyLumen.git`（分支 `main`）
 - **运行时依赖**：`pydantic` + `pydantic-settings`（M46 / D2；见 `pyproject.toml`）。
   业务逻辑仍用标准库；**禁止**再另引第三方到业务层 / 测试（⛔ 不另引 `python-dotenv`）。
+  **例外（Web 看板 D-1，v1.61.0）**：`review_tool/api/` 可用 `fastapi` / `uvicorn` / `pydantic`
+  （optional extra `web`，经 **uv** 管理、`uv.lock` 钉版本）；其余层不得依赖 `api`，也不得 import Web 栈
+  （`tests/architecture/test_architecture.py` 守卫）。dev 依赖（`ruff` / `httpx`）在 `[dependency-groups] dev`。
 - **Python ≥ 3.10**。优先用本机 WorkBuddy 托管解释器（见本机 MEMORY / binaries 布局）；
   或系统 Python。**Cursor 里选已装 pydantic* 的解释器，别用无关 venv。**
 

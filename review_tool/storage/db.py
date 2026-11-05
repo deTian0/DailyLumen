@@ -602,6 +602,24 @@ def get_conn(db_path: str | None = None) -> sqlite3.Connection:
     return conn
 
 
+def get_readonly_conn(db_path: str | None = None) -> sqlite3.Connection:
+    """只读连接（Web API 专用）：URI ``mode=ro`` + ``PRAGMA query_only``。
+
+    库文件不存在时抛 ``FileNotFoundError``（不会像 ``get_conn`` 那样顺手建一个空库）。
+    任何写语句都会被 SQLite 拒绝（``attempt to write a readonly database``）。
+    """
+    import os
+    from pathlib import Path
+
+    path = os.path.abspath(db_path or DB_PATH)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"数据库不存在：{os.path.basename(path)}")
+    conn = sqlite3.connect(Path(path).as_uri() + "?mode=ro", uri=True, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA query_only = ON")
+    return conn
+
+
 def init_db(db_path: str | None = None, schema_path: str | None = None,
             *, migrate_legacy: bool = True, verbose: bool = False) -> sqlite3.Connection:
     """建表 + 增量迁移。schema 默认读取 config.SCHEMA_PATH。

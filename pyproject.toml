@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dailylumen"
-version = "1.60.1"
+version = "1.61.0"
 description = "每日复盘系统：结构化复盘沉淀进 SQLite 单一数据源，自动评分并做周/月分析"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,6 +15,12 @@ dependencies = [
 
 [project.scripts]
 dailylumen = "review_tool.__main__:main"
+
+[project.optional-dependencies]
+web = [
+    "fastapi==0.162.0",
+    "uvicorn==0.54.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -40,4 +46,10 @@ ignore = ["E501", "B008"]
 [tool.ruff.lint.per-file-ignores]
 # 故意再导出：旧测试经 `review_tool.pipeline.keepstrong as ks` 访问这些符号，勿按 F401 清理
 "review_tool/pipeline/keepstrong.py" = ["F401"]
+
+[dependency-groups]
+dev = [
+    "httpx==0.28.1",
+    "ruff==0.17.3",
+]
 

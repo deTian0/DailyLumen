@@ -31,7 +31,7 @@ from tests import REPO_ROOT
 
 ROOT = REPO_ROOT
 PKG = os.path.join(ROOT, "review_tool")
-LAYERS = ["core", "storage", "integrations", "pipeline", "reports"]
+LAYERS = ["core", "storage", "integrations", "pipeline", "reports", "api"]
 
 # 每层允许依赖的层（"root" = 包根 config / __init__ / __main__）
 ALLOWED = {
@@ -40,7 +40,11 @@ ALLOWED = {
     "integrations": {"core", "integrations"},
     "pipeline": {"core", "storage", "pipeline", "integrations"},
     "reports": {"core", "storage", "pipeline", "reports", "integrations"},
+    # api（Web 看板 W1）= 最上层 HTTP 薄壳：只编排、不另写业务；其余层不得依赖 api
+    "api": {"core", "storage", "pipeline", "reports", "integrations", "api"},
 }
+# pydantic* 白名单：包根 settings.py + api/ 子包（Web 看板 D-1 拍板；不扩大到其余业务层）
+PYDANTIC_ALLOWED_LAYERS = {"api"}
 # settings = 包根 Settings 层（M16）；与 config 同属可配置层，不做层间限制
 ROOT_LIKE = {"config", "settings", "__init__", "__main__"}
 
@@ -202,15 +206,52 @@ class TestSettingsPydanticStack(unittest.TestCase):
         for path in _iter_py():
             layer, fn = _layer_of_file(path)
             if layer == "root" and fn == "settings.py":
-                continue  # 唯允许点
-            bad = self._tops(path) & forbidden
+                continue  # 允许点 1：Settings 层
+            tops = self._tops(path)
+            if layer in PYDANTIC_ALLOWED_LAYERS:
+                # 允许点 2：api/ 可用 pydantic（FastAPI 模型），但 dotenv 仍禁止
+                bad = tops & {"dotenv", "python_dotenv"}
+                if bad:
+                    offenders.append(f"{layer}/{fn}: {sorted(bad)}")
+                continue
+            bad = tops & forbidden
             if bad:
                 offenders.append(f"{layer}/{fn}: {sorted(bad)}")
         self.assertEqual(
             offenders,
             [],
-            "pydantic* 仅允许出现在 settings.py：\n" + "\n".join(offenders),
+            "pydantic* 仅允许出现在 settings.py 与 api/：\n" + "\n".join(offenders),
         )
+
+
+class TestApiLayerGuard(unittest.TestCase):
+    """Web 看板 W1 / PRE-01：api 是最上层；下层不得反向依赖；第三方 Web 栈只准在 api。"""
+
+    WEB_STACK = {"fastapi", "starlette", "uvicorn"}
+
+    def test_no_lower_layer_depends_on_api(self):
+        for layer, allowed in ALLOWED.items():
+            if layer == "api":
+                continue
+            self.assertNotIn("api", allowed, f"{layer} 层不得依赖 api 层")
+
+    def test_web_stack_only_in_api(self):
+        offenders = []
+        for path in _iter_py():
+            layer, fn = _layer_of_file(path)
+            if layer == "api":
+                continue
+            _found, tops = _imports_of(path)
+            bad = tops & self.WEB_STACK
+            if bad:
+                offenders.append(f"{layer}/{fn}: {sorted(bad)}")
+        self.assertEqual(offenders, [], "fastapi/uvicorn 只允许出现在 api/：\n" + "\n".join(offenders))
+
+    def test_guard_detects_reverse_dependency(self):
+        """自检：构造一条 reports -> api 的假依赖，守卫逻辑必须判为越界。"""
+        self.assertEqual(_layer_of_module("review_tool.api.app"), "api")
+        self.assertNotIn(_layer_of_module("review_tool.api.app"), ALLOWED["reports"])
+        self.assertEqual(_layer_of_file(os.path.join(PKG, "api", "app.py"))[0], "api")
 
 
 def _fn(path):
