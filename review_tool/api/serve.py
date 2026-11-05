@@ -32,6 +32,7 @@ def main(argv: list[str] | None = None) -> int:
         import uvicorn
 
         from .app import create_app
+        from .routers import default_routers
     except ImportError:
         print(_MISSING_HINT, file=sys.stderr)
         return 2
@@ -51,6 +52,7 @@ def main(argv: list[str] | None = None) -> int:
         dist_dir=args.dist,
         write_enabled=args.enable_write,
         allowed_hosts=frozenset(allowed),
+        extra_routers=default_routers(),
     )
     print(f"DailyLumen 看板：http://{args.host}:{args.port}/  （Ctrl+C 退出；无鉴权）")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")

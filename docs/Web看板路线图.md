@@ -55,7 +55,7 @@
 | W0 | 清场 + 拍板 + 本路线图 | ✅ | `b71686b`（lint 清零）+ 本文档提交 | `v1.60.1` |
 | W1 | serve 壳 / health / 架构守卫扩 api 层 / optional extra | ✅ | 见 W1 详情 | `v1.61.0` |
 | W2 | 只读编排抽取与对拍框架 | ✅ | 见 W2 详情 | `v1.62.0` |
-| W3 | ClickUp 今日 API | 未开始 | — | — |
+| W3 | ClickUp 今日 API | ✅ | `clickup_queries` / `routes_clickup`，20 用例 | `v1.63.0` |
 | W4 | 报告与分析 API | 未开始 | — | — |
 | W5 | 前端脚手架 + P0 页面 + dist 入库 | 未开始 | — | — |
 | W6 | 健康与学习督导查询 | 未开始 | — | — |

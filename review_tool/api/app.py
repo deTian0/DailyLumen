@@ -14,6 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from ..config import BASE_DIR
 from .health import build_health
+from .queries import QueryError
 
 DEFAULT_DIST_DIR = os.path.join(BASE_DIR, "web", "dist")
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -96,6 +97,11 @@ def create_app(
     @app.exception_handler(StarletteHTTPException)
     async def _http_exc(_req: Request, exc: StarletteHTTPException):
         return _error(exc.status_code, f"http_{exc.status_code}", str(exc.detail))
+
+    @app.exception_handler(QueryError)
+    async def _query_exc(_req: Request, exc: QueryError):
+        # 文案来自下层既有中文提示，已确认不含密钥
+        return _error(exc.status, exc.code, exc.message)
 
     @app.exception_handler(RequestValidationError)
     async def _validation_exc(_req: Request, _exc: RequestValidationError):
