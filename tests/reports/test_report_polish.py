@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import json
-import tempfile
 import unittest
 from unittest import mock
 
 from review_tool.pipeline import deepseek as ds
 from review_tool.reports import report_polish as rp
-
 
 SAMPLE = """# 周总结 · ISO 第 1 周
 

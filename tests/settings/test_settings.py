@@ -17,7 +17,6 @@ from review_tool.settings import (
     load_settings,
     parse_env_file,
 )
-
 from tests import REPO_ROOT
 
 PKG = os.path.join(REPO_ROOT, "review_tool")

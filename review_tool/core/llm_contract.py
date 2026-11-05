@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 # 通道 A：素材 → md 数据块（读图优先关注）
 DIET_FIELDS = (

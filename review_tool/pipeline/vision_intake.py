@@ -247,7 +247,7 @@ def extract_fields_from_images(
         }
 
     # 多图：逐张（可追踪后图覆盖冲突）；部分失败可恢复
-    for url, path in zip(data_urls, image_paths):
+    for url, path in zip(data_urls, image_paths, strict=False):
         try:
             f, last_text = _vision_one(
                 client, url, system=system, user=user_one, kind=kind,

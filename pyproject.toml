@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dailylumen"
-version = "1.60.0"
+version = "1.60.1"
 description = "每日复盘系统：结构化复盘沉淀进 SQLite 单一数据源，自动评分并做周/月分析"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,4 +36,8 @@ exclude = [".workbuddy", "exports"]
 select = ["E", "F", "W", "I", "UP", "B"]
 # E501 行长由 formatter 兜底；中文注释/文案按字符宽度计行，不宜硬卡
 ignore = ["E501", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# 故意再导出：旧测试经 `review_tool.pipeline.keepstrong as ks` 访问这些符号，勿按 F401 清理
+"review_tool/pipeline/keepstrong.py" = ["F401"]
 

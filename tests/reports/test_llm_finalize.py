@@ -13,7 +13,6 @@ from review_tool.reports import llm_finalize as lf
 from review_tool.reports.llm_review import wrap_ai_draft
 from review_tool.storage.db import init_db
 
-
 SAMPLE = """# 每日复盘 · 2099-04-01（星期一）
 
 ## 一、日常打卡

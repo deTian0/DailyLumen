@@ -58,7 +58,7 @@ def render_day_help(
         f"  【{LLM_MODE_WORKBUDDY}】宿主按 intake / llm-host-contract 落 md"
         "（勿跑 llm-day / llm-vision / llm-review）",
         f"    python -m review_tool ai-context {day}",
-        f"    python -m review_tool doctor",
+        "    python -m review_tool doctor",
         "",
         f"  【{LLM_MODE_DEEPSEEK}】仓库 CLI"
         f"（须 DAILYLUMEN_LLM_MODE=deepseek 且 INTEGRATION_DEEPSEEK_ENABLED=true）",

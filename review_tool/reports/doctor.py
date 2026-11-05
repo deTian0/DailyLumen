@@ -44,8 +44,6 @@ from ..config import (
     TRACK_ADHERENCE_ALERT,
     get_llm_mode,
 )
-from ..core.llm_contract import CONTRACT_DATA_FIELDS
-from ..pipeline.llm_runlog import default_llm_last_run_path, read_llm_last_run
 from ..core.body import (
     WEEK_SPIKE_KG,
     distance_to_target,
@@ -53,6 +51,7 @@ from ..core.body import (
     week_weight_spikes,
 )
 from ..core.habits import detect_gaps, key_overlap
+from ..core.llm_contract import CONTRACT_DATA_FIELDS
 from ..core.score import (
     compute_health_score,
     compute_learn_score,
@@ -60,6 +59,7 @@ from ..core.score import (
     compute_work_score,
     system_score_from,
 )
+from ..pipeline.llm_runlog import default_llm_last_run_path, read_llm_last_run
 from ..storage.db import SCHEMA_VERSION, init_db, load_body_metrics, load_habit_logs
 from .analyze import completeness
 from .fuse import find_fuses

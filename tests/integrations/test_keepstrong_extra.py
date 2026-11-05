@@ -1,7 +1,6 @@
 """I3/I4：练练 Client 扩展读/写（全离线 mock）。"""
 from __future__ import annotations
 
-import io
 import json
 import unittest
 import urllib.error

@@ -1401,7 +1401,7 @@ def _run_polish(
     o_lines = result["original"].splitlines()
     n_lines = result["polished"].splitlines()
     shown = 0
-    for i, (a, b) in enumerate(zip(o_lines, n_lines)):
+    for i, (a, b) in enumerate(zip(o_lines, n_lines, strict=False)):
         if a != b:
             print(f"  L{i + 1}: - {a[:100]}")
             print(f"  L{i + 1}: + {b[:100]}")

@@ -8,8 +8,8 @@ import os
 import tempfile
 import unittest
 
-from review_tool.pipeline import vision_intake as vi
 from review_tool.pipeline import deepseek as ds
+from review_tool.pipeline import vision_intake as vi
 
 _MIN_PNG = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"

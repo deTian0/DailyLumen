@@ -7,7 +7,7 @@ import shutil
 import tempfile
 import unittest
 
-from review_tool.config import FOOD_LIB, NUTRITION_RULES, PROFILE
+from review_tool.config import FOOD_LIB, NUTRITION_RULES
 from review_tool.core.nutrition import (
     extreme_kcal_streak,
     format_extreme_flag,

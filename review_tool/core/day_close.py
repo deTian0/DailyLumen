@@ -5,7 +5,8 @@
 """
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any
 
 # 收工关注的核心字段（体脂不在此列）
 CLOSE_FOCUS_FIELDS: tuple[str, ...] = (

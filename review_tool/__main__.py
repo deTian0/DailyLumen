@@ -68,6 +68,7 @@ from .pipeline.clickup_task import main as clickup_task_main
 from .pipeline.daily_pull import main as daily_pull_main
 from .pipeline.export import main as export_main
 from .pipeline.import_history import main as import_history_main
+from .pipeline.inbox_archive import main as inbox_archive_main
 from .pipeline.ingest import main as ingest_main
 from .pipeline.keepstrong import main as keepstrong_main
 from .pipeline.new_day import is_enabled as _new_day_enabled
@@ -89,7 +90,6 @@ from .reports.finalize import main as finalize_main
 from .reports.fuse import main as fuse_main
 from .reports.habits import main as habits_main
 from .reports.improve_draft import main as improve_draft_main
-from .pipeline.inbox_archive import main as inbox_archive_main
 from .reports.llm_day import main as llm_day_main
 from .reports.llm_finalize import main as llm_finalize_main
 from .reports.llm_review import main as llm_review_main
