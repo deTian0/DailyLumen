@@ -48,8 +48,28 @@ class TestLlmFinalize(unittest.TestCase):
             with contextlib.redirect_stdout(out):
                 rc = lf.main(["--md", path, "--dry-run"])
             self.assertEqual(rc, 0)
+            text = out.getvalue()
+            self.assertIn("定稿前并排预览", text)
+            self.assertIn("数据块", text)
+            self.assertIn("七、AI", text)
             with open(path, encoding="utf-8") as f:
                 self.assertTrue(ad.is_ai_draft_pending(f.read()))
+
+    def test_preview_on_write(self):
+        section = wrap_ai_draft(
+            "**评价**\n\n- ok\n", day="2099-04-01", generated_at="T"
+        )
+        md = ad.stamp_llm_pending(SAMPLE.format(section=section))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "2099-04-01.md")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(md)
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                rc = lf.main(["--md", path, "--write"])
+            self.assertEqual(rc, 0)
+            self.assertIn("定稿前并排预览", out.getvalue())
+            self.assertIn("已定稿写入", out.getvalue())
 
     def test_write_then_ingest(self):
         section = wrap_ai_draft(

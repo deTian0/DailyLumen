@@ -26,7 +26,9 @@ from ..config import WEEKDAY_CN
 from ..core.ai_draft import stamp_llm_pending
 from ..core.llm_contract import (
     CONTRACT_DATA_FIELDS,
+    DIET_FIELDS,
     OPTIONAL_CONTRACT_FIELDS,
+    SLEEP_FIELDS,
     classify_contract_fields,
     merge_contract_field_dicts,
     merge_data_block_fields,
@@ -47,31 +49,62 @@ from .llm_runlog import write_llm_last_run
 
 USAGE = (
     "llm-vision --image PATH [--image PATH ...] --date YYYY-MM-DD "
+    "[--kind auto|diet|sleep|screen] "
     "[--write] [--dry-run] [--diff] [--stdout] [--md PATH]"
 )
 
 _OPTIONAL_HINT = "、".join(sorted(OPTIONAL_CONTRACT_FIELDS))
 
-VISION_SYSTEM = (
-    "你是 DailyLumen 读图助手。从截图抽取客观数字，只输出一个 JSON object。"
-    "键优先用下列中文契约名（没有的键省略，⛔ 不要估算凑数）："
-    + "、".join(CONTRACT_DATA_FIELDS)
-    + "。也可用英文别名 diet_kcal / carbs_g / fat_g / protein_g / "
-    "sleep_h / sleep_quality / bedtime / phone_h / weight_kg 等。"
-    f"可选字段（{_OPTIONAL_HINT}）看不清或图上没有就省略；"
-    "尤其「体脂率」：无体脂秤读数时**不要写、不要估算、不要编造**"
-    "（薄荷饮食 / 睡眠 / 屏幕截图几乎都没有体脂——省略即可）。"
-    "常见图源提示：薄荷/Boohee→饮食热量与宏量；睡眠 App→时长/质量/入睡；"
-    "手机屏幕使用时长→手机屏幕_h（可把「XhYm」换成小数小时）。"
-    "看不清的字段不要写。不要其它说明文字；不要把推理过程当正文。"
-)
+VISION_KINDS = ("auto", "diet", "sleep", "screen")
 
-VISION_USER_ONE = (
-    "请阅读这张复盘相关截图（薄荷饮食 / 睡眠 / 屏幕总时长 / 体重等；"
-    "体脂仅当图上有明确体脂秤读数才写）。"
-    "抽出能辨认的数值，输出 JSON object；看不清的字段不要写、不要估算；"
-    "无体脂读数则不要输出体脂率。只输出 JSON。"
-)
+# 分类型只关注这些键，降低串字段（auto = 全量契约）
+KIND_FIELD_ALLOWLIST: dict[str, tuple[str, ...]] = {
+    "auto": CONTRACT_DATA_FIELDS,
+    "diet": DIET_FIELDS + ("体重_kg",),  # 薄荷偶带体重
+    "sleep": SLEEP_FIELDS,
+    "screen": ("手机屏幕_h",),
+}
+
+
+def _vision_system_for(kind: str) -> str:
+    keys = KIND_FIELD_ALLOWLIST.get(kind) or CONTRACT_DATA_FIELDS
+    focus = {
+        "diet": "本图是饮食类（薄荷/Boohee 等）：只抽热量与宏量/三餐；"
+                "不要写睡眠或屏幕字段。",
+        "sleep": "本图是睡眠类：只抽睡眠时长/质量/入睡；不要写饮食或屏幕。",
+        "screen": "本图是屏幕使用时长类：只抽手机屏幕_h（XhYm→小数小时）；"
+                  "不要写饮食或睡眠。",
+        "auto": "常见图源：薄荷→饮食；睡眠 App→睡眠；屏幕时长→手机屏幕_h。",
+    }.get(kind, "")
+    return (
+        "你是 DailyLumen 读图助手。从截图抽取客观数字，只输出一个 JSON object。"
+        f"本任务 kind={kind}。{focus}"
+        "键优先用下列中文契约名（没有的键省略，⛔ 不要估算凑数，"
+        "⛔ 不要输出名单以外的字段）："
+        + "、".join(keys)
+        + "。也可用英文别名 diet_kcal / carbs_g / fat_g / protein_g / "
+        "sleep_h / sleep_quality / bedtime / phone_h / weight_kg 等。"
+        f"可选字段（{_OPTIONAL_HINT}）看不清或图上没有就省略；"
+        "尤其「体脂率」：无体脂秤读数时**不要写、不要估算、不要编造**。"
+        "看不清的字段不要写。不要其它说明文字；不要把推理过程当正文。"
+    )
+
+
+def _vision_user_one_for(kind: str) -> str:
+    hint = {
+        "diet": "这是饮食截图。只输出饮食相关 JSON 字段。",
+        "sleep": "这是睡眠截图。只输出睡眠相关 JSON 字段。",
+        "screen": "这是屏幕使用时长截图。只输出手机屏幕_h。",
+        "auto": "复盘相关截图（饮食 / 睡眠 / 屏幕 / 体重等）。",
+    }.get(kind, "复盘相关截图。")
+    return (
+        f"{hint} 抽出能辨认的数值，输出 JSON object；"
+        "看不清的不要写、不要估算；无体脂读数不要输出体脂率。只输出 JSON。"
+    )
+
+
+VISION_SYSTEM = _vision_system_for("auto")
+VISION_USER_ONE = _vision_user_one_for("auto")
 
 VISION_USER_MULTI = (
     "下面有多张复盘相关截图（薄荷饮食 / 睡眠 / 屏幕 / 体重等）。"
@@ -79,6 +112,26 @@ VISION_USER_MULTI = (
     "同一字段以最清晰可读的值为准；看不清的不要写、不要估算；"
     "无体脂读数则不要输出体脂率。只输出 JSON。"
 )
+
+
+def normalize_vision_kind(kind: str | None) -> str:
+    k = (kind or "auto").strip().lower()
+    if k not in VISION_KINDS:
+        raise ValueError(
+            f"--kind 应为 {' / '.join(VISION_KINDS)}，收到: {kind}"
+        )
+    return k
+
+
+def filter_fields_for_kind(
+    fields: dict[str, Any], kind: str
+) -> dict[str, Any]:
+    """按 kind 白名单裁剪，减少串字段落盘。"""
+    k = normalize_vision_kind(kind)
+    if k == "auto":
+        return fields
+    allow = set(KIND_FIELD_ALLOWLIST[k]) | {"_unknown"}
+    return {key: val for key, val in fields.items() if key in allow}
 
 _DATA_BLOCK_RE = re.compile(r"(```data\s*\n)(.*?)(```)", re.S)
 
@@ -135,6 +188,7 @@ def _vision_one(
     *,
     system: str = VISION_SYSTEM,
     user: str = VISION_USER_ONE,
+    kind: str = "auto",
 ) -> tuple[dict[str, Any], str]:
     """单图 Vision → (归一字段, raw text)。"""
     resp = c.vision_completions(
@@ -149,6 +203,7 @@ def _vision_one(
     if not (text or "").strip():
         raise ValueError("空文本，无法解析结构化 JSON")
     fields, _ = parse_model_structured(text)
+    fields = filter_fields_for_kind(fields, kind)
     return fields, text
 
 
@@ -157,15 +212,19 @@ def extract_fields_from_images(
     image_paths: list[str],
     *,
     client: Client,
+    kind: str = "auto",
 ) -> dict[str, Any]:
     """多图读字段：逐张调用 → 后图覆盖合并；记录冲突与失败。
 
     返回 dict 含::
 
         fields, classification, raw_text, conflicts, failed_images,
-        ok_images, merge_strategy
+        ok_images, merge_strategy, kind
     """
     assert len(data_urls) == len(image_paths)
+    kind = normalize_vision_kind(kind)
+    system = _vision_system_for(kind)
+    user_one = _vision_user_one_for(kind)
     conflicts: list[dict[str, Any]] = []
     failed: list[dict[str, str]] = []
     parts: list[dict[str, Any]] = []
@@ -173,7 +232,9 @@ def extract_fields_from_images(
     ok_paths: list[str] = []
 
     if len(data_urls) == 1:
-        fields, text = _vision_one(client, data_urls[0])
+        fields, text = _vision_one(
+            client, data_urls[0], system=system, user=user_one, kind=kind,
+        )
         return {
             "fields": fields,
             "classification": classify_contract_fields(fields),
@@ -182,12 +243,15 @@ def extract_fields_from_images(
             "failed_images": [],
             "ok_images": list(image_paths),
             "merge_strategy": "single",
+            "kind": kind,
         }
 
     # 多图：逐张（可追踪后图覆盖冲突）；部分失败可恢复
     for url, path in zip(data_urls, image_paths):
         try:
-            f, last_text = _vision_one(client, url)
+            f, last_text = _vision_one(
+                client, url, system=system, user=user_one, kind=kind,
+            )
             parts.append(f)
             ok_paths.append(path)
         except (DeepSeekError, ValueError, OSError) as e:
@@ -204,6 +268,7 @@ def extract_fields_from_images(
         )
 
     fields = merge_contract_field_dicts(*parts, conflicts=conflicts)
+    fields = filter_fields_for_kind(fields, kind)
     return {
         "fields": fields,
         "classification": classify_contract_fields(fields),
@@ -212,6 +277,7 @@ def extract_fields_from_images(
         "failed_images": failed,
         "ok_images": ok_paths,
         "merge_strategy": "later_wins",
+        "kind": kind,
     }
 
 
@@ -226,10 +292,12 @@ def run_vision_intake(
     image_loader: Callable[[str], str] | None = None,
     log_path: str | None = None,
     skip_runlog: bool = False,
+    kind: str = "auto",
 ) -> dict[str, Any]:
     """图片（可多张）→ Vision → 契约字段合并 → 可选写入 md 数据块。"""
     m = normalize_llm_mode(mode) if mode is not None else get_llm_mode()
     images = _normalize_images(image_path)
+    kind = normalize_vision_kind(kind)
 
     def _fail_log(ok: bool, **extra: Any) -> None:
         if skip_runlog:
@@ -275,7 +343,7 @@ def run_vision_intake(
 
     try:
         extracted = extract_fields_from_images(
-            data_urls, images, client=c,
+            data_urls, images, client=c, kind=kind,
         )
     except (DeepSeekCredError, DeepSeekModeError, DeepSeekError) as e:
         _fail_log(
@@ -309,6 +377,7 @@ def run_vision_intake(
         "day": day,
         "weekday": wd,
         "mode": m,
+        "kind": kind,
         "images": list(images),
         "image": images[0],
         "md_path": path,
@@ -398,6 +467,7 @@ def _parse(argv: list[str]) -> dict[str, Any]:
     to_stdout = False
     show_diff = False
     md_path: str | None = None
+    kind = "auto"
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -415,6 +485,13 @@ def _parse(argv: list[str]) -> dict[str, Any]:
             day = argv[i]
         elif a.startswith("--date="):
             day = a.split("=", 1)[1]
+        elif a == "--kind":
+            i += 1
+            if i >= len(argv):
+                raise ValueError("--kind 需要跟 auto|diet|sleep|screen")
+            kind = argv[i]
+        elif a.startswith("--kind="):
+            kind = a.split("=", 1)[1]
         elif a == "--write":
             write = True
         elif a == "--dry-run":
@@ -455,14 +532,16 @@ def _parse(argv: list[str]) -> dict[str, Any]:
         write = False
     elif not write:
         dry_run = True
+    kind = normalize_vision_kind(kind)
     return {
         "images": images,
         "day": day,
         "write": write,
         "dry_run": dry_run,
-        "diff": show_diff or dry_run,
+        "diff": show_diff or dry_run or write,
         "stdout": to_stdout or dry_run,
         "md_path": md_path,
+        "kind": kind,
     }
 
 
@@ -472,8 +551,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"用法: python -m review_tool {USAGE}")
         print("DeepSeek Vision：截图（可多张）→ 契约字段合并 → 写当日 md 数据块；默认 dry-run。")
         print("多图：后图非空覆盖先图；冲突记入结果 conflicts；部分失败可合并成功图。")
+        print("--kind auto|diet|sleep|screen：分模板读图，减少串字段（默认 auto）。")
         print("体脂率可选：无读数勿编造。仅 mode=deepseek；workbuddy 走宿主读图。⛔ 不直写库。")
-        print("可选 --diff 预览数据块变更行；--write 前建议先 dry-run。")
+        print("--write 前默认展示数据块 diff；可显式 --diff。")
         return 0
     try:
         opts = _parse(argv)
@@ -488,6 +568,7 @@ def main(argv: list[str] | None = None) -> int:
             opts["day"],
             md_path=opts["md_path"],
             write=opts["write"],
+            kind=opts["kind"],
         )
     except DeepSeekModeError as e:
         print(str(e), file=sys.stderr)

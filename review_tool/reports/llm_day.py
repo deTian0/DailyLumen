@@ -27,6 +27,7 @@ from .llm_review import run_llm_review
 
 USAGE = (
     "llm-day --image PATH [--image PATH ...] --date YYYY-MM-DD "
+    "[--kind auto|diet|sleep|screen] "
     "[--review] [--write] [--archive-inbox] [--dry-run] [--diff] "
     "[--stdout] [--md PATH] [--db PATH]"
 )
@@ -43,6 +44,7 @@ def _parse(argv: list[str]) -> dict[str, Any]:
     archive_inbox = False
     md_path: str | None = None
     db_path: str | None = None
+    kind = "auto"
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -60,6 +62,13 @@ def _parse(argv: list[str]) -> dict[str, Any]:
             day = argv[i]
         elif a.startswith("--date="):
             day = a.split("=", 1)[1]
+        elif a == "--kind":
+            i += 1
+            if i >= len(argv):
+                raise ValueError("--kind 需要跟 auto|diet|sleep|screen")
+            kind = argv[i]
+        elif a.startswith("--kind="):
+            kind = a.split("=", 1)[1]
         elif a == "--write":
             write = True
         elif a == "--dry-run":
@@ -106,6 +115,9 @@ def _parse(argv: list[str]) -> dict[str, Any]:
         datetime.date.fromisoformat(day)
     except ValueError:
         raise ValueError(f"日期格式应为 YYYY-MM-DD，收到: {day}") from None
+    from ..pipeline.vision_intake import normalize_vision_kind
+
+    kind = normalize_vision_kind(kind)
     if dry_run:
         write = False
     elif not write:
@@ -117,12 +129,13 @@ def _parse(argv: list[str]) -> dict[str, Any]:
         "day": day,
         "write": write,
         "dry_run": dry_run,
-        "diff": show_diff or dry_run,
+        "diff": show_diff or dry_run or write,
         "stdout": to_stdout or dry_run,
         "review": do_review,
         "archive_inbox": archive_inbox,
         "md_path": md_path,
         "db_path": db_path,
+        "kind": kind,
     }
 
 
@@ -142,6 +155,7 @@ def run_llm_day(
     skip_runlog: bool = False,
     now: Callable[[], str] | None = None,
     inbox_dir: str | None = None,
+    kind: str = "auto",
 ) -> dict[str, Any]:
     """多图 vision →（可选）llm-review；默认不写盘。"""
     m = normalize_llm_mode(mode) if mode is not None else get_llm_mode()
@@ -184,6 +198,7 @@ def run_llm_day(
         image_loader=image_loader,
         log_path=log_path,
         skip_runlog=True,  # 由本命令统一写 runlog
+        kind=kind,
     )
 
     review_result: dict[str, Any] | None = None
@@ -221,6 +236,7 @@ def run_llm_day(
     result: dict[str, Any] = {
         "day": day,
         "mode": m,
+        "kind": vision.get("kind") or kind,
         "vision": vision,
         "review": review_result,
         "md_path": vision.get("md_path"),
@@ -235,6 +251,7 @@ def run_llm_day(
         True,
         written=bool(result["written"]),
         review=bool(review),
+        kind=result["kind"],
         archived=len((archive_result or {}).get("moved") or []),
         image_count=len(vision.get("images") or []),
         filled_fields=classification.get("filled"),
@@ -252,8 +269,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"用法: python -m review_tool {USAGE}")
         print("一键日流程：多图 llm-vision →（可选 --review）llm-review 草稿。")
         print("默认 dry-run；--write 只写 md（数据块 ±「七、AI」）；⛔ 不直写库。")
+        print("--kind auto|diet|sleep|screen：分模板读图，减少串字段。")
         print("--archive-inbox：写盘成功后把本次 --image 移到 收件箱/已处理/日/。")
         print("仅 mode=deepseek。体脂率可选，无读数勿伪造。")
+        print("结束输出收工摘要（读到/空缺/下一条）。")
         return 0
     try:
         opts = _parse(argv)
@@ -271,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
             write=opts["write"],
             review=opts["review"],
             archive_inbox=opts["archive_inbox"],
+            kind=opts["kind"],
         )
     except DeepSeekModeError as e:
         print(str(e), file=sys.stderr)
@@ -313,20 +333,26 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {f['path']}: {f['error']}")
 
     if opts.get("diff"):
+        print("=== 定稿前并排预览：数据块 +「七、AI」 ===")
         diff_lines = vision.get("diff_lines") or []
         if diff_lines:
-            print("--- 数据块将写入差异 ---")
+            print("--- 数据块 ---")
             for ln in diff_lines:
                 print(ln)
         else:
-            print("--- 数据块无明显契约字段变更 ---")
+            print("--- 数据块：无明显契约字段变更 ---")
         if opts["review"] and result.get("review"):
-            print("--- 七、AI 草稿差异 ---")
+            print("--- 七、AI ---")
             print((result["review"] or {}).get("diff_text") or "(无差异)")
+        elif opts["review"]:
+            print("--- 七、AI：（无草稿产出）---")
+        else:
+            print("--- 七、AI：（未加 --review，跳过）---")
 
     if opts["dry_run"]:
         print(
             f"[dry-run] 未写盘；目标 md: {result['md_path']}；"
+            f"kind={result.get('kind') or opts.get('kind')}；"
             f"已识别 {len(filled)} 项"
             + ("；含 --review" if opts["review"] else "")
         )
@@ -359,6 +385,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"归档：无可移动文件（跳过 {n_skip}）")
     else:
         print(f"无新内容可写或内容未变: {result['md_path']}")
+
+    from .day_close import close_summary_for_llm_day
+
+    print("[收工摘要]")
+    print(close_summary_for_llm_day(result))
     return 0
 
 

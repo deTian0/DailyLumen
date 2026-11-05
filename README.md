@@ -3,11 +3,22 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.57.0**（`llm-finalize` 定稿 CLI + 收件箱归档 + write→finalize→ingest 闭环）（历史：v1.56.1 草稿守卫；v1.56.0 `llm-day`；schema **v11**）｜测试数以全量跑为准
+> 当前版本 **1.58.0**（收工摘要 + 定稿并排 diff + 收工红绿灯 + 周月报润色 + vision `--kind`）（历史：v1.57.0 定稿/归档闭环；v1.56.x；schema **v11**）｜测试数以全量跑为准
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜**无 WorkBuddy 安装**见 [`docs/独立部署.md`](docs/独立部署.md)｜包级速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
 
+## 一日三步（心智模型）
+
+日常只记三步——**先 md，再入库**；体脂可选、勿伪造。
+
+1. **投放收件箱** — 截图 / 简报放进 `local/每日复盘/收件箱/`（或口述给宿主）
+2. **草稿** — `llm-day` / `llm-vision`（可 `--kind diet|sleep|screen`）写数据块 ±「七、AI」草稿；或宿主按 intake 手填
+3. **定稿入库归档** — `llm-finalize --write` → `ingest` → `inbox-archive`（或 `llm-day --archive-inbox`）
+
+健康叙事对外口径：**体重 + 饮食 + 睡眠 + 训练**（体脂不作为必填）。`doctor` 末尾有「今日能否收工」红绿灯与收工摘要。
+
+---
 
 ## 目录结构
 
@@ -99,13 +110,13 @@
 | ---------------------------------------------------- | -------------------------------------- |
 | `new-day [YYYY-MM-DD] [--force]`                     | 按模板生成当天文件 → `复盘/YYYY-MM/`（**默认关闭**）   |
 | `ingest [路径.md] [--overwrite] [--prune-tracks] [--allow-ai-draft]` | 解析并入库（默认跳过含「草稿/待人审」的未定稿；`--allow-ai-draft` 强制） |
-| `week [ISO周] [--json] [--write]` / `month …`         | 周 / 月分析；`--write` 落盘结构化总结（v1.32.0 起含「数据要点」段）；`month <YYYYMM> --deep` 聚合深评素材（概览 + 月窗图 + 相关 + 熔断 + 快照） |
+| `week [ISO周] [--json] [--write] [--polish]` / `month …` | 周 / 月分析；`--write` 落盘骨架；`--polish` 仅润色叙述（deepseek / R1）；`month --deep` 深评素材 |
 | `week-done [ISO周] [--json]`                         | 本周做成了什么：ClickUp 完成 + 复盘三件事只读清单（FR-A4） |
 | `ai-context [YYYY-MM-DD]`                            | 输出「七、AI 评价与建议」的确定性上下文                  |
-| `llm-day --image PATH [--image …] --date D [--review] [--write] [--archive-inbox]` | 一键：多图 vision → 可选评价草稿（默认 dry-run；仅 deepseek；体脂可选） |
+| `llm-day --image PATH [--image …] --date D [--kind …] [--review] [--write] [--archive-inbox]` | 一键：多图 vision → 可选评价草稿（默认 dry-run；仅 deepseek；收工摘要） |
 | `llm-review [YYYY-MM-DD] [--write]`                  | DeepSeek：ai-context → 写「七、AI」草稿（默认 dry-run；仅 mode=deepseek） |
-| `llm-vision --image PATH --date D [--write]`         | DeepSeek 读图 → 契约字段写入 md（后图覆盖；体脂可选；不直写库） |
-| `llm-finalize [YYYY-MM-DD] [--write]`                | 本地定稿：清 pending；七-A→七-B（**不依赖** DeepSeek / mode） |
+| `llm-vision --image PATH --date D [--kind diet\|sleep\|screen] [--write]` | DeepSeek 读图 → md（分模板少串字段；体脂可选；不直写库） |
+| `llm-finalize [YYYY-MM-DD] [--write]`                | 本地定稿：写前并排 diff（数据块+七、AI）；清 pending；七-A→七-B |
 | `inbox-archive --date D --file PATH [--write]`       | 收件箱截图 → `已处理/日/`（优先移动；可还原） |
 | `import-history [--check] [--src DIR]`               | 语雀历史文件转换为标准格式                          |
 | `clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--with-habits]` | 拉 ClickUp 当日素材；`--with-habits` 附习惯段并同步 `habit_logs` |
@@ -113,7 +124,7 @@
 | `clickup-pull [--days N]`                            | ClickUp 已完成任务 → `clickup_done` 快照（会打网） |
 | `clickup-done [YYYY-MM-DD]`                          | 某日 ClickUp 完成了什么（离线读快照，写复盘用） |
 | `keepstrong [--date D] [--write] [--ingest] / --set-weight … --yes` | 练练读/落 md；写回须 `--yes` |
-| `doctor`                                             | 数据体检：对账 / R3 习惯隔离 / 习惯断更 / 体征 / 熔断 / LLM mode… |
+| `doctor`                                             | 数据体检 + 收工摘要 +「今日能否收工」红绿灯（缺字段/未定稿/未归档） |
 | `finalize [--date D] [--apply]`                      | 入库收尾：重算库分 + sync-docs 一键收口（默认 dry-run；≠ `llm-finalize`） |
 | `promises [起始] [结束] [--json]`                    | 承诺对账：改进点 / 明日 Top 3 次日证据判定 |
 | `body [--json]`                                      | 体征趋势：最新体重 / BMI / 7 日均 / 周变化 / 距目标 + **建议段**（M23，趋势×带位×外推） |
@@ -135,15 +146,18 @@
 | `correlate [--json] [--min-samples N]`               | 跨维关联（睡眠/训练/体重/热量/学习；样本不足 10 仅观察） |
 | `version`                                            | 打印版本号                                  |
 
-典型日常（复盘当晚）：
+典型日常（复盘当晚）——对齐「一日三步」：
 
 ```bash
-# 1. 复制「每日复盘模板.md」→ 每日复盘/复盘/YYYY-MM/YYYY-MM-DD.md，改「日期」「星期」
-                                         # 2. 投递素材后回填数值与勾选
-python -m review_tool ingest             # 3. 入库（自动补四维评分）
-python -m review_tool ai-context         # 4. 拿事实依据写「七、AI 评价与建议」
-python -m review_tool ingest             # 5. 再入库一次兜底
-python -m review_tool doctor             # 6. 体检：数据齐不齐、有没有该补的
+# 1. 投放：截图 → local/每日复盘/收件箱/；复制模板 → 复盘/YYYY-MM/YYYY-MM-DD.md
+# 2. 草稿（deepseek 示例；workbuddy 则宿主按 intake 手填）
+python -m review_tool llm-day --image 收件箱/….jpg --date YYYY-MM-DD --diff
+python -m review_tool llm-day ... --date YYYY-MM-DD --write [--review]
+# 3. 定稿 → 入库 → 归档
+python -m review_tool llm-finalize YYYY-MM-DD --write   # 写前看并排 diff
+python -m review_tool ingest …/YYYY-MM-DD.md
+python -m review_tool inbox-archive --date YYYY-MM-DD --file … --write
+python -m review_tool doctor             # 收工摘要 + 红绿灯
 ```
 
 ### 功能开关（`config.FEATURES`）

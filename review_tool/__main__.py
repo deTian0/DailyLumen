@@ -3,19 +3,19 @@
 用法:
     python -m review_tool new-day    [YYYY-MM-DD] [--force]
     python -m review_tool ingest     [路径.md] [--overwrite]
-    python -m review_tool week       [ISO周] [--json] [--write] [--force] [--check]
-    python -m review_tool month      [YYYYMM] [--json] [--write] [--force] [--check]
+    python -m review_tool week       [ISO周] [--json] [--write] [--force] [--check] [--polish]
+    python -m review_tool month      [YYYYMM] [--json] [--write] [--force] [--check] [--polish]
     python -m review_tool ai-context [YYYY-MM-DD]
     python -m review_tool llm-review [YYYY-MM-DD] [--write] [--dry-run] [--diff] [--stdout]
-    python -m review_tool llm-vision --image PATH [--image PATH ...] --date D [--write] [--diff]
-    python -m review_tool llm-day --image PATH [--image ...] --date D [--review] [--write] [--archive-inbox] [--diff]
+    python -m review_tool llm-vision --image PATH [--image ...] --date D [--kind …] [--write] [--diff]
+    python -m review_tool llm-day --image PATH [--image ...] --date D [--kind …] [--review] [--write] [--archive-inbox] [--diff]
     python -m review_tool llm-finalize [YYYY-MM-DD] [--write] [--dry-run] [--diff]
     python -m review_tool inbox-archive --date D --file PATH [--write]
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID] [--with-habits]
     python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
     python -m review_tool keepstrong [--date D] [--write] [--ingest] [--stdout]
-    python -m review_tool doctor
+    python -m review_tool doctor     # 含收工摘要 + 今日红绿灯
     python -m review_tool body       [--json]
     python -m review_tool coach      [YYYY-MM-DD] [--json]
     python -m review_tool habits     [--json] [--sync ...]
@@ -129,21 +129,29 @@ def _version(_rest: list[str]) -> int:
 # 子命令 -> (处理函数, 一行用法)。顺序即帮助里的顺序。
 ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "new-day": (new_day_main, "new-day [YYYY-MM-DD] [--force]"),
-    "ingest": (ingest_main, "ingest [路径.md] [--overwrite] [--prune-tracks]"),
-    "week": (_week, "week [ISO周] [--json] [--write] [--force] [--check]"),
+    "ingest": (
+        ingest_main,
+        "ingest [路径.md] [--overwrite] [--prune-tracks] [--allow-ai-draft]"),
+    "week": (
+        _week,
+        "week [ISO周] [--json] [--write] [--force] [--check] [--polish]"),
     "week-done": (
         week_done_main, "week-done [ISO周] [--json]"),
-    "month": (_month, "month [YYYYMM] [--json] [--write] [--force] [--check] [--deep]"),
+    "month": (
+        _month,
+        "month [YYYYMM] [--json] [--write] [--force] [--check] [--deep] [--polish]"),
     "ai-context": (ai_context_main, "ai-context [YYYY-MM-DD]"),
     "llm-review": (
         llm_review_main,
         "llm-review [YYYY-MM-DD] [--write] [--dry-run] [--diff] [--stdout] [--md PATH]"),
     "llm-vision": (
         llm_vision_main,
-        "llm-vision --image PATH [--image ...] --date D [--write] [--diff] [--dry-run]"),
+        "llm-vision --image PATH [--image ...] --date D "
+        "[--kind auto|diet|sleep|screen] [--write] [--diff] [--dry-run]"),
     "llm-day": (
         llm_day_main,
-        "llm-day --image PATH [--image ...] --date D [--review] [--write] "
+        "llm-day --image PATH [--image ...] --date D "
+        "[--kind auto|diet|sleep|screen] [--review] [--write] "
         "[--archive-inbox] [--diff] [--dry-run]"),
     "llm-finalize": (
         llm_finalize_main,

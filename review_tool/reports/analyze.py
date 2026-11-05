@@ -4,9 +4,11 @@
     python -m review_tool week            # 所有周汇总
     python -m review_tool week 32         # 指定 ISO 周
     python -m review_tool week 41 --write # 落盘周总结 md（幂等，需 --force 覆盖）
+    python -m review_tool week 41 --polish [--write]  # 仅润色叙述（deepseek；R1）
     python -m review_tool month           # 当月 (最近一个月) 汇总
     python -m review_tool month 202608    # 指定月份 202608
     python -m review_tool month 202609 --write [--force] [--check]
+    python -m review_tool month 202609 --polish [--write]
 
 口径说明（重要）
 ----------------
@@ -1363,18 +1365,80 @@ def write_month_md(conn, month: int, *, root: str | None = None,
     return path, "written"
 
 
+def _run_polish(
+    *,
+    kind: str,
+    path: str,
+    write: bool,
+) -> int:
+    """润色已有周/月报叙述；默认 dry-run。"""
+    from ..pipeline.deepseek import DeepSeekCredError, DeepSeekError, DeepSeekModeError
+    from .report_polish import polish_markdown
+
+    if not os.path.isfile(path):
+        print(f"找不到已落盘报告: {path}", file=sys.stderr)
+        print("请先 week/month --write 生成骨架后再 --polish。", file=sys.stderr)
+        return 1
+    with open(path, encoding="utf-8") as f:
+        original = f.read()
+    try:
+        result = polish_markdown(original, kind=kind)
+    except DeepSeekModeError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    except DeepSeekCredError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    except (DeepSeekError, ValueError) as e:
+        print(f"润色失败: {e}", file=sys.stderr)
+        return 1
+
+    if not result["changed"]:
+        print(f"[polish] 无可润色叙述块或内容未变: {path}")
+        return 0
+    print(f"[polish] 可润色块 {result['block_count']}；changed=True")
+    # 简短 diff 摘要
+    o_lines = result["original"].splitlines()
+    n_lines = result["polished"].splitlines()
+    shown = 0
+    for i, (a, b) in enumerate(zip(o_lines, n_lines)):
+        if a != b:
+            print(f"  L{i + 1}: - {a[:100]}")
+            print(f"  L{i + 1}: + {b[:100]}")
+            shown += 1
+            if shown >= 8:
+                print("  …")
+                break
+    if not write:
+        print("[dry-run] 未写盘；确认后加 --write（仅叙述润色，表格/数字受 R1 保护）。")
+        return 0
+    _write_text(path, result["polished"])
+    print(f"[written] {path}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     as_json = "--json" in argv
     do_write = "--write" in argv
     do_force = "--force" in argv
     do_check = "--check" in argv
+    do_polish = "--polish" in argv
     pos = [a for a in argv if not a.startswith("-")]
     conn = init_db()
     try:
         mode = pos[0] if pos else "month"
         if mode == "week":
             wk = int(pos[1]) if len(pos) > 1 else None
+            if do_polish:
+                if wk is None:
+                    print("用法: week <ISO周> --polish [--write]")
+                    return 2
+                path = resolve_week_md_path(conn, wk)
+                if not path:
+                    print(f"ISO 周 {wk} 暂无数据。")
+                    return 1
+                return _run_polish(kind="week", path=path, write=do_write)
             if do_write or do_check:
                 if wk is None:
                     print("用法: week <ISO周> --write|--check [--force]")
@@ -1405,6 +1469,14 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[written] {res['md_path']}")
                 print(f"[chart] {res['chart_path']}")
                 return 0
+            if do_polish:
+                if mon is None:
+                    mon = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
+                if mon is None:
+                    print("无任何数据。")
+                    return 1
+                path = resolve_month_md_path(mon)
+                return _run_polish(kind="month", path=path, write=do_write)
             if do_write or do_check:
                 if mon is None:
                     mon = conn.execute("SELECT MAX(month) FROM daily_reviews").fetchone()[0]
@@ -1423,7 +1495,7 @@ def main(argv: list[str] | None = None) -> int:
             report_month(conn, mon, as_json=as_json)
         else:
             print("用法: python -m review_tool [week|month] [周号|月份] "
-                  "[--json] [--write] [--force] [--check]")
+                  "[--json] [--write] [--force] [--check] [--polish]")
             return 2
     finally:
         conn.close()

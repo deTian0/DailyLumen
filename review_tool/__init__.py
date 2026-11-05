@@ -7,10 +7,14 @@
     from review_tool import parse_text, compute_scores, init_db, upsert
     from review_tool import ingest_all, report_month
 
-命令行入口（23 子命令，详见 ``python -m review_tool -h``）:
-    new-day / ingest / week / month / ai-context / import-history /
-    clickup / clickup-push / keepstrong / doctor / body / coach / habits / nutrition / tutor /
-    steward / fuse / sync-docs / recompute-scores / export / chart / correlate / version
+命令行入口（38 子命令，详见 ``python -m review_tool -h``）:
+    new-day / ingest / week / week-done / month / ai-context /
+    llm-review / llm-vision / llm-day / llm-finalize / inbox-archive /
+    import-history / clickup / clickup-push / clickup-pull / clickup-done /
+    keepstrong / doctor / finalize / body / coach / habits / daily-pull /
+    promise-draft / three-things-draft / improve-draft / nutrition / promises /
+    tutor / steward / fuse / sync-docs / recompute-scores / export / stats /
+    chart / correlate / version
 
 分层（依赖只能自上而下，由 tests/architecture/test_architecture.py 强制）:
     core      领域层（零 I/O）：tracks / bodyweight / body / training / habits / nutrition / learning / score / util
@@ -88,7 +92,7 @@ from .storage.db import (
     upsert_personal_track,
 )
 
-__version__ = "1.57.0"
+__version__ = "1.58.0"
 
 __all__ = [
     # config

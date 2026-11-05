@@ -826,6 +826,22 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
         )
     finally:
         conn.close()
+
+    # 今日能否收工红绿灯（建议性；不改 is_healthy）
+    from .day_close import assess_day_ready
+
+    ready_day = today
+    # 优先「被复盘日」：执行日的昨日（日常收工看昨天）
+    try:
+        yday = (
+            datetime.strptime(today, "%Y-%m-%d") - timedelta(days=1)
+        ).strftime("%Y-%m-%d")
+        ready_day = yday
+    except ValueError:
+        ready_day = result.get("latest_date") or today
+    result["day_ready"] = assess_day_ready(
+        ready_day, db_path=db_path, input_dir=input_dir,
+    )
     return result
 
 
@@ -1271,6 +1287,31 @@ def render(result: dict, *, encoding: str | None = None) -> str:
         L.append("  （独立指标均未触发；不参与 fuse / is_healthy）")
 
     L.append("")
+    L.append("[今日能否收工]")
+    ready = result.get("day_ready") or {}
+    from .day_close import render_day_ready_line
+
+    if ready:
+        mark = {
+            "green": ok,
+            "yellow": warn,
+            "red": crit,
+        }.get(ready.get("light"), warn)
+        L.append(f"  {mark} {render_day_ready_line(ready)}")
+        L.append(
+            f"  对象日: {ready.get('day')}；"
+            f"定稿={'否' if ready.get('pending_draft') else '是'}；"
+            f"入库={'是' if ready.get('ingested') else '否'}；"
+            f"收件箱待归档={'是' if ready.get('inbox_pending') else '否'}"
+        )
+        L.append(
+            "  健康叙事关注: 体重 + 饮食 + 睡眠 + 训练"
+            "（体脂可选，缺测不拉红）"
+        )
+    else:
+        L.append(f"  {warn} （无 day_ready）")
+
+    L.append("")
     L.append("-" * 52)
     # 结论与退出码共用 is_healthy —— 只有一套口径，不会出现「结论说有问题、退出码说没问题」
     L.append("结论: " + (f"{ok} 数据健康" if is_healthy(result)
@@ -1306,6 +1347,13 @@ def is_healthy(result: dict) -> bool:
 def main(argv: list[str] | None = None) -> int:
     result = diagnose()
     print(render(result))
+    from .day_close import close_summary_for_doctor
+
+    summary, ready_line = close_summary_for_doctor(result)
+    print("")
+    print("[收工摘要]")
+    print(summary)
+    print(ready_line)
     return 0 if is_healthy(result) else 1
 
 

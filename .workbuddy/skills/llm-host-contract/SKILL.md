@@ -15,7 +15,7 @@ agent_created: true
 | 组 | 契约键（中文） | 备注 |
 | --- | --- | --- |
 | 饮食 | `饮食热量_kcal` `碳水_g` `脂肪_g` `蛋白质_g` `三餐情况` `早餐按时` | 看不清就省略 |
-| 体征 | `体重_kg` `体脂率` `腰围_cm` | 均可选；**`体脂率` 无设备可永久跳过**，⛔ 禁止伪造 |
+| 体征 | `体重_kg` `体脂率` `腰围_cm` | 健康叙事必看 **体重**；`体脂率`/`腰围` 可选；**无设备勿伪造体脂** |
 | 睡眠 | `睡眠时长_h` `睡眠质量` `入睡时间` | 醒来日口径 |
 | 活动 | `手机屏幕_h` `运动时长_min` `训练日` | 训练日以练练 completed 为准（另通道） |
 
@@ -41,10 +41,12 @@ agent_created: true
 ## deepseek 对照（非本 skill 主路径）
 
 ```text
-python -m review_tool llm-day --image A.png --image B.png --date YYYY-MM-DD [--review] [--diff]
+python -m review_tool llm-day --image A.png --image B.png --date YYYY-MM-DD [--kind diet|sleep|screen] [--review] [--diff]
 # 或分拆：
-python -m review_tool llm-vision --image A.png --image B.png --date YYYY-MM-DD [--diff]
+python -m review_tool llm-vision --image A.png --date YYYY-MM-DD --kind diet [--diff]
 python -m review_tool llm-review YYYY-MM-DD [--diff] [--write]
+python -m review_tool llm-finalize YYYY-MM-DD   # 写前并排 diff；再 --write
 ```
 
-多图合并：**后图非空覆盖先图**，冲突记入结果 / 日志。产出仍先 md；摘要可落 `local/llm_last_run.json`（无密钥）。
+多图合并：**后图非空覆盖先图**，冲突记入结果 / 日志。产出仍先 md；摘要可落 `local/llm_last_run.json`（无密钥）。  
+对外健康口径：体重 + 饮食 + 睡眠 + 训练（体脂非必填）。

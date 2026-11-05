@@ -1,7 +1,8 @@
 """llm-finalize：本地定稿（草稿 → 定稿区；清 pending）。
 
 纯 md 变换，**不依赖** DeepSeek / ``DAILYLUMEN_LLM_MODE``。
-默认 dry-run；``--write`` 落盘。⛔ 不写库（定稿后另跑 ``ingest``）。
+默认 dry-run；``--write`` 落盘前展示数据块 +「七、AI」并排 diff。
+⛔ 不写库（定稿后另跑 ``ingest``）。
 """
 from __future__ import annotations
 
@@ -12,6 +13,8 @@ from typing import Any
 
 from ..core.ai_draft import is_ai_draft_pending, promote_ai_draft
 from ..pipeline.keepstrong_sync import review_md_path
+from ..pipeline.vision_intake import extract_data_block_body
+from .llm_review import extract_ai_section, format_section_diff
 
 USAGE = (
     "llm-finalize [YYYY-MM-DD] [--write] [--dry-run] [--diff] [--stdout] [--md PATH]"
@@ -66,10 +69,51 @@ def _parse(argv: list[str]) -> dict[str, Any]:
         "day": day,
         "write": write,
         "dry_run": dry_run,
-        "diff": show_diff or dry_run,
+        # --write 前默认也展示并排 diff
+        "diff": show_diff or dry_run or write,
         "stdout": to_stdout,
         "md_path": md_path,
     }
+
+
+def _side_by_side_preview(original: str, updated: str) -> str:
+    """数据块 +「七、AI」一眼看完。"""
+    lines: list[str] = ["=== 定稿前并排预览：数据块 +「七、AI」 ==="]
+    before_data = extract_data_block_body(original).strip()
+    after_data = extract_data_block_body(updated).strip()
+    lines.append("--- 数据块 ---")
+    if before_data == after_data:
+        lines.append("（无变更）")
+        # 仍展示摘要前几行，便于一眼确认
+        for ln in (after_data.splitlines()[:8] or ["（无 data 块）"]):
+            lines.append(f"  {ln}")
+        if after_data and len(after_data.splitlines()) > 8:
+            lines.append("  …")
+    else:
+        o_set = {ln.strip() for ln in before_data.splitlines() if ln.strip()}
+        for ln in after_data.splitlines():
+            s = ln.strip()
+            if not s:
+                continue
+            if s not in o_set:
+                lines.append(f"+ {s}")
+        for ln in before_data.splitlines():
+            s = ln.strip()
+            if s and s not in {x.strip() for x in after_data.splitlines()}:
+                lines.append(f"- {s}")
+    lines.append("--- 七、AI ---")
+    old_ai = extract_ai_section(original)
+    new_ai = extract_ai_section(updated)
+    if old_ai == new_ai:
+        lines.append("（无变更）")
+    else:
+        diff = format_section_diff(old_ai, new_ai)
+        # 控制刷屏：最多约 40 行
+        dlines = diff.splitlines()
+        lines.extend(dlines[:40])
+        if len(dlines) > 40:
+            lines.append("…")
+    return "\n".join(lines)
 
 
 def run_llm_finalize(
@@ -107,6 +151,7 @@ def run_llm_finalize(
         "written": written,
         "original": original,
         "updated": updated,
+        "preview": _side_by_side_preview(original, updated),
     }
 
 
@@ -115,7 +160,8 @@ def main(argv: list[str] | None = None) -> int:
     if any(a in ("-h", "--help") for a in argv):
         print(f"用法: python -m review_tool {USAGE}")
         print("本地定稿：清 pending /「草稿 / 待人审」；七-A 提升至七-B（占位时）。")
-        print("默认 dry-run；--write 落盘。不依赖 DeepSeek；⛔ 不写库。")
+        print("默认 dry-run；--write 落盘前展示数据块 +「七、AI」并排 diff。")
+        print("不依赖 DeepSeek；⛔ 不写库。")
         return 0
     try:
         opts = _parse(argv)
@@ -137,32 +183,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"写盘失败: {e}", file=sys.stderr)
         return 1
 
-    if opts["stdout"] or opts.get("diff"):
-        if opts["stdout"]:
-            print(result["updated"])
-        elif result["changed"]:
-            print("--- 定稿将变更（摘要）---")
-            print(
-                f"  pending: {result['pending_before']} → {result['pending_after']}"
-            )
-            o_lines = result["original"].splitlines()
-            u_lines = result["updated"].splitlines()
-            # 只打前几处差异行号，避免刷屏
-            shown = 0
-            for i, (a, b) in enumerate(zip(o_lines, u_lines)):
-                if a != b:
-                    print(f"  L{i + 1}: - {a[:80]}")
-                    print(f"  L{i + 1}: + {b[:80]}")
-                    shown += 1
-                    if shown >= 12:
-                        print("  …")
-                        break
-            if len(u_lines) != len(o_lines):
-                print(
-                    f"  行数: {len(o_lines)} → {len(u_lines)}"
-                )
-        else:
-            print("--- 定稿无变更 ---")
+    if opts["stdout"]:
+        print(result["updated"])
+    elif opts.get("diff"):
+        print(result.get("preview") or _side_by_side_preview(
+            result["original"], result["updated"]
+        ))
+        print(
+            f"pending: {result['pending_before']} → {result['pending_after']}；"
+            f"changed={result['changed']}"
+        )
 
     if opts["dry_run"]:
         state = "仍有 pending" if result["pending_before"] else "无 pending"

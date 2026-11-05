@@ -122,6 +122,19 @@ class TestPassthrough(_PatchedRoute):
         self.assertEqual(self.calls, [])
         self.assertIn("用法", out)
 
+    def test_ingest_help_exposes_allow_ai_draft(self):
+        rc, out = _capture(cli.main, ["ingest", "-h"])
+        self.assertEqual(rc, 0)
+        self.assertIn("--allow-ai-draft", out)
+
+
+class TestCommandCount(unittest.TestCase):
+    def test_init_doc_matches_routes(self):
+        import review_tool as pkg
+
+        n = len(cli.ROUTES)
+        self.assertIn(f"{n} 子命令", pkg.__doc__ or "")
+
 
 class TestUtf8Stdio(unittest.TestCase):
     """入口统一 UTF-8 reconfigure；非 TTY / 不支持时不得抛（v1.10.1）。"""
