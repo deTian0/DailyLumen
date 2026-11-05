@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.56.1**（草稿/定稿守卫 + 真实截图 vision 硬化 + 独立部署专章；体脂可选 / `llm-day`）（历史：v1.56.0；v1.55 打磨；schema **v11**）｜测试数以全量跑为准
+> 当前版本 **1.57.0**（`llm-finalize` 定稿 CLI + 收件箱归档 + write→finalize→ingest 闭环）（历史：v1.56.1 草稿守卫；v1.56.0 `llm-day`；schema **v11**）｜测试数以全量跑为准
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜**无 WorkBuddy 安装**见 [`docs/独立部署.md`](docs/独立部署.md)｜包级速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---

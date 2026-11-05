@@ -95,9 +95,15 @@ def _coerce(col: str, raw) -> object | None:
     if raw is None or str(raw).strip() == "":
         return None
     raw = str(raw).strip()
-    # 三餐情况: "早✓午✓晚✓" / "早✓午✓晚✗" -> 统计 ✓ 数量
-    if col == "meals_count" and "✓" in raw:
-        return raw.count("✓")
+    # 三餐情况: "早✓午✓晚✓" / "早✓午✓晚✗" -> 统计 ✓ 数量；
+    # 纯数字仅接受 0–6（DB CHECK）；叙述（如「早餐466千卡…」）→ None，勿把 kcal 当餐次
+    if col == "meals_count":
+        if "✓" in raw:
+            return raw.count("✓")
+        n = to_int(raw)
+        if n is not None and 0 <= n <= 6 and re.fullmatch(r"-?\d+", raw):
+            return n
+        return None
     if col == "bedtime":
         return clock_to_minutes(raw)
     if col in INT_FIELDS:

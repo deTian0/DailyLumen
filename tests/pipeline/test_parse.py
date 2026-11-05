@@ -28,6 +28,18 @@ class TestParseDataBlock(unittest.TestCase):
         # 早✓午✓晚✗ -> 2
         self.assertEqual(row["meals_count"], 2)
 
+    def test_meals_count_rejects_kcal_narrative(self):
+        # vision 偶把「三餐情况」写成热量叙述；勿把 466 当餐次（DB CHECK 0–6）
+        row = parse_text(
+            "```data\n日期: 2099-06-01\n"
+            "三餐情况: 早餐466千卡、午餐721千卡\n```"
+        )
+        self.assertIsNone(row["meals_count"])
+
+    def test_meals_count_plain_digit(self):
+        row = parse_text("```data\n日期: 2099-06-02\n三餐情况: 3\n```")
+        self.assertEqual(row["meals_count"], 3)
+
     def test_bool_yes(self):
         row = parse_text(SAMPLE_MD)
         self.assertEqual(row["breakfast_on_time"], 1)

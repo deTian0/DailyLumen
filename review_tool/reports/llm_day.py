@@ -27,7 +27,8 @@ from .llm_review import run_llm_review
 
 USAGE = (
     "llm-day --image PATH [--image PATH ...] --date YYYY-MM-DD "
-    "[--review] [--write] [--dry-run] [--diff] [--stdout] [--md PATH] [--db PATH]"
+    "[--review] [--write] [--archive-inbox] [--dry-run] [--diff] "
+    "[--stdout] [--md PATH] [--db PATH]"
 )
 
 
@@ -39,6 +40,7 @@ def _parse(argv: list[str]) -> dict[str, Any]:
     to_stdout = False
     show_diff = False
     do_review = False
+    archive_inbox = False
     md_path: str | None = None
     db_path: str | None = None
     i = 0
@@ -68,6 +70,8 @@ def _parse(argv: list[str]) -> dict[str, Any]:
             to_stdout = True
         elif a == "--review":
             do_review = True
+        elif a == "--archive-inbox":
+            archive_inbox = True
         elif a == "--md":
             i += 1
             if i >= len(argv):
@@ -106,6 +110,8 @@ def _parse(argv: list[str]) -> dict[str, Any]:
         write = False
     elif not write:
         dry_run = True
+    if archive_inbox and not write:
+        raise ValueError("--archive-inbox 仅可与 --write 同用（dry-run 不归档）")
     return {
         "images": images,
         "day": day,
@@ -114,6 +120,7 @@ def _parse(argv: list[str]) -> dict[str, Any]:
         "diff": show_diff or dry_run,
         "stdout": to_stdout or dry_run,
         "review": do_review,
+        "archive_inbox": archive_inbox,
         "md_path": md_path,
         "db_path": db_path,
     }
@@ -127,12 +134,14 @@ def run_llm_day(
     db_path: str | None = None,
     write: bool = False,
     review: bool = False,
+    archive_inbox: bool = False,
     client: Client | None = None,
     mode: str | None = None,
     image_loader: Callable[[str], str] | None = None,
     log_path: str | None = None,
     skip_runlog: bool = False,
     now: Callable[[], str] | None = None,
+    inbox_dir: str | None = None,
 ) -> dict[str, Any]:
     """多图 vision →（可选）llm-review；默认不写盘。"""
     m = normalize_llm_mode(mode) if mode is not None else get_llm_mode()
@@ -191,6 +200,23 @@ def run_llm_day(
             skip_runlog=True,
         )
 
+    written = bool(vision.get("written")) or bool(
+        (review_result or {}).get("written")
+    )
+    archive_result: dict[str, Any] | None = None
+    if archive_inbox and write and written:
+        from ..pipeline.inbox_archive import archive_inbox_files
+
+        imgs = list(vision.get("images") or [])
+        if not imgs:
+            if isinstance(image_path, (str, bytes)):
+                imgs = [str(image_path)]
+            else:
+                imgs = [str(p) for p in image_path]
+        archive_result = archive_inbox_files(
+            imgs, day, inbox_dir=inbox_dir, write=True
+        )
+
     classification = vision.get("classification") or {}
     result: dict[str, Any] = {
         "day": day,
@@ -201,15 +227,15 @@ def run_llm_day(
         "fields": vision.get("fields") or {},
         "conflicts": vision.get("conflicts") or [],
         "failed_images": vision.get("failed_images") or [],
-        "written": bool(vision.get("written")) or bool(
-            (review_result or {}).get("written")
-        ),
+        "written": written,
+        "archive": archive_result,
     }
 
     _log(
         True,
         written=bool(result["written"]),
         review=bool(review),
+        archived=len((archive_result or {}).get("moved") or []),
         image_count=len(vision.get("images") or []),
         filled_fields=classification.get("filled"),
         missing_fields=(classification.get("missing") or [])[:20],
@@ -226,6 +252,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"用法: python -m review_tool {USAGE}")
         print("一键日流程：多图 llm-vision →（可选 --review）llm-review 草稿。")
         print("默认 dry-run；--write 只写 md（数据块 ±「七、AI」）；⛔ 不直写库。")
+        print("--archive-inbox：写盘成功后把本次 --image 移到 收件箱/已处理/日/。")
         print("仅 mode=deepseek。体脂率可选，无读数勿伪造。")
         return 0
     try:
@@ -243,6 +270,7 @@ def main(argv: list[str] | None = None) -> int:
             db_path=opts["db_path"],
             write=opts["write"],
             review=opts["review"],
+            archive_inbox=opts["archive_inbox"],
         )
     except DeepSeekModeError as e:
         print(str(e), file=sys.stderr)
@@ -317,7 +345,18 @@ def main(argv: list[str] | None = None) -> int:
         if (result.get("review") or {}).get("written"):
             bits.append("七、AI 草稿")
         print(f"已写入 ({'+'.join(bits) or '无变更'}): {result['md_path']}")
-        print("请人审后 ingest（本命令不写库）。")
+        print(
+            "请人审：python -m review_tool llm-finalize <日> --write；"
+            "再 ingest（本命令不写库）。"
+        )
+        arch = result.get("archive") or {}
+        if arch.get("moved"):
+            print(
+                f"已归档 {len(arch['moved'])} 张 → {arch.get('dest_dir')}"
+            )
+        elif opts.get("archive_inbox") and arch is not None:
+            n_skip = len(arch.get("skipped") or [])
+            print(f"归档：无可移动文件（跳过 {n_skip}）")
     else:
         print(f"无新内容可写或内容未变: {result['md_path']}")
     return 0

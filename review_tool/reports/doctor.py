@@ -890,7 +890,10 @@ def render(result: dict, *, encoding: str | None = None) -> str:
     L.append(
         "  草稿/定稿 : 「七、AI」含「草稿 / 待人审」或文件头 "
         "<!-- dailylumen:llm-pending-review --> 时，"
-        "ingest 默认跳过；定稿后去标记。可选目录 local/每日复盘/草稿箱/（永不扫描）"
+        "ingest 默认跳过；人审后 "
+        "python -m review_tool llm-finalize <日> --write。"
+        "收件箱归档：llm-day --archive-inbox 或 inbox-archive。"
+        "可选目录 local/每日复盘/草稿箱/（永不扫描）"
     )
 
     L.append("")

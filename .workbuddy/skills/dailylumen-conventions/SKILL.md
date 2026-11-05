@@ -21,10 +21,13 @@ agent_created: true
 ## 0. 范围边界（先划清）
 
 - **本项目 = 个人健康 / 复盘系统**：md 复盘 → `review_tool` → `reviews.db` → 评分 / 熔断 / 报告。
-- **LLM / 宿主边界（L-1～v1.56.1）**：互斥 mode `workbuddy`（默认，宿主代劳）|
+- **LLM / 宿主边界（L-1～v1.57.0）**：互斥 mode `workbuddy`（默认，宿主代劳）|
   `deepseek`（`llm-day` / `llm-review` / `llm-vision` 可多图 / `--diff`）；
   **体脂率可选**（无设备勿伪造）；多图 **后图覆盖** + conflict 日志；
-  **草稿/定稿**：七-A vs 七-B；含待人审标记时 ingest 默认跳过；独立部署见
+  **草稿/定稿**：七-A vs 七-B；含待人审标记时 ingest 默认跳过；
+  定稿 CLI `llm-finalize`（本地 md，不依赖 DeepSeek）；收件箱可
+  `inbox-archive` / `llm-day --archive-inbox` → `已处理/日/`；
+  闭环 `write → finalize → ingest → archive`；独立部署见
   [`docs/独立部署.md`](../../../docs/独立部署.md)；契约见
   [`docs/LLM能力拆分草案.md`](../../../docs/LLM能力拆分草案.md) + skill `llm-host-contract`；
   产出仍先落 md 再 ingest；⛔ 无 WorkBuddy HTTP API。
