@@ -3,8 +3,8 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.56.0**（体脂可选 + `llm-day` 一键日流程 + 多图后图覆盖冲突；禁止伪造体脂）（历史：v1.55 打磨；L-3/读图；L-1 mode；schema **v11**）｜测试数以全量跑为准
-> · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜包级模块速查见 [`review_tool/README.md`](review_tool/README.md)
+> 当前版本 **1.56.1**（草稿/定稿守卫 + 真实截图 vision 硬化 + 独立部署专章；体脂可选 / `llm-day`）（历史：v1.56.0；v1.55 打磨；schema **v11**）｜测试数以全量跑为准
+> · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜**无 WorkBuddy 安装**见 [`docs/独立部署.md`](docs/独立部署.md)｜包级速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
 
@@ -25,8 +25,9 @@
 │   └── 每日复盘/                     # 复盘 md / 收件箱截图 / 历史源（gitignore）
 │       ├── 复盘/YYYY-MM/             # 标准复盘（ingest 扫描）
 │       ├── 历史源复盘/               # 旧格式归档（不参与 ingest）
-│       └── 收件箱/                   # 手动投放截图 / 简报（不参与 ingest）
-├── docs/                             # 设计说明.md + 迁移指南.md + 路线图.md(M1-M8)
+│       ├── 收件箱/                   # 手动投放截图 / 简报（不参与 ingest）
+│       └── 草稿箱/                   # AI / 候选未定稿（不参与 ingest）
+├── docs/                             # 设计说明.md + 独立部署.md + 迁移指南.md + 路线图…
 │                                     #   + 生活管家需求文档.md + 生活管家路线图.md(M9–M21)
 │                                     #   + 运营期路线图.md(M22–M27) + 能力图谱.md
 ├── tests/                            # 测试套件（标准库 unittest；需先 pip install -e .）
@@ -97,7 +98,7 @@
 | 命令                                                   | 用途                                     |
 | ---------------------------------------------------- | -------------------------------------- |
 | `new-day [YYYY-MM-DD] [--force]`                     | 按模板生成当天文件 → `复盘/YYYY-MM/`（**默认关闭**）   |
-| `ingest [路径.md] [--overwrite] [--prune-tracks]`      | 解析并入库（默认只补空值，不擦已有数据；`--prune-tracks` 顺带清陈旧打卡） |
+| `ingest [路径.md] [--overwrite] [--prune-tracks] [--allow-ai-draft]` | 解析并入库（默认跳过含「草稿/待人审」的未定稿；`--allow-ai-draft` 强制） |
 | `week [ISO周] [--json] [--write]` / `month …`         | 周 / 月分析；`--write` 落盘结构化总结（v1.32.0 起含「数据要点」段）；`month <YYYYMM> --deep` 聚合深评素材（概览 + 月窗图 + 相关 + 熔断 + 快照） |
 | `week-done [ISO周] [--json]`                         | 本周做成了什么：ClickUp 完成 + 复盘三件事只读清单（FR-A4） |
 | `ai-context [YYYY-MM-DD]`                            | 输出「七、AI 评价与建议」的确定性上下文                  |

@@ -379,29 +379,35 @@ API 失败**不写「否」**（CLI 明示离线兜底，留给 `fill_training_d
 > deepseek＝仓库调 API）。⛔ 无论哪种 mode，产出都**先落 md 再 `ingest`**，禁止只进库。
 > ⛔ **无** WorkBuddy HTTP API / SDK——`workbuddy` 模式只能由宿主在对话里履约落 md。
 
-### 4.0 双 mode 操作步骤（v1.56.0）
+### 4.0 双 mode 操作步骤（v1.56.1）
 
-先看 `doctor` 的 `[LLM 模式]`，或 `local/.env` 里的 `DAILYLUMEN_LLM_MODE`。
+先看 `doctor` 的 `[LLM 模式]`，或 `local/.env` 里的 `DAILYLUMEN_LLM_MODE`。  
+无 WorkBuddy 安装见 [`docs/独立部署.md`](../../../docs/独立部署.md)。
+
+**草稿 / 定稿**：七-A = AI 草稿（「草稿 / 待人审」）；七-B = 人审定稿。  
+`llm-* --write` 会戳 `<!-- dailylumen:llm-pending-review -->`；**含草稿标记时 `ingest` 默认跳过**  
+（`--allow-ai-draft` 强制）。侧车未定稿可放 `local/每日复盘/草稿箱/`（永不扫描）。  
+真实截图投放：`local/每日复盘/收件箱/`（⛔ 勿 commit）。
 
 #### A. `workbuddy`（默认 · 宿主清单）
 
 1. 用户投递截图 / 口述 → **本 skill §3** 读图填数据块 / 附录（缺项留空；**体脂可跳过**；对照 `llm-host-contract`）。  
 2. `python -m review_tool ai-context <日>` + `doctor`（熔断 / 相对基线）。  
-3. 建议段挂 `life-decision-guide`；宿主撰写「七、AI」评价 2–3 + 建议 2–4 → **写入 md**（勿编造体脂）。  
-4. `ingest` → `finalize --apply`（评价与 summary 写完后再 ingest 一次）。  
+3. 建议段挂 `life-decision-guide`；宿主撰写「七、AI」→ 可先写七-A，人审后落七-B（勿编造体脂）。  
+4. **去掉草稿/pending 标记后** `ingest` → `finalize --apply`。  
 5. ⛔ **不要**跑 `llm-review` / `llm-vision` / `llm-day`（mode≠deepseek 会拒绝）。
 
 #### B. `deepseek`（仓库 CLI）
 
-前置：`local/.env` 设 `DAILYLUMEN_LLM_MODE=deepseek` + `DEEPSEEK_API_KEY=…`。
+前置：`local/.env` 设 `DAILYLUMEN_LLM_MODE=deepseek` + `DEEPSEEK_API_KEY=…`（测完建议改回 `workbuddy`）。
 
 1. **一键日流程**（推荐；多图 + 可选评价）：  
    `python -m review_tool llm-day --image <图A> --image <图B> --date <日> [--review] [--diff]`  
-   （默认 dry-run）→ 确认后 `--write` **只写 md**。  
+   （默认 dry-run）→ 确认后 `--write` **只写 md**（带 pending）。  
    多图合并：**后图非空覆盖先图**，冲突打日志；部分图失败仍合并成功字段。  
-2. 或分拆：`llm-vision`（数据块）→ `llm-review`（「七、AI」草稿）。  
+2. 或分拆：`llm-vision`（数据块）→ `llm-review`（「七、AI」七-A 草稿）。  
 3. 其它素材仍可按 §3 手填 / 宿主补；**无体脂图时不要补假体脂**。  
-4. **人审**改写或确认 → `ingest` → `finalize --apply`。  
+4. **人审**去掉标记 / 写入七-B → `ingest` → `finalize --apply`。  
 5. ⛔ CLI **不**直写库；⛔ 勿把真实隐私截图提交进 git；运行摘要可落 `local/llm_last_run.json`（无密钥）。
 
 先取确定性上下文，再据此撰写：

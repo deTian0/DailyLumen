@@ -88,7 +88,7 @@ from .storage.db import (
     upsert_personal_track,
 )
 
-__version__ = "1.56.0"
+__version__ = "1.56.1"
 
 __all__ = [
     # config

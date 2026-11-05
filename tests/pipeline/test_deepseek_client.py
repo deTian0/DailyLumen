@@ -77,6 +77,20 @@ class TestVisionHelpers(unittest.TestCase):
         )
         self.assertEqual(ds.assistant_text({}), "")
 
+    def test_assistant_text_falls_back_to_reasoning(self):
+        """Flash 偶发 content 空、JSON 只在 reasoning_content。"""
+        self.assertEqual(
+            ds.assistant_text({
+                "choices": [{
+                    "message": {
+                        "content": "",
+                        "reasoning_content": '{"diet_kcal": 1485}',
+                    },
+                }],
+            }),
+            '{"diet_kcal": 1485}',
+        )
+
     def test_vision_completions_uses_flash_and_multipart(self):
         captured = {}
 

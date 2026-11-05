@@ -306,7 +306,10 @@ def main(argv: list[str] | None = None) -> int:
             print("  将写入: " + ", ".join(filled))
         if "体脂率" in opt_miss:
             print("  体脂率：未识别（可选；无设备可跳过，勿伪造）")
-        print("确认后加 --write；人审后再 ingest。")
+        print(
+            "确认后加 --write；写盘会戳 pending/草稿标记，"
+            "ingest 默认跳过至人审去掉标记。"
+        )
     elif result["written"]:
         bits = []
         if vision.get("written"):

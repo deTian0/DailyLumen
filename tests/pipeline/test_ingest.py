@@ -176,14 +176,14 @@ class TestTrackPrune(unittest.TestCase):
 
 
 class TestIterMarkdown(unittest.TestCase):
-    """扫描范围：递归收集，但跳过收件箱与历史源复盘。"""
+    """扫描范围：递归收集，但跳过收件箱 / 草稿箱 / 历史源复盘。"""
 
     def setUp(self):
         self.root = tempfile.mkdtemp()
-        for sub in ("复盘/2026-08", "收件箱", "历史源复盘"):
+        for sub in ("复盘/2026-08", "收件箱", "草稿箱", "历史源复盘"):
             os.makedirs(os.path.join(self.root, sub), exist_ok=True)
         for rel in ("复盘/2026-08/2026-08-05.md", "收件箱/截图.md",
-                    "历史源复盘/2026-07-16.md", "根目录.md"):
+                    "草稿箱/ai.md", "历史源复盘/2026-07-16.md", "根目录.md"):
             with open(os.path.join(self.root, rel), "w", encoding="utf-8") as f:
                 f.write("x")
 
@@ -200,7 +200,38 @@ class TestIterMarkdown(unittest.TestCase):
         self.assertIn("2026-08-05.md", names)
         self.assertIn("根目录.md", names)
         self.assertNotIn("截图.md", names)          # 收件箱跳过
+        self.assertNotIn("ai.md", names)            # 草稿箱跳过
         self.assertNotIn("2026-07-16.md", names)    # 历史源复盘跳过
+
+
+class TestIngestAiDraftGuard(unittest.TestCase):
+    """含草稿/pending 标记的 md 默认不入库。"""
+
+    def setUp(self):
+        self.conn, self.path = _tmp_db()
+        self.indir = tempfile.mkdtemp()
+        self.md = os.path.join(self.indir, "2026-08-05.md")
+        body = SAMPLE_MD + "\n\n## 七、AI 评价与建议\n\n> ⚠️ **草稿 / 待人审**\n"
+        with open(self.md, "w", encoding="utf-8") as f:
+            f.write(body)
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.indir, ignore_errors=True)
+        shutil.rmtree(os.path.dirname(self.path), ignore_errors=True)
+
+    def test_skip_pending_by_default(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ok = ingest_path(self.conn, self.md)
+        self.assertIsNone(ok)
+        self.assertEqual(count(self.conn), 0)
+        self.assertIn("未定稿", buf.getvalue())
+
+    def test_allow_ai_draft_force(self):
+        ok = ingest_path(self.conn, self.md, allow_ai_draft=True)
+        self.assertTrue(ok)
+        self.assertEqual(count(self.conn), 1)
 
 
 class TestIngestAll(unittest.TestCase):

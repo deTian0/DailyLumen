@@ -17,6 +17,7 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
+from ..core.ai_draft import stamp_llm_pending
 from ..core.llm_mode import LLM_MODE_DEEPSEEK, LLM_MODE_WORKBUDDY, normalize_llm_mode
 from ..pipeline.deepseek import (
     Client,
@@ -80,15 +81,26 @@ def build_user_prompt(context_md: str, *, day: str) -> str:
 
 
 def wrap_ai_draft(body: str, *, day: str, generated_at: str) -> str:
-    """包一层草稿标注；body 为模型产出的评价/建议段。"""
+    """包一层草稿标注；body 为模型产出的评价/建议段。
+
+    含「草稿 / 待人审」时 ``ingest`` 默认跳过本文件（见 ``core.ai_draft``）。
+    """
     inner = (body or "").strip()
     lines = [
         SECTION_TITLE,
         "",
+        "### 七-A · AI 草稿（待人审）",
+        "",
         f"> ⚠️ **草稿 / 待人审**（DeepSeek · llm-review · {day} · {generated_at}）",
-        "> 人审通过后保留或改写本段，再 `ingest`；⛔ 本命令不写库。",
+        "> 人审后写入「七-B · 定稿」或改写本段并**去掉本标记**，再 `ingest`；",
+        "> 含此标记时 ingest **默认跳过**（``--allow-ai-draft`` 可强制）。⛔ 本命令不写库。",
         "",
         inner if inner else "- （模型未返回正文）",
+        "",
+        "### 七-B · 定稿（人审通过）",
+        "",
+        "> 人审通过后的评价与建议写在这里；定稿后请删除七-A 草稿标记 /",
+        "> 文件头 ``<!-- dailylumen:llm-pending-review -->``。",
         "",
     ]
     return "\n".join(lines)
@@ -302,7 +314,7 @@ def run_llm_review(
 
     with open(path, encoding="utf-8") as f:
         original = f.read()
-    updated = apply_ai_section(original, section)
+    updated = stamp_llm_pending(apply_ai_section(original, section))
     result["changed"] = updated.replace("\r\n", "\n") != original.replace(
         "\r\n", "\n"
     )
@@ -314,6 +326,7 @@ def run_llm_review(
         if got.replace("\r\n", "\n") != updated.replace("\r\n", "\n"):
             raise OSError(f"写盘回读不一致: {path}")
         result["written"] = True
+        result["pending_review"] = True
 
     _log(True, written=bool(result["written"]), changed=bool(result["changed"]))
     return result
@@ -367,7 +380,10 @@ def main(argv: list[str] | None = None) -> int:
             f"[dry-run] 未写盘；目标 md: {result['md_path']}"
             f"{'（库无该日，上下文为空）' if result['context_empty'] else ''}"
         )
-        print("确认后加 --write；人审后再 ingest。")
+        print(
+            "确认后加 --write；写盘带草稿/pending 标记，"
+            "ingest 默认跳过至人审去掉标记。"
+        )
     elif result["written"]:
         print(f"已写入「七、AI」草稿: {result['md_path']}")
         print("请人审后 ingest（本命令不写库）。")

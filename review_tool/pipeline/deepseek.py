@@ -117,9 +117,12 @@ def vision_user_content(
     text: str,
     image_data_url: str | Sequence[str],
     *,
-    detail: str | None = "low",
+    detail: str | None = "high",
 ) -> list[dict[str, Any]]:
-    """组装多模态 user ``content`` 数组（text + 一张或多张 image_url）。"""
+    """组装多模态 user ``content`` 数组（text + 一张或多张 image_url）。
+
+    默认 ``detail=high``：中文截图小字（薄荷 / 睡眠）在 ``low``(512px) 下易空读。
+    """
     urls = (
         [image_data_url]
         if isinstance(image_data_url, str)
@@ -136,28 +139,39 @@ def vision_user_content(
     return parts
 
 
+def _coerce_message_text(value: Any) -> str:
+    """把 message.content / reasoning_content 规范成纯文本。"""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        parts = []
+        for p in value:
+            if isinstance(p, dict) and p.get("type") == "text":
+                parts.append(str(p.get("text") or ""))
+            elif isinstance(p, str):
+                parts.append(p)
+        return "".join(parts)
+    return str(value)
+
+
 def assistant_text(resp: Mapping[str, Any]) -> str:
-    """从 chat completions 响应取出 assistant 文本；缺失则空串。"""
+    """从 chat completions 响应取出 assistant 文本；缺失则空串。
+
+    DeepSeek Flash 偶发 ``content`` 为空、答案只在 ``reasoning_content`` ——
+    此时回退到 reasoning，避免 vision 整张图被判「空文本」。
+    """
     try:
         choices = resp.get("choices") or []
         if not choices:
             return ""
         msg = choices[0].get("message") or {}
-        content = msg.get("content")
-        if content is None:
-            return ""
-        if isinstance(content, str):
-            return content
-        # 少数兼容实现可能返回 parts 列表
-        if isinstance(content, list):
-            parts = []
-            for p in content:
-                if isinstance(p, dict) and p.get("type") == "text":
-                    parts.append(str(p.get("text") or ""))
-                elif isinstance(p, str):
-                    parts.append(p)
-            return "".join(parts)
-        return str(content)
+        text = _coerce_message_text(msg.get("content")).strip()
+        if text:
+            return text
+        # 回退：部分响应把 JSON 写进 reasoning_content
+        return _coerce_message_text(msg.get("reasoning_content")).strip()
     except (AttributeError, IndexError, KeyError, TypeError):
         return ""
 
@@ -333,13 +347,13 @@ class Client:
         image_data_url: str | Sequence[str],
         *,
         model: str | None = None,
-        detail: str | None = "low",
+        detail: str | None = "high",
         temperature: float | None = 0,
         max_tokens: int | None = 1024,
         system: str | None = None,
         extra: Mapping[str, Any] | None = None,
     ) -> Any:
-        """多模态 chat：默认 ``deepseek-flash``；支持多图；仍受 mode / key 门禁。"""
+        """多模态 chat：默认 ``deepseek-flash`` + ``detail=high``；仍受 mode / key 门禁。"""
         messages: list[dict[str, Any]] = []
         if system:
             messages.append({"role": "system", "content": system})

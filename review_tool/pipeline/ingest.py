@@ -6,8 +6,12 @@
     python -m review_tool ingest --overwrite    # 整行覆盖（默认只补空、不擦已有值）
     python -m review_tool ingest --prune-tracks # 顺带清理源 md 已无的陈旧打卡行
 
-扫描范围：``每日复盘/`` 递归，但**跳过** 收件箱（原始素材）与
-历史源复盘（语雀旧格式归档，需先经 import-history 转成标准格式）。
+扫描范围：``每日复盘/`` 递归，但**跳过** 收件箱（原始素材）、草稿箱
+（AI / 候选未定稿）与历史源复盘（语雀旧格式归档，需先经 import-history
+转成标准格式）。
+
+含「草稿 / 待人审」或 ``<!-- dailylumen:llm-pending-review -->`` 的 md
+**默认跳过**（防误吞未定稿）；``--allow-ai-draft`` 可强制入库。
 
 运动时长：字段为空时，会由「二、今日三件事」的描述折算补全（见 bodyweight 模块），
 并在输出里标注「由描述折算」，来源记入 ``exercise_src`` 列。
@@ -27,7 +31,8 @@ import os
 import sys
 from datetime import datetime
 
-from ..config import ARCHIVE_SRC_DIR, INBOX_DIR, INPUT_DIR, PROFILE
+from ..config import ARCHIVE_SRC_DIR, DRAFTS_DIR, INBOX_DIR, INPUT_DIR, PROFILE
+from ..core.ai_draft import is_ai_draft_pending
 from ..core.promises import classify as classify_promise
 from ..core.score import compute_scores, system_score_from
 from ..storage.db import (
@@ -47,8 +52,12 @@ from ..storage.db import (
 )
 from .parse import parse_file
 
-# 扫描时跳过的子目录（原始素材 / 旧格式归档，都不属于标准复盘）
-SKIP_DIRS = (os.path.basename(INBOX_DIR), os.path.basename(ARCHIVE_SRC_DIR))
+# 扫描时跳过的子目录（原始素材 / AI 草稿箱 / 旧格式归档，都不属于定稿复盘）
+SKIP_DIRS = (
+    os.path.basename(INBOX_DIR),
+    os.path.basename(DRAFTS_DIR),
+    os.path.basename(ARCHIVE_SRC_DIR),
+)
 
 
 def fill_training_day(row: dict) -> bool:
@@ -82,8 +91,14 @@ def fill_exercise_zero(row: dict) -> bool:
     return True
 
 
-def ingest_path(conn, path: str, *, overwrite: bool = False,
-                prune_tracks: bool = False) -> dict | None:
+def ingest_path(
+    conn,
+    path: str,
+    *,
+    overwrite: bool = False,
+    prune_tracks: bool = False,
+    allow_ai_draft: bool = False,
+) -> dict | None:
     """解析单个 md 文件并 upsert 入库。
 
     成功返回解析出的行 dict（含 ``exercise_src`` 等派生字段），失败返回 None。
@@ -92,7 +107,22 @@ def ingest_path(conn, path: str, *, overwrite: bool = False,
     ``prune_tracks``：写入打卡后，把该日期下**源 md 已无对应文本**的打卡行删掉
     （见 ``db.prune_personal_tracks``）。仅当「一、日常打卡」章节确实解析到了才
     执行 —— 否则解析失败会被误判成「当天没有这些项」。默认关闭。
+
+    ``allow_ai_draft``：默认 False。含「草稿 / 待人审」等标记时跳过，
+    避免 LLM 未人审内容被误 ingest；True 时强制入库。
     """
+    try:
+        with open(path, encoding="utf-8") as f:
+            raw_md = f.read()
+    except OSError as e:
+        print(f"  [跳过] {os.path.basename(path)}: 无法读取 ({e})")
+        return None
+    if is_ai_draft_pending(raw_md) and not allow_ai_draft:
+        print(
+            f"  [跳过·未定稿] {os.path.basename(path)}: 含 AI 草稿/待人审标记；"
+            "人审去掉标记后再 ingest，或加 --allow-ai-draft"
+        )
+        return None
     row = parse_file(path)
     if not row.get("date"):
         print(f"  [跳过] {os.path.basename(path)}: 未解析到日期")
@@ -213,8 +243,14 @@ def iter_markdown(input_dir: str) -> list[str]:
     return sorted(result)
 
 
-def ingest_all(conn, input_dir: str = INPUT_DIR, *, overwrite: bool = False,
-               prune_tracks: bool = False) -> int:
+def ingest_all(
+    conn,
+    input_dir: str = INPUT_DIR,
+    *,
+    overwrite: bool = False,
+    prune_tracks: bool = False,
+    allow_ai_draft: bool = False,
+) -> int:
     """递归扫描 input_dir 下所有 .md 入库，返回成功条数。"""
     paths = iter_markdown(input_dir)
     ok = 0
@@ -222,7 +258,13 @@ def ingest_all(conn, input_dir: str = INPUT_DIR, *, overwrite: bool = False,
     for p in paths:
         if not os.path.exists(p):
             continue
-        row = ingest_path(conn, p, overwrite=overwrite, prune_tracks=prune_tracks)
+        row = ingest_path(
+            conn,
+            p,
+            overwrite=overwrite,
+            prune_tracks=prune_tracks,
+            allow_ai_draft=allow_ai_draft,
+        )
         if row is None:
             continue
         ok += 1
@@ -238,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     overwrite = "--overwrite" in argv or "--force" in argv
     prune_tracks = "--prune-tracks" in argv
+    allow_ai_draft = "--allow-ai-draft" in argv
     args = [a for a in argv if not a.startswith("--")]
 
     conn = init_db()
@@ -250,12 +293,24 @@ def main(argv: list[str] | None = None) -> int:
             if not os.path.exists(p):
                 print(f"  [缺失] {p}")
                 continue
-            row = ingest_path(conn, p, overwrite=overwrite, prune_tracks=prune_tracks)
+            row = ingest_path(
+                conn,
+                p,
+                overwrite=overwrite,
+                prune_tracks=prune_tracks,
+                allow_ai_draft=allow_ai_draft,
+            )
             if row is not None:
                 ok += 1
                 _report_row(os.path.basename(p), row)
     else:
-        ok = ingest_all(conn, INPUT_DIR, overwrite=overwrite, prune_tracks=prune_tracks)
+        ok = ingest_all(
+            conn,
+            INPUT_DIR,
+            overwrite=overwrite,
+            prune_tracks=prune_tracks,
+            allow_ai_draft=allow_ai_draft,
+        )
 
     after = count(conn)
     mode = "（整行覆盖模式）" if overwrite else "（保护模式：只补空值）"

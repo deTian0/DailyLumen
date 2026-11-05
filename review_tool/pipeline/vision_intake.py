@@ -23,6 +23,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from ..config import WEEKDAY_CN
+from ..core.ai_draft import stamp_llm_pending
 from ..core.llm_contract import (
     CONTRACT_DATA_FIELDS,
     OPTIONAL_CONTRACT_FIELDS,
@@ -55,23 +56,28 @@ VISION_SYSTEM = (
     "你是 DailyLumen 读图助手。从截图抽取客观数字，只输出一个 JSON object。"
     "键优先用下列中文契约名（没有的键省略，⛔ 不要估算凑数）："
     + "、".join(CONTRACT_DATA_FIELDS)
-    + "。也可用英文别名 diet_kcal / carbs_g / fat_g / protein_g / weight_kg 等。"
+    + "。也可用英文别名 diet_kcal / carbs_g / fat_g / protein_g / "
+    "sleep_h / sleep_quality / bedtime / phone_h / weight_kg 等。"
     f"可选字段（{_OPTIONAL_HINT}）看不清或图上没有就省略；"
-    "尤其「体脂率」：无体脂秤读数时**不要写、不要估算、不要编造**。"
-    "看不清的字段不要写。不要其它说明文字。"
+    "尤其「体脂率」：无体脂秤读数时**不要写、不要估算、不要编造**"
+    "（薄荷饮食 / 睡眠 / 屏幕截图几乎都没有体脂——省略即可）。"
+    "常见图源提示：薄荷/Boohee→饮食热量与宏量；睡眠 App→时长/质量/入睡；"
+    "手机屏幕使用时长→手机屏幕_h（可把「XhYm」换成小数小时）。"
+    "看不清的字段不要写。不要其它说明文字；不要把推理过程当正文。"
 )
 
 VISION_USER_ONE = (
-    "请阅读这张复盘相关截图（饮食/睡眠/屏幕/体重等；体脂仅当图上有明确读数），"
-    "抽出能辨认的数值，输出 JSON object；看不清的字段不要写；"
-    "无体脂读数则不要输出体脂率。"
+    "请阅读这张复盘相关截图（薄荷饮食 / 睡眠 / 屏幕总时长 / 体重等；"
+    "体脂仅当图上有明确体脂秤读数才写）。"
+    "抽出能辨认的数值，输出 JSON object；看不清的字段不要写、不要估算；"
+    "无体脂读数则不要输出体脂率。只输出 JSON。"
 )
 
 VISION_USER_MULTI = (
-    "下面有多张复盘相关截图（可能是多餐饮食 / 睡眠 / 体重 / 屏幕等）。"
+    "下面有多张复盘相关截图（薄荷饮食 / 睡眠 / 屏幕 / 体重等）。"
     "合并所有能辨认的数值，输出**一个** JSON object；"
     "同一字段以最清晰可读的值为准；看不清的不要写、不要估算；"
-    "无体脂读数则不要输出体脂率。"
+    "无体脂读数则不要输出体脂率。只输出 JSON。"
 )
 
 _DATA_BLOCK_RE = re.compile(r"(```data\s*\n)(.*?)(```)", re.S)
@@ -136,9 +142,12 @@ def _vision_one(
         data_url,
         system=system,
         temperature=0,
-        max_tokens=512,
+        max_tokens=768,
+        detail="high",
     )
     text = assistant_text(resp)
+    if not (text or "").strip():
+        raise ValueError("空文本，无法解析结构化 JSON")
     fields, _ = parse_model_structured(text)
     return fields, text
 
@@ -349,7 +358,7 @@ def run_vision_intake(
 
     with open(path, encoding="utf-8") as f:
         original = f.read()
-    updated = merge_data_block_fields(original, clean)
+    updated = stamp_llm_pending(merge_data_block_fields(original, clean))
     result["changed"] = updated.replace("\r\n", "\n") != original.replace(
         "\r\n", "\n"
     )
@@ -361,6 +370,7 @@ def run_vision_intake(
         if got.replace("\r\n", "\n") != updated.replace("\r\n", "\n"):
             raise OSError(f"写盘回读不一致: {path}")
         result["written"] = True
+        result["pending_review"] = True
         result["before_block"] = extract_data_block_body(original)
         result["after_block"] = extract_data_block_body(updated)
         result["diff_lines"] = data_block_diff_lines(
@@ -534,10 +544,13 @@ def main(argv: list[str] | None = None) -> int:
             print("  将写入: " + ", ".join(filled))
         if "体脂率" in opt_miss:
             print("  体脂率：未识别（可选；无设备/无读数时跳过，勿伪造）")
-        print("确认后加 --write；人审后再 ingest。")
+        print("确认后加 --write；写盘会戳 pending 标记，ingest 默认跳过至人审去掉标记。")
     elif result["written"]:
         print(f"已写入数据块字段 ({len(filled)}): {result['md_path']}")
-        print("请人审后 ingest（本命令不写库）。")
+        print(
+            "已戳 <!-- dailylumen:llm-pending-review -->；"
+            "人审去掉标记后再 ingest（本命令不写库）。"
+        )
     else:
         print(f"无新字段可写或内容未变: {result['md_path']}")
     return 0

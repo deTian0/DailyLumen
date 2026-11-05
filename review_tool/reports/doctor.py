@@ -858,7 +858,8 @@ def render(result: dict, *, encoding: str | None = None) -> str:
         )
         L.append(
             "  deepseek CLI : llm-day（多图+可选 --review）或 llm-vision / llm-review；"
-            "支持 --diff；默认 dry-run；体脂率可选勿伪造；人审后 ingest"
+            "支持 --diff；默认 dry-run；体脂率可选勿伪造；"
+            "写盘带草稿/pending 标记，ingest 默认跳过至人审"
         )
     else:
         L.append(
@@ -886,6 +887,11 @@ def render(result: dict, *, encoding: str | None = None) -> str:
         L.append(f"  最近运行   : （无 {llm.get('last_run_path', 'local/llm_last_run.json')}）")
     for tip in llm.get("advice") or []:
         L.append(f"  → {tip}")
+    L.append(
+        "  草稿/定稿 : 「七、AI」含「草稿 / 待人审」或文件头 "
+        "<!-- dailylumen:llm-pending-review --> 时，"
+        "ingest 默认跳过；定稿后去标记。可选目录 local/每日复盘/草稿箱/（永不扫描）"
+    )
 
     L.append("")
     L.append("[数据库]")

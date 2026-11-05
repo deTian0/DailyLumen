@@ -95,7 +95,7 @@ reports   ->  pipeline  ->  storage  ->  core
 ```bash
 python -m review_tool version                       # 版本
 python -m review_tool new-day [YYYY-MM-DD] [--force]   # 生成当天文件 → 复盘/YYYY-MM/
-python -m review_tool ingest [文件] [--overwrite] [--prune-tracks]   # 入库 + 可选打卡对账
+python -m review_tool ingest [文件] [--overwrite] [--prune-tracks] [--allow-ai-draft]  # 默认跳过未定稿
 python -m review_tool week [周号] [--json]             # 周报（省略 = 全部周）
 python -m review_tool month [YYYYMM] [--json]          # 月报（省略 = 最近一个月）
 python -m review_tool ai-context YYYY-MM-DD            # AI 上下文（当日 + 7 日趋势 + 关注点）
@@ -127,7 +127,8 @@ python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（�
 ```
 每日复盘/
 ├── 复盘/YYYY-MM/     # 标准复盘源（ingest 只扫这里）——日复盘 + 周/月总结
-├── 收件箱/           # 晨间素材，不参与 ingest（README/下划线前缀文件不计为待处理素材）
+├── 收件箱/           # 晨间素材 / 真实截图投放，不参与 ingest
+├── 草稿箱/           # AI / 候选未定稿，不参与 ingest（v1.56.1）
 └── 历史源复盘/        # 旧格式源归档，不参与 ingest（需先 import-history 转换）
 ```
 

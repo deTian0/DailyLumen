@@ -56,6 +56,9 @@ GENERATED_DIR = os.path.join(INPUT_DIR, "复盘")
 # 收件箱（用户投放原始简报/截图的目录，入库扫描时跳过）
 INBOX_DIR = os.path.join(INPUT_DIR, "收件箱")
 
+# AI / 候选草稿箱（与收件箱同级；永不参与 ingest，见 core.ai_draft）
+DRAFTS_DIR = os.path.join(INPUT_DIR, "草稿箱")
+
 # 旧源文件归档目录（语雀原始格式，**不参与 ingest 扫描**）
 ARCHIVE_SRC_DIR = os.path.join(INPUT_DIR, "历史源复盘")
 
