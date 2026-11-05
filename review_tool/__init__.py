@@ -17,11 +17,12 @@
     chart / correlate / version
 
 分层（依赖只能自上而下，由 tests/architecture/test_architecture.py 强制）:
-    core      领域层（零 I/O）：tracks / bodyweight / body / training / habits / nutrition / learning / score / util
-    storage   持久化层：SQLite 唯一出入口 —— db（连接 / 迁移 / 读写 / 打卡对账）
-    pipeline  数据流转层（md <-> 库）：parse / ingest / sync_docs / import_history / new_day / export / clickup* / habit_sync
-    reports   产出层（读库面向人）：analyze / doctor / body / coach / habits / nutrition / tutor / steward / fuse / ai_review / recompute / streak / chart / correlate
-    config    包根可配置层（唯一要改的文件）；__main__ 纯路由
+    core          领域层（零 I/O）：tracks / bodyweight / body / training / habits / …
+    storage       持久化层：SQLite 唯一出入口
+    integrations  第三方网关：clickup / keepstrong / deepseek（可被 pipeline/reports 调用）
+    pipeline      数据流转层（md <-> 库 + 编排）：parse / ingest / clickup* / keepstrong / …
+    reports       产出层（读库面向人）：analyze / doctor / llm-* / …
+    config        包根可配置层；__main__ 纯路由
 
 """
 from __future__ import annotations
@@ -92,7 +93,7 @@ from .storage.db import (
     upsert_personal_track,
 )
 
-__version__ = "1.58.1"
+__version__ = "1.59.0"
 
 __all__ = [
     # config

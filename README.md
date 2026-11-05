@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.58.1**（一日三步 CLI `day-help` + 文档对齐）（历史：v1.58.0 收工摘要/红绿灯/`--kind`/`--polish`；v1.57.0；schema **v11**）｜测试数以全量跑为准
+> 当前版本 **1.59.0**（第三方集成包 + 能力开关）（历史：v1.58.1 `day-help`；v1.58.0；schema **v11**）｜测试数以全量跑为准
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜**无 WorkBuddy 安装**见 [`docs/独立部署.md`](docs/独立部署.md)｜包级速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -175,6 +175,12 @@ FEATURES = {"new_day": True}   # 默认 False
 ```
 
 `python -m review_tool`（无参数）会在被关闭的命令后标注「（已关闭）」。
+
+### 集成开关（`config.INTEGRATIONS` / `local/.env`）
+
+ClickUp / 练练健身 / DeepSeek 网关在 `review_tool/integrations/`；默认**开启**。
+关掉后对应子命令明确报错、**不发网**（见 `.env.example` 的 `INTEGRATION_*_ENABLED`）。
+DeepSeek 另须 `DAILYLUMEN_LLM_MODE=deepseek`。`doctor` / `day-help` 会提示集成状态。
 
 ### ⚠️ 入库的两种模式
 

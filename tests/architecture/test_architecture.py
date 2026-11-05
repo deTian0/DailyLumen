@@ -1,16 +1,20 @@
-"""架构守卫：分层依赖方向 + I/O 归属（v1.5.0 起强制）。
+"""架构守卫：分层依赖方向 + I/O 归属（v1.5.0 起强制；v1.59.0 增加 integrations）。
 
-review_tool 按职责分四层，依赖只能自上而下：
+review_tool 按职责分层，依赖只能自上而下：
 
-    reports   ->  pipeline  ->  storage  ->  core
-    (读库产出)    (md <-> 库)   (SQLite)   (纯规则)
+    reports  ->  pipeline  ->  storage  ->  core
+    (读库产出)   (md <-> 库)   (SQLite)    (纯规则)
+
+    integrations（第三方网关）可被 pipeline / reports / 包根调用；
+    可依赖 core；⛔ 不得被 core / storage 依赖；不得依赖 pipeline / reports / storage。
 
 - core     领域层：零 I/O —— 禁止 os / pathlib / sqlite3 / subprocess 等，
            只允许标准库纯计算模块、core 内部与包根 config。
 - storage  持久化层：``import sqlite3`` **只允许出现在这里**，
            保证 SQLite 是唯一出入口。
-- pipeline 数据流转层：md <-> 库，可用 core + storage。
-- reports  产出层：可用全部下层。
+- integrations 第三方网关：ClickUp / KeepStrong / DeepSeek；HTTP 细节集中于此。
+- pipeline 数据流转层：md <-> 库，可用 core + storage + integrations。
+- reports  产出层：可用全部下层（含 integrations）。
 - 包根（config / __init__ / __main__）不做限制（config 是可配置层，
   __main__ 是纯路由，本来就要 import 各层）。
 
@@ -21,19 +25,21 @@ review_tool 按职责分四层，依赖只能自上而下：
 import ast
 import os
 import unittest
+from ast import Import, ImportFrom
 
 from tests import REPO_ROOT
 
 ROOT = REPO_ROOT
 PKG = os.path.join(ROOT, "review_tool")
-LAYERS = ["core", "storage", "pipeline", "reports"]
+LAYERS = ["core", "storage", "integrations", "pipeline", "reports"]
 
 # 每层允许依赖的层（"root" = 包根 config / __init__ / __main__）
 ALLOWED = {
     "core": {"core"},
     "storage": {"core", "storage"},
-    "pipeline": {"core", "storage", "pipeline"},
-    "reports": {"core", "storage", "pipeline", "reports"},
+    "integrations": {"core", "integrations"},
+    "pipeline": {"core", "storage", "pipeline", "integrations"},
+    "reports": {"core", "storage", "pipeline", "reports", "integrations"},
 }
 # settings = 包根 Settings 层（M16）；与 config 同属可配置层，不做层间限制
 ROOT_LIKE = {"config", "settings", "__init__", "__main__"}
@@ -53,9 +59,10 @@ def _iter_py():
 
 
 def _layer_of_file(path):
+    """支持 integrations/clickup/client.py 这类嵌套包。"""
     rel = os.path.relpath(path, PKG).replace("\\", "/").split("/")
-    if len(rel) == 2 and rel[0] in LAYERS:
-        return rel[0], rel[1]
+    if rel[0] in LAYERS:
+        return rel[0], "/".join(rel[1:]) if len(rel) > 1 else ""
     return "root", rel[-1]
 
 
@@ -81,12 +88,12 @@ def _imports_of(path):
     found = set()
     top_names = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
+        if isinstance(node, Import):
             for a in node.names:
                 top_names.add(a.name.split(".")[0])
                 if a.name == "review_tool" or a.name.startswith("review_tool."):
                     found.add(a.name)
-        elif isinstance(node, ast.ImportFrom):
+        elif isinstance(node, ImportFrom):
             if node.module:
                 top_names.add(node.module.split(".")[0])
             if node.level:               # 相对导入

@@ -84,6 +84,10 @@ _ENV_TO_FIELD: dict[str, str] = {
     "DEEPSEEK_BASE_URL": "deepseek_base_url",
     "DEEPSEEK_MODEL": "deepseek_model",
     "DEEPSEEK_TIMEOUT_S": "deepseek_timeout_s",
+    # —— 第三方集成能力开关（v1.59.0）——
+    "INTEGRATION_CLICKUP_ENABLED": "integration_clickup_enabled",
+    "INTEGRATION_KEEPSTRONG_ENABLED": "integration_keepstrong_enabled",
+    "INTEGRATION_DEEPSEEK_ENABLED": "integration_deepseek_enabled",
 }
 _FIELD_TO_ENV = {v: k for k, v in _ENV_TO_FIELD.items()}
 
@@ -163,6 +167,12 @@ class Settings(BaseSettings):
     deepseek_base_url: str = DEFAULT_DEEPSEEK_BASE_URL
     deepseek_model: str = DEFAULT_DEEPSEEK_MODEL
     deepseek_timeout_s: float = DEFAULT_DEEPSEEK_TIMEOUT_S
+
+    # —— 第三方集成开关（默认开；无 key 时命令友好提示，不静默打网）——
+    # DeepSeek 另须 DAILYLUMEN_LLM_MODE=deepseek；开关关则强制不可用
+    integration_clickup_enabled: bool = True
+    integration_keepstrong_enabled: bool = True
+    integration_deepseek_enabled: bool = True
 
     @field_validator(
         "keepstrong_base_url",

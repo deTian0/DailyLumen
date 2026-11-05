@@ -28,16 +28,16 @@
 产出的是一份**素材**（不是复盘成品），默认落 ``每日复盘/收件箱/``（该目录不参与
 ingest 扫描，所以不会被当成待入库的复盘自动吃进去）。
 
-退出码：0 = 成功；1 = 取数失败（网络 / 认证）；2 = 用法错误或凭据缺失。
+退出码：0 = 成功；1 = 取数失败（网络 / 认证）；2 = 用法错误或凭据缺失 / 集成关闭。
+
+HTTP / 凭据已迁 ``review_tool.integrations.clickup``；本模块保留归日 / 选取 / 渲染 / CLI。
 """
 from __future__ import annotations
 
 import datetime
-import json
 import os
 import sys
 import urllib.error
-import urllib.request
 
 from ..config import (
     CLICKUP_BASE_URL,
@@ -54,22 +54,31 @@ from ..config import (
     WEEKDAY_CN,
 )
 from ..core.habits import resolve_habit
+from ..integrations.clickup import (
+    MAX_PAGES,
+    PAGE_SIZE,
+    CredError,
+    fetch_tasks,
+    http_get,
+)
+from ..integrations.clickup import load_creds as _load_creds
+from ..integrations.flags import IntegrationDisabled, require_enabled
 
 # 端点来自 config（← SETTINGS ← .env），⛔ 不再写死；可用 ``CLICKUP_BASE_URL`` 覆盖
+# 兼容旧代码：``clickup_sync`` 等仍可读 ``API_BASE``
 API_BASE = CLICKUP_BASE_URL
 
-# ClickUp list 任务接口单页上限 100 —— 超过就必须翻页，否则静默少拿
-# （本仓库「日常事务」有 121 条，不翻页会整批漏掉 21 条）
-PAGE_SIZE = 100
-MAX_PAGES = 20
+
+def load_creds(env=None, path: str | None = None) -> tuple[str, str | None]:
+    """兼容旧测试：默认 path 走本模块 ``CLICKUP_MCP_PATH``（可 patch）。"""
+    return _load_creds(
+        env=env,
+        path=CLICKUP_MCP_PATH if path is None else path,
+    )
 
 # 同一分钟内这么多条「完成」= 多半是批量改状态（迁移 / 整批关闭），不是逐条做完
 # （实例：2026-10-13 有 114 条集中在 11:17–11:18 关闭）。素材里要出提示，防误读。
 BULK_HINT_MIN = 10
-
-
-class CredError(RuntimeError):
-    """凭据缺失 / 不可读 —— 给可读提示，而不是抛裸 KeyError。"""
 
 
 # --------------------------------------------------------------------- 时间
@@ -134,74 +143,7 @@ def completion_day(
         t["date_closed"], tz_hours=tz_hours)
 
 
-# ----------------------------------------------------------------- 凭据 / 网络
-def load_creds(env=None, path: str | None = None) -> tuple[str, str | None]:
-    """解析 ClickUp 凭据：环境变量优先，其次 ``~/.workbuddy/mcp.json``。
-
-    返回 ``(api_key, team_id)``；``team_id`` 允许为 None（仅用于展示）。
-    两处都没有 -> :class:`CredError`。
-    """
-    env = os.environ if env is None else env
-    key = (env.get("CLICKUP_API_KEY") or "").strip()
-    team = (env.get("CLICKUP_TEAM_ID") or "").strip() or None
-    if key:
-        return key, team
-
-    p = CLICKUP_MCP_PATH if path is None else path
-    try:
-        with open(p, encoding="utf-8-sig") as f:
-            cfg = json.load(f)
-    except FileNotFoundError:
-        raise CredError(
-            f"找不到 ClickUp 凭据：{p} 不存在，也没设环境变量 CLICKUP_API_KEY。\n"
-            "  → 设 CLICKUP_API_KEY（+ CLICKUP_TEAM_ID），或把 MCP 配置写到该路径的 "
-            "mcpServers.clickup.env 下。") from None
-    except (OSError, ValueError) as e:
-        raise CredError(f"读不了 ClickUp 凭据文件 {p}：{type(e).__name__}: {e}") from e
-
-    block = (cfg.get("mcpServers", {}) or {}).get("clickup", {}) or {}
-    block = block.get("env", {}) or {}
-    key = (block.get("CLICKUP_API_KEY") or "").strip()
-    team = (block.get("CLICKUP_TEAM_ID") or "").strip() or None
-    if not key:
-        raise CredError(
-            f"{p} 里没有 mcpServers.clickup.env.CLICKUP_API_KEY。\n"
-            "  → 补上该配置，或改用环境变量 CLICKUP_API_KEY。")
-    return key, team
-
-
-def http_get(path: str, key: str, *, timeout: float = CLICKUP_TIMEOUT_S) -> dict:
-    """GET 一个 ClickUp API 路径，返回解析后的 JSON。"""
-    req = urllib.request.Request(API_BASE + path)
-    req.add_header("Authorization", key)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
-
-
-def fetch_tasks(list_id: str, key: str, *, fetch=None, timeout: float = CLICKUP_TIMEOUT_S) -> list[dict]:
-    """拉一个 list 的全部任务（含子任务与**已完成**），按 id 去重。
-
-    ⚠️ 两个已知坑，别"简化"掉：
-    - 必须带 ``include_closed=true``，否则已完成任务整批漏掉，看着像「今天什么都没干」；
-    - ``subtasks=true`` 翻页会**重复返回**同一条，按 id 去重才干净。
-    ``fetch`` 可注入（测试用假实现，离线跑）。
-    """
-    fetch = http_get if fetch is None else fetch
-    seen: set[str] = set()
-    out: list[dict] = []
-    for page in range(MAX_PAGES):
-        path = (f"/list/{list_id}/task?subtasks=true&include_closed=true&page={page}")
-        batch = (fetch(path, key, timeout=timeout) or {}).get("tasks") or []
-        for t in batch:
-            tid = t.get("id")
-            if tid in seen:
-                continue
-            seen.add(tid)
-            out.append(t)
-        if len(batch) < PAGE_SIZE:
-            break
-    return out
-
+# 凭据 / HTTP：见 ``review_tool.integrations.clickup``（此处再导出供旧导入）
 
 # --------------------------------------------------------------------- 选数
 def _name(t: dict) -> str:
@@ -553,6 +495,12 @@ def main(argv: list[str] | None = None, *, fetch=None, env=None, now=None) -> in
     if any(a in ("-h", "--help") for a in argv):
         print(f"用法: python -m review_tool {USAGE}")
         return 0
+
+    try:
+        require_enabled("clickup")
+    except IntegrationDisabled as e:
+        print(str(e), file=sys.stderr)
+        return 2
 
     try:
         day, out_dir, to_stdout, list_ids, with_habits = _parse(argv)

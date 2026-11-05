@@ -22,8 +22,10 @@ from collections import defaultdict
 
 from ..config import CLICKUP_LISTS, LIST_DAILY, LIST_WORK
 from ..core.clickup_done import to_row
+from ..integrations.clickup import CredError, fetch_tasks, load_creds
+from ..integrations.flags import IntegrationDisabled, require_enabled
 from ..storage.db import init_db, replace_clickup_days
-from .clickup import CredError, completion_day, fetch_tasks, load_creds
+from .clickup import completion_day
 
 USAGE = "clickup-pull [--days N] [--list ID] [--db PATH] [--dry-run]"
 
@@ -116,6 +118,12 @@ def main(argv: list[str] | None = None) -> int:
             days = int(args[i + 1])
         if a == "--list" and i + 1 < len(args):
             list_arg = args[i + 1]
+
+    try:
+        require_enabled("clickup")
+    except IntegrationDisabled as e:
+        print(str(e), file=sys.stderr)
+        return 2
 
     list_ids = _list_ids(list_arg)
     conn = init_db()

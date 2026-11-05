@@ -22,20 +22,13 @@
 from __future__ import annotations
 
 import datetime
-import json
 import sys
 import urllib.error
-import urllib.request
 
 from ..config import CLICKUP_REVIEW_TASK, CLICKUP_TIMEOUT_S, DB_PATH
+from ..integrations.clickup import CredError, fetch_tasks, http_get, http_put, load_creds
+from ..integrations.flags import IntegrationDisabled, require_enabled
 from ..storage.db import init_db
-from .clickup import (
-    API_BASE,
-    CredError,
-    fetch_tasks,
-    http_get,
-    load_creds,
-)
 
 USAGE = "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID] [--db PATH]"
 
@@ -98,15 +91,7 @@ def review_exists(conn, day: str) -> bool:
     return row is not None
 
 
-# ------------------------------------------------------------------ HTTP PUT
-def http_put(path: str, key: str, body: dict, *, timeout: float = CLICKUP_TIMEOUT_S) -> dict:
-    """PUT 一个 ClickUp API 路径，返回解析后的 JSON。"""
-    data = json.dumps(body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(API_BASE + path, data=data, method="PUT")
-    req.add_header("Authorization", key)
-    req.add_header("Content-Type", "application/json")
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+# ------------------------------------------------------------------ HTTP PUT（见 integrations.clickup.http_put）
 
 
 def mark_complete(task_id: str, key: str, *, put=None, fetch=None,
@@ -279,6 +264,12 @@ def main(argv: list[str] | None = None, *, fetch=None, put=None,
     if any(a in ("-h", "--help") for a in argv):
         print(f"用法: python -m review_tool {USAGE}")
         return 0
+
+    try:
+        require_enabled("clickup")
+    except IntegrationDisabled as e:
+        print(str(e), file=sys.stderr)
+        return 2
 
     try:
         day, apply, list_id, db_arg = _parse(argv)

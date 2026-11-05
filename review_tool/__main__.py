@@ -67,6 +67,7 @@ from .pipeline.export import main as export_main
 from .pipeline.import_history import main as import_history_main
 from .pipeline.ingest import main as ingest_main
 from .pipeline.keepstrong import main as keepstrong_main
+from .integrations.flags import is_enabled as _integration_enabled
 from .pipeline.new_day import is_enabled as _new_day_enabled
 from .pipeline.new_day import main as new_day_main
 from .pipeline.promise_draft import main as promise_draft_main
@@ -223,7 +224,7 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
 
 
 def disabled_commands() -> set[str]:
-    """当前被 ``config.FEATURES`` 关掉的子命令名（``usage()`` 里标注用）。
+    """当前被 ``config.FEATURES`` / ``INTEGRATIONS`` 关掉的子命令名（``usage()`` 标注用）。
 
     与各模块的闸门读的是**同一份配置**，所以不会出现「帮助里说开着、一跑却拒绝」
     （或反过来）这种两处口径打架的情况。新增开关时在这里加一行即可。
@@ -231,6 +232,12 @@ def disabled_commands() -> set[str]:
     off: set[str] = set()
     if not _new_day_enabled():
         off.add("new-day")
+    if not _integration_enabled("clickup"):
+        off.update({"clickup", "clickup-push", "clickup-pull"})
+    if not _integration_enabled("keepstrong"):
+        off.add("keepstrong")
+    if not _integration_enabled("deepseek"):
+        off.update({"llm-review", "llm-vision", "llm-day"})
     return off
 
 
@@ -243,8 +250,10 @@ def usage() -> str:
               for name, (_fn, u) in ROUTES.items()]
     lines += ["", "子命令加 -h 查看该项用法。"]
     if off:
-        lines += [f"（已关闭）的命令默认不执行，开关在 config.FEATURES（当前关闭："
-                  f"{'、'.join(sorted(off))}）。"]
+        lines += [
+            f"（已关闭）的命令默认不执行，开关在 config.FEATURES / "
+            f"config.INTEGRATIONS（当前关闭：{'、'.join(sorted(off))}）。"
+        ]
     return "\n".join(lines)
 
 

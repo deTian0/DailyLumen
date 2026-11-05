@@ -860,6 +860,19 @@ def render(result: dict, *, encoding: str | None = None) -> str:
     L.append("=" * 52)
 
     L.append("")
+    L.append("[第三方集成]")
+    try:
+        from ..config import INTEGRATIONS
+        from ..integrations.flags import is_enabled as _integ_on
+        for name in ("clickup", "keepstrong", "deepseek"):
+            on = _integ_on(name) if name in INTEGRATIONS else True
+            mark = ok if on else warn
+            L.append(f"  {mark} {name}: {'开' if on else '关'}"
+                     + ("" if on else "（CLI 不发网；见 INTEGRATION_*_ENABLED）"))
+    except Exception as e:  # 兜底：体检自身不因开关段失败
+        L.append(f"  {warn} 集成开关读取失败: {type(e).__name__}")
+
+    L.append("")
     L.append("[LLM 模式]")
     llm = result.get("llm") or llm_observability()
     _llm = llm.get("mode") or get_llm_mode()

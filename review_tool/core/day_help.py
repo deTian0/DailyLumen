@@ -60,7 +60,9 @@ def render_day_help(
         f"    python -m review_tool ai-context {day}",
         f"    python -m review_tool doctor",
         "",
-        f"  【{LLM_MODE_DEEPSEEK}】仓库 CLI（须 DAILYLUMEN_LLM_MODE=deepseek）",
+        f"  【{LLM_MODE_DEEPSEEK}】仓库 CLI"
+        f"（须 DAILYLUMEN_LLM_MODE=deepseek 且 INTEGRATION_DEEPSEEK_ENABLED=true）",
+
         f"    python -m review_tool llm-day --image {inbox_ex} "
         f"--date {day} --diff",
         f"    python -m review_tool llm-day --image {inbox_ex} "

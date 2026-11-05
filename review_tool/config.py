@@ -15,6 +15,7 @@
 - ``SPACED_REPEAT``   间隔重复天数（默认 1/3/7/16）
 - ``SCORE_THRESHOLDS`` 四维评分阈值与权重（D7=B 留代码）
 - ``FEATURES``     功能开关：默认关闭你用不到的子命令（当前只有 ``new_day``）
+- ``INTEGRATIONS`` 第三方能力开关（ClickUp / 练练 / DeepSeek；默认开，``.env`` 可关）
 - ``CLICKUP_LISTS`` 外部素材源（可选）：list id 来自 Settings，中文名 / 用途仍在此定义
 - ``CLICKUP_REVIEW_TASK`` 回写通道（可选）：「每日复盘总结」元任务的定位信息
 - 凭据 / 路径覆盖 / 两源 API 端点与超时 → 见 ``settings.py`` + ``local/.env``
@@ -162,6 +163,21 @@ FEATURES = {
     # new-day：按模板生成当天复盘文件（写入 ``每日复盘/复盘/YYYY-MM/``）。
     # 默认关闭：手动复制模板更顺手，且手动复制只需改「日期」「星期」两处。
     "new_day": False,
+}
+
+# ---------------------------------------------------------------------------
+# 第三方集成开关（v1.59.0）
+#
+# 真值在 ``local/.env`` 的 ``INTEGRATION_*_ENABLED``（Settings）；此处组装门面。
+# 默认 **True**（与现网一致）；关掉后对应 CLI **明确报错、不发网**。
+# DeepSeek：须开关开 **且** ``DAILYLUMEN_LLM_MODE=deepseek`` 才允许调 API。
+# 无 key 时仍走既有 CredError 友好提示（不因开关默认开而静默失败）。
+# ---------------------------------------------------------------------------
+
+INTEGRATIONS = {
+    "clickup": bool(SETTINGS.integration_clickup_enabled),
+    "keepstrong": bool(SETTINGS.integration_keepstrong_enabled),
+    "deepseek": bool(SETTINGS.integration_deepseek_enabled),
 }
 
 # ---------------------------------------------------------------------------
