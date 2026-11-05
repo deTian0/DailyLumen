@@ -864,11 +864,46 @@ def render(result: dict, *, encoding: str | None = None) -> str:
     try:
         from ..config import INTEGRATIONS
         from ..integrations.flags import is_enabled as _integ_on
+        from ..integrations.last_error import (
+            default_last_error_path,
+            read_last_error,
+        )
+        any_on = False
         for name in ("clickup", "keepstrong", "deepseek"):
             on = _integ_on(name) if name in INTEGRATIONS else True
+            any_on = any_on or on
             mark = ok if on else warn
             L.append(f"  {mark} {name}: {'开' if on else '关'}"
-                     + ("" if on else "（CLI 不发网；见 INTEGRATION_*_ENABLED）"))
+                     + ("" if on else "（CLI 不发网；见 INTEGRATION_*_ENABLED；"
+                                     "关断时勿把缺素材当库病）"))
+        last_err = read_last_error()
+        err_path = default_last_error_path()
+        if last_err and last_err.get("ok") is False:
+            integ = last_err.get("integration") or "?"
+            # 该集成已关：只提示开关态，不把 last-error 当「缺数据」假阳性
+            integ_on = _integ_on(integ) if integ in INTEGRATIONS else True
+            if integ_on:
+                L.append(
+                    f"  {warn} 最近失败 : {integ} · "
+                    f"{last_err.get('command') or ''} · "
+                    f"{last_err.get('error_kind') or '?'}"
+                    + (
+                        f" · HTTP {last_err.get('http_code')}"
+                        if last_err.get("http_code") is not None
+                        else ""
+                    )
+                )
+                if last_err.get("error_summary"):
+                    L.append(f"  失败摘要   : {last_err.get('error_summary')}")
+                if last_err.get("hint"):
+                    L.append(f"  → {last_err.get('hint')}")
+            else:
+                L.append(
+                    f"  {ok} 最近失败指针已忽略（{integ} 已关；"
+                    f"见 {err_path}）"
+                )
+        elif any_on:
+            L.append(f"  最近失败   : （无 {err_path}）")
     except Exception as e:  # 兜底：体检自身不因开关段失败
         L.append(f"  {warn} 集成开关读取失败: {type(e).__name__}")
 

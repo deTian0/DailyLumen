@@ -12,6 +12,7 @@ class _FakeTransport:
         self.gets: list[str] = []
         self.puts: list[tuple[str, dict]] = []
         self.posts: list[tuple[str, dict]] = []
+        self.deletes: list[str] = []
 
     def get(self, path, key, *, timeout=None):
         self.gets.append(path)
@@ -19,6 +20,8 @@ class _FakeTransport:
             return {"comments": [{"id": "c1", "comment_text": "hi"}]}
         if path.startswith("/task/") and "/field/" not in path:
             return {"id": "t1", "name": "任务", "custom_fields": [{"id": "f1", "value": 1}]}
+        if path.startswith("/list/") and "/task" not in path:
+            return {"id": "L1", "name": "日常事务"}
         if "/list/" in path and "/task" in path:
             page = int(path.rsplit("page=", 1)[-1])
             if page == 0:
@@ -34,6 +37,10 @@ class _FakeTransport:
         self.posts.append((path, body))
         return {"id": "new", **body}
 
+    def delete(self, path, key, *, timeout=None):
+        self.deletes.append(path)
+        return None
+
 
 class TestClickUpClient(unittest.TestCase):
     def setUp(self):
@@ -43,6 +50,7 @@ class TestClickUpClient(unittest.TestCase):
             get=self.net.get,
             put=self.net.put,
             post=self.net.post,
+            delete=self.net.delete,
         )
 
     def test_list_tasks_paginates_and_dedupes(self):
@@ -68,6 +76,13 @@ class TestClickUpClient(unittest.TestCase):
         self.assertTrue(self.net.posts[-1][0].endswith("/field/f1"))
         fields = self.client.get_custom_fields(task_id="t1")
         self.assertEqual(fields[0]["id"], "f1")
+
+    def test_delete_task_and_get_list(self):
+        self.assertIsNone(self.client.delete_task("t1"))
+        self.assertEqual(self.net.deletes[-1], "/task/t1")
+        meta = self.client.get_list("L1")
+        self.assertEqual(meta["name"], "日常事务")
+        self.assertTrue(any(p == "/list/L1" for p in self.net.gets))
 
     def test_fetch_tasks_compat_with_injected_fetch(self):
         def fetch(path, key, *, timeout=None):

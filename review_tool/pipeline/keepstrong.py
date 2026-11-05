@@ -4,19 +4,22 @@
 
     python -m review_tool keepstrong --date 20261001
     python -m review_tool keepstrong --date 2026-10-01 --write --ingest
+    python -m review_tool keepstrong --action-history act_xxx [--date|--range]
+    python -m review_tool keepstrong --templates
+    python -m review_tool keepstrong --food-logs 20261015   # 可选；非 daily-pull
     python -m review_tool keepstrong --set-weight act_xxx 60 --yes
-    python -m review_tool keepstrong --log-body weight 82 --day 20261015 --yes
-    python -m review_tool keepstrong --schedule --day 20261016 --name 全身A \
-        --actions-json acts.json --yes
+    python -m review_tool keepstrong --create-template --name N --actions-json P --yes
+    python -m review_tool keepstrong --replace-template-actions TID --actions-json P --yes
+    python -m review_tool keepstrong --plan-command PLAN_ID delay --yes
 
 边界
 ----
 1. **读**：产 ``收件箱/keepstrong-素材-<日期>.md``；``--write`` 才改复盘 md。
-2. **写回（M19）**：须 ``--yes``；不落库、不作系统状态；无确认零网络写调用。
+2. **写回（M19/I4）**：须 ``--yes``；不落库、不作系统状态；无确认零网络写调用。
 3. **中文文案一律写「练练健身」**；查询参数必须 URL 编码。
+4. **饮食权威在薄荷**；``--food-*`` 只读旁证，默认不写回 ``POST food/logs``。
 
 HTTP 客户端已迁 ``review_tool.integrations.keepstrong``；本模块保留编排与 CLI。
-旧导入路径（``from review_tool.pipeline.keepstrong import Client``）短期仍可用。
 
 退出码：0 = 成功；1 = 取数/写入失败；2 = 用法或凭据缺失 / 集成关闭。
 """
@@ -61,6 +64,7 @@ from ..integrations.keepstrong import (
 )
 from ..integrations.keepstrong import load_api_key as _load_api_key
 from ..integrations.keepstrong.client import Opener, Sleeper
+from ..integrations.last_error import record_integration_error
 from .keepstrong_render import render_material
 
 
@@ -138,10 +142,31 @@ def collect(
 # ----------------------------------------------------------------------- CLI
 USAGE = (
     "keepstrong [--date D] [--range S E] [--type …] [--write] [--ingest] [--stdout] | "
+    "keepstrong --action-history <actionId> [--date|--range] [--stdout] | "
+    "keepstrong --templates [--stdout] | "
+    "keepstrong --food-logs <day> | --food-search <kw> [--stdout] | "
     "keepstrong --set-weight <actionId> <kg|''> [--yes] | "
     "keepstrong --log-body <metric> <value> [--day D] [--unit U] [--yes] | "
-    "keepstrong --schedule --day D --name N --actions-json PATH [--yes]"
+    "keepstrong --schedule --day D --name N --actions-json PATH [--yes] | "
+    "keepstrong --create-template --name N --actions-json PATH [--yes] | "
+    "keepstrong --replace-template-actions <templateId> --actions-json PATH [--yes] | "
+    "keepstrong --plan-command <planId> <command> [--yes]"
 )
+
+_WRITE_MODES = frozenset({
+    "set_weight",
+    "log_body",
+    "schedule",
+    "create_template",
+    "replace_template_actions",
+    "plan_command",
+})
+_EXTRA_READ_MODES = frozenset({
+    "action_history",
+    "templates",
+    "food_logs",
+    "food_search",
+})
 
 
 def _parse_types(raw: str) -> set[str]:
@@ -162,12 +187,18 @@ def _parse(argv: list[str]) -> dict[str, Any]:
     do_write = False
     do_ingest = False
     yes = False
-    mode = "read"  # read | set_weight | log_body | schedule
+    mode = "read"
     set_weight: list[str] = []
     log_body: list[str] = []
     sch_day = sch_name = sch_json = ""
     body_day = ""
     body_unit = "kg"
+    action_history_id = ""
+    food_day = ""
+    food_keyword = ""
+    template_id = ""
+    plan_id = ""
+    plan_cmd = ""
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -193,13 +224,47 @@ def _parse(argv: list[str]) -> dict[str, Any]:
             i += 2
         elif a == "--schedule":
             mode = "schedule"
+        elif a == "--action-history":
+            if i + 1 >= len(argv) or argv[i + 1].startswith("-"):
+                raise ValueError("--action-history 需要 <actionId>")
+            mode = "action_history"
+            action_history_id = argv[i + 1]
+            i += 1
+        elif a == "--templates":
+            mode = "templates"
+        elif a == "--food-logs":
+            if i + 1 >= len(argv) or argv[i + 1].startswith("-"):
+                raise ValueError("--food-logs 需要 <day>")
+            mode = "food_logs"
+            food_day = argv[i + 1]
+            i += 1
+        elif a == "--food-search":
+            if i + 1 >= len(argv) or argv[i + 1].startswith("-"):
+                raise ValueError("--food-search 需要 <keyword>")
+            mode = "food_search"
+            food_keyword = argv[i + 1]
+            i += 1
+        elif a == "--create-template":
+            mode = "create_template"
+        elif a == "--replace-template-actions":
+            if i + 1 >= len(argv) or argv[i + 1].startswith("-"):
+                raise ValueError("--replace-template-actions 需要 <templateId>")
+            mode = "replace_template_actions"
+            template_id = argv[i + 1]
+            i += 1
+        elif a == "--plan-command":
+            if i + 2 >= len(argv):
+                raise ValueError("--plan-command 需要 <planId> <command>")
+            mode = "plan_command"
+            plan_id, plan_cmd = argv[i + 1], argv[i + 2]
+            i += 2
         elif a == "--name" or a.startswith("--name="):
             if a.startswith("--name="):
                 sch_name = a.split("=", 1)[1]
             else:
                 i += 1
                 if i >= len(argv):
-                    raise ValueError("--name 需要课名")
+                    raise ValueError("--name 需要课名/模板名")
                 sch_name = argv[i]
         elif a == "--actions-json" or a.startswith("--actions-json="):
             if a.startswith("--actions-json="):
@@ -225,7 +290,7 @@ def _parse(argv: list[str]) -> dict[str, Any]:
                 if i >= len(argv):
                     raise ValueError("--day 需要日期")
                 raw_day = argv[i]
-            if mode == "schedule":
+            if mode in ("schedule", "create_template"):
                 sch_day = raw_day
             else:
                 body_day = raw_day
@@ -273,6 +338,14 @@ def _parse(argv: list[str]) -> dict[str, Any]:
     if mode == "schedule":
         if not sch_day or not sch_name or not sch_json:
             raise ValueError("--schedule 需要 --day / --name / --actions-json")
+    if mode == "create_template":
+        if not sch_name or not sch_json:
+            raise ValueError("--create-template 需要 --name / --actions-json")
+    if mode == "replace_template_actions":
+        if not template_id or not sch_json:
+            raise ValueError(
+                "--replace-template-actions 需要 <templateId> 与 --actions-json"
+            )
     if mode == "log_body" and not body_day:
         body_day = datetime.date.today().strftime("%Y%m%d")
 
@@ -305,11 +378,57 @@ def _parse(argv: list[str]) -> dict[str, Any]:
         "sch_day": sch_day,
         "sch_name": sch_name,
         "sch_json": sch_json,
+        "action_history_id": action_history_id,
+        "food_day": food_day,
+        "food_keyword": food_keyword,
+        "template_id": template_id,
+        "plan_id": plan_id,
+        "plan_cmd": plan_cmd,
     }
 
 
+def _load_actions_json(path: str) -> tuple[list | None, int]:
+    """读 actions JSON；成功返回 (list, 0)；失败打印并返回 (None, rc)。"""
+    try:
+        with open(path, encoding="utf-8") as f:
+            actions = json.load(f)
+    except (OSError, ValueError) as e:
+        print(f"读 actions-json 失败: {e}", file=sys.stderr)
+        return None, 2
+    if not isinstance(actions, list):
+        print("--actions-json 须为 JSON 数组", file=sys.stderr)
+        return None, 2
+    return actions, 0
+
+
+def _write_ok(resp: Any, key: str) -> int:
+    print(f"已写入（Idempotency-Key={key}）: {json.dumps(resp, ensure_ascii=False)}")
+    print("提示：App 里可能需重启才可见。写回未入 DailyLumen 库。")
+    return 0
+
+
+def _write_fail(e: Exception) -> int:
+    print(f"写入失败: {e}", file=sys.stderr)
+    kind = type(e).__name__
+    code = None
+    if isinstance(e, ApiKeyExpired):
+        code = 401
+    elif isinstance(e, SkillUpdateRequired):
+        code = 426
+    elif isinstance(e, RateLimited):
+        code = 429
+    record_integration_error(
+        "keepstrong",
+        command="keepstrong",
+        error_kind=kind,
+        error_summary=str(e)[:200],
+        http_code=code,
+    )
+    return 1
+
+
 def _run_outbound(opts: dict[str, Any], client: Client) -> int:
-    """M19 写回：无 --yes 只预览、零网络写；有 --yes 才 POST。"""
+    """M19/I4 写回：无 --yes 只预览、零网络写；有 --yes 才 POST。"""
     mode = opts["mode"]
     yes = bool(opts["yes"])
 
@@ -333,11 +452,8 @@ def _run_outbound(opts: dict[str, Any], client: Client) -> int:
                 action_id, weight, user_confirmed=True
             )
         except KeepStrongError as e:
-            print(f"写入失败: {e}", file=sys.stderr)
-            return 1
-        print(f"已写入（Idempotency-Key={key}）: {json.dumps(resp, ensure_ascii=False)}")
-        print("提示：App 里可能需重启才可见。写回未入 DailyLumen 库。")
-        return 0
+            return _write_fail(e)
+        return _write_ok(resp, key)
 
     if mode == "log_body":
         metric, value = opts["log_body"]
@@ -359,23 +475,13 @@ def _run_outbound(opts: dict[str, Any], client: Client) -> int:
                 user_confirmed=True,
             )
         except KeepStrongError as e:
-            print(f"写入失败: {e}", file=sys.stderr)
-            return 1
-        print(f"已写入（Idempotency-Key={key}）: {json.dumps(resp, ensure_ascii=False)}")
-        print("提示：App 里可能需重启才可见。写回未入 DailyLumen 库。")
-        return 0
+            return _write_fail(e)
+        return _write_ok(resp, key)
 
     if mode == "schedule":
-        path = opts["sch_json"]
-        try:
-            with open(path, encoding="utf-8") as f:
-                actions = json.load(f)
-        except (OSError, ValueError) as e:
-            print(f"读 actions-json 失败: {e}", file=sys.stderr)
-            return 2
-        if not isinstance(actions, list):
-            print("--actions-json 须为 JSON 数组", file=sys.stderr)
-            return 2
+        actions, rc = _load_actions_json(opts["sch_json"])
+        if actions is None:
+            return rc
         preview = {
             "dayStr": to_day_str(opts["sch_day"]),
             "name": opts["sch_name"],
@@ -392,13 +498,135 @@ def _run_outbound(opts: dict[str, Any], client: Client) -> int:
                 user_confirmed=True,
             )
         except KeepStrongError as e:
-            print(f"写入失败: {e}", file=sys.stderr)
-            return 1
-        print(f"已写入（Idempotency-Key={key}）: {json.dumps(resp, ensure_ascii=False)}")
-        print("提示：App 里可能需重启才可见。写回未入 DailyLumen 库。")
-        return 0
+            return _write_fail(e)
+        return _write_ok(resp, key)
+
+    if mode == "create_template":
+        actions, rc = _load_actions_json(opts["sch_json"])
+        if actions is None:
+            return rc
+        preview = {"name": opts["sch_name"], "actions": actions}
+        print(format_write_preview("创建模板", preview))
+        if not yes:
+            return 0
+        try:
+            resp, key = client.create_template(
+                opts["sch_name"], actions, user_confirmed=True
+            )
+        except KeepStrongError as e:
+            return _write_fail(e)
+        return _write_ok(resp, key)
+
+    if mode == "replace_template_actions":
+        actions, rc = _load_actions_json(opts["sch_json"])
+        if actions is None:
+            return rc
+        preview = {"templateId": opts["template_id"], "actions": actions}
+        print(format_write_preview("替换模板动作", preview))
+        if not yes:
+            return 0
+        try:
+            resp, key = client.replace_template_actions(
+                opts["template_id"], actions, user_confirmed=True
+            )
+        except KeepStrongError as e:
+            return _write_fail(e)
+        return _write_ok(resp, key)
+
+    if mode == "plan_command":
+        preview = {
+            "runningPlanId": opts["plan_id"],
+            "command": opts["plan_cmd"],
+        }
+        print(format_write_preview("计划命令", preview))
+        if not yes:
+            return 0
+        try:
+            resp, key = client.running_plan_command(
+                opts["plan_id"], opts["plan_cmd"], user_confirmed=True
+            )
+        except KeepStrongError as e:
+            return _write_fail(e)
+        return _write_ok(resp, key)
 
     raise KeepStrongError(f"未知写模式: {mode}")
+
+
+def _run_extra_read(opts: dict[str, Any], client: Client) -> int:
+    """I3：action history / templates / food 只读；默认 stdout，--write 才落收件箱 md。"""
+    mode = opts["mode"]
+    try:
+        if mode == "action_history":
+            items = client.action_history(
+                opts["action_history_id"], opts["start"], opts["end"]
+            )
+            payload = {
+                "kind": "action_history",
+                "actionId": opts["action_history_id"],
+                "start": opts["start"],
+                "end": opts["end"],
+                "items": items,
+            }
+            label = f"history-{opts['action_history_id']}-{opts['start']}"
+        elif mode == "templates":
+            items = client.templates()
+            payload = {"kind": "templates", "items": items}
+            label = "templates"
+        elif mode == "food_logs":
+            day = to_day_str(opts["food_day"])
+            data = client.food_logs(day)
+            payload = {"kind": "food_logs", "dayStr": day, "data": data}
+            label = f"food-{day_str_to_iso(day)}"
+        elif mode == "food_search":
+            items = client.food_search(opts["food_keyword"])
+            payload = {
+                "kind": "food_search",
+                "keyword": opts["food_keyword"],
+                "items": items,
+            }
+            label = "food-search"
+        else:
+            raise KeepStrongError(f"未知只读扩展模式: {mode}")
+    except ApiKeyExpired as e:
+        record_integration_error(
+            "keepstrong", command="keepstrong", error_kind="ApiKeyExpired",
+            error_summary=str(e)[:200], http_code=401,
+        )
+        print(f"认证失败: {e}", file=sys.stderr)
+        return 1
+    except SkillUpdateRequired as e:
+        record_integration_error(
+            "keepstrong", command="keepstrong", error_kind="SkillUpdateRequired",
+            error_summary=str(e)[:200], http_code=426,
+        )
+        print(f"技能过期: {e}", file=sys.stderr)
+        return 1
+    except KeepStrongError as e:
+        record_integration_error(
+            "keepstrong", command="keepstrong", error_kind=type(e).__name__,
+            error_summary=str(e)[:200],
+        )
+        print(f"取数失败: {e}", file=sys.stderr)
+        return 1
+
+    text = (
+        f"# {PRODUCT_CN} · {payload.get('kind')}\n\n"
+        "```json\n"
+        + json.dumps(payload, ensure_ascii=False, indent=2)
+        + "\n```\n"
+    )
+    # 默认 stdout；--write 落收件箱（仍禁止只进库）
+    if opts["write"]:
+        out_dir = opts["out_dir"]
+        os.makedirs(out_dir, exist_ok=True)
+        out = os.path.join(out_dir, f"{INBOX_PREFIX}-{label}.md")
+        with open(out, "wb") as f:
+            f.write(text.replace("\r\n", "\n").encode("utf-8"))
+        print(f"已生成: {out}")
+        print("这是素材旁证；饮食权威仍在薄荷；⛔ 禁止只进库不落 md。")
+        return 0
+    print(text)
+    return 0
 
 
 def main(
@@ -438,25 +666,43 @@ def main(
 
     client = Client(key, urlopen=urlopen, sleep=sleep)
 
-    if opts["mode"] != "read":
+    if opts["mode"] in _WRITE_MODES:
         return _run_outbound(opts, client)
+    if opts["mode"] in _EXTRA_READ_MODES:
+        return _run_extra_read(opts, client)
     try:
         bundle = collect(
             opts["start"], opts["end"], types=opts["types"], client=client
         )
     except ApiKeyExpired as e:
+        record_integration_error(
+            "keepstrong", command="keepstrong", error_kind="ApiKeyExpired",
+            error_summary=str(e)[:200], http_code=401,
+        )
         print(f"认证失败: {e}", file=sys.stderr)
         print(f"离线兜底: {OFFLINE_FALLBACK_HINT}", file=sys.stderr)
         return 1
     except SkillUpdateRequired as e:
+        record_integration_error(
+            "keepstrong", command="keepstrong", error_kind="SkillUpdateRequired",
+            error_summary=str(e)[:200], http_code=426,
+        )
         print(f"技能过期: {e}", file=sys.stderr)
         print(f"离线兜底: {OFFLINE_FALLBACK_HINT}", file=sys.stderr)
         return 1
     except RateLimited as e:
+        record_integration_error(
+            "keepstrong", command="keepstrong", error_kind="RateLimited",
+            error_summary=str(e)[:200], http_code=429,
+        )
         print(f"限流: {e}", file=sys.stderr)
         print(f"离线兜底: {OFFLINE_FALLBACK_HINT}", file=sys.stderr)
         return 1
     except KeepStrongError as e:
+        record_integration_error(
+            "keepstrong", command="keepstrong", error_kind=type(e).__name__,
+            error_summary=str(e)[:200],
+        )
         print(f"取数失败: {e}", file=sys.stderr)
         print(f"离线兜底: {OFFLINE_FALLBACK_HINT}", file=sys.stderr)
         return 1

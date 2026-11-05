@@ -225,6 +225,14 @@ class Client:
         """便捷：只改状态。"""
         return self.update_task(task_id, status=status)
 
+    def delete_task(self, task_id: str) -> dict | None:
+        """DELETE ``/task/{id}``（薄封装；复盘 CLI 默认不暴露）。"""
+        return self.delete(f"/task/{task_id}")
+
+    def get_list(self, list_id: str) -> dict:
+        """GET ``/list/{id}`` 只读元数据（名称 / 状态等）。"""
+        return self.get(f"/list/{list_id}") or {}
+
     # ---- 评论 ------------------------------------------------------------
     def list_comments(self, task_id: str) -> list[dict]:
         """GET ``/task/{id}/comment``。"""

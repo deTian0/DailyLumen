@@ -54,18 +54,13 @@ from ..config import (
     WEEKDAY_CN,
 )
 from ..core.habits import resolve_habit
-from ..integrations.clickup import (
-    MAX_PAGES,
-    PAGE_SIZE,
-    CredError,
-    fetch_tasks,
-    http_get,
-)
+from ..integrations.clickup import CredError, fetch_tasks
 from ..integrations.clickup import load_creds as _load_creds
+from ..integrations.clickup.client import MAX_PAGES, PAGE_SIZE  # noqa: F401 — 兼容 cu.PAGE_SIZE
 from ..integrations.flags import IntegrationDisabled, require_enabled
 
 # 端点来自 config（← SETTINGS ← .env），⛔ 不再写死；可用 ``CLICKUP_BASE_URL`` 覆盖
-# 兼容旧代码：``clickup_sync`` 等仍可读 ``API_BASE``
+# 兼容别名（I7：编排层不再直调 http_*；API_BASE 仅兼容旧测试/脚本）
 API_BASE = CLICKUP_BASE_URL
 
 

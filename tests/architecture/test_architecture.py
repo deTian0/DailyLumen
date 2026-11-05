@@ -217,5 +217,37 @@ def _fn(path):
     return os.path.basename(path)
 
 
+# I7：pipeline 内禁止新写 ClickUp / 练练绝对 URL（须走 integrations 门面）
+_FORBIDDEN_EXTERNAL_URL_SNIPPETS = (
+    "api.clickup.com",
+    "lianlian.gzyunke.cn",
+)
+
+
+class TestPipelineNoRawIntegrationUrls(unittest.TestCase):
+    def test_pipeline_has_no_hardcoded_clickup_or_keepstrong_hosts(self):
+        offenders = []
+        pipe = os.path.join(PKG, "pipeline")
+        for dirpath, dirs, files in os.walk(pipe):
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
+            for fn in files:
+                if not fn.endswith(".py"):
+                    continue
+                path = os.path.join(dirpath, fn)
+                with open(path, encoding="utf-8") as f:
+                    src = f.read()
+                for snip in _FORBIDDEN_EXTERNAL_URL_SNIPPETS:
+                    if snip in src:
+                        offenders.append(
+                            f"pipeline/{os.path.relpath(path, pipe)} 含 {snip!r}"
+                        )
+        self.assertEqual(
+            offenders,
+            [],
+            "pipeline 禁止硬编码集成主机（走 integrations + Settings）：\n"
+            + "\n".join(offenders),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

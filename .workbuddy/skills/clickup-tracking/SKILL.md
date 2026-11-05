@@ -50,18 +50,24 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 
 ---
 
-## 1. 凭据与入口（本机）
+## 1. 凭据与入口（两套工具，勿混）
 
-- **凭据**：`~/.workbuddy/mcp.json` → `mcpServers.clickup.env.CLICKUP_API_KEY` / `CLICKUP_TEAM_ID`
-  （环境变量同名可覆盖，优先于文件）。
-  🔴 **token 绝不写进本仓库任何文件** —— 本仓库入 git。skill 运行时现读。
+| 工具 | 落点 | 干什么 | 何时用 |
+| --- | --- | --- | --- |
+| **仓库 Client / CLI** | `review_tool.integrations.clickup` + `python -m review_tool clickup*` | 复盘管道：素材 / 习惯 sync / 勾「每日复盘总结」/ 偶发建任务评论 | **日常复盘首选** |
+| **本机 cu.bat** | `~/.workbuddy/clickup-tools/`（`clickup_client.py`） | 通用 ClickUp：tree / 批量建任务 / 跨 list 迁移 / 归档 | 管道没覆盖的临时操作 |
+
+- **凭据**：优先 `local/.env` 的 `CLICKUP_API_KEY` / `CLICKUP_TEAM_ID`；
+  兼容回退 `~/.workbuddy/mcp.json` → `mcpServers.clickup.env.*`。
+  🔴 **token 绝不写进本仓库任何文件**。
 - **Workspace / Team ID**：`9014643172`（Detian's Workspace）——
   注意 token 里那串 `156108067` 是**用户 ID，不是 Team ID**。
-- **命令行入口**：`~/.workbuddy/clickup-tools/clickup_client.py`
-  - 解释器写在同一目录 `python_path.txt`（本机 = 托管 Python 3.13）；双击入口是同目录 `cu.bat`。
-  - 该客户端**只用标准库**，不需要任何 pip 包。
-- **通用 API 能力**（批量建任务 / 跨 list 迁移 / 20+ 踩坑清单）见**用户级 skill**
-  `clickup-api-bulk-tasks`。本 skill 只讲**与复盘系统的衔接**。
+- **本机 cu.bat**：解释器写在同目录 `python_path.txt`；只用标准库。
+  ⛔ **不删、不迁进仓库**；与仓库 Client **并存**，边界见上表。
+- **通用 API / 踩坑清单**见用户级 skill `clickup-api-bulk-tasks`。
+  仓库侧踩坑指针：`docs/练练健身-API参考.md`（练练）+ 本文 §6（ClickUp）。
+- **关集成**：`INTEGRATION_CLICKUP_ENABLED=false` → 相关 CLI 不发网；
+  独立部署见 [`docs/独立部署.md`](../../../docs/独立部署.md)。
 
 ---
 
@@ -102,19 +108,22 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 | 项目孵化 | 副业想法推进 | 同上（默认不采，按需 `--list <CLICKUP_LIST_ID>`） | 只读 |
 | 2026 年度目标 | 长期方向 | 「四、明日 Top 3」的对照锚点 | 只读 |
 
-**两条受控写方向（互不干扰）**
+**三条受控写方向（互不干扰）**
 
 | 方向 | 命令 | 写什么 |
 | --- | --- | --- |
 | **库 → ClickUp**（v1.7.0） | `clickup-push` | 只勾「每日复盘总结」元任务 |
 | **ClickUp → 库**（v1.15.0 · **唯一**） | `habits --sync` / `clickup --with-habits` | 6 条习惯 → `habit_logs` 快照（幂等；不改写已有 `done`） |
+| **人手偶发写任务**（v1.60.0 / I2） | `clickup-task` | 建任务 / 改状态 / 评论；默认 dry-run，`--apply` 才写；**不写** `habit_logs`、不参与四维 |
 
 库 → ClickUp 通道：复盘已入库后，用项目命令把「习惯与打卡」里的**每日复盘总结**
-元任务标完成 —— **只写这一条**，不碰其它任务。
+元任务标完成 —— **只写这一条**，不碰其它任务。`clickup-task` **不能替代** `clickup-push`。
 
 ```bash
 python -m review_tool clickup-push 2026-10-12            # 默认 dry-run，只打印
 python -m review_tool clickup-push 2026-10-12 --apply    # 真写 + GET 回读
+python -m review_tool clickup-task --create "买菜" --list <ID>   # dry-run
+python -m review_tool clickup-task --create "买菜" --list <ID> --apply
 ```
 
 | 冲突规则 | 内容 |
@@ -125,8 +134,16 @@ python -m review_tool clickup-push 2026-10-12 --apply    # 真写 + GET 回读
 | 默认安全 | 默认 dry-run；显式 `--apply` 才真写 |
 | 失败保守 | PUT 后 GET 回读；不符重试一次，仍失败则非 0 退出（不信状态码） |
 
-临时手工写其它任务（「帮我把这条记进 ClickUp」）仍可用本机 `cu.bat` 的 `add` / `done`，
-但**不等于**改动复盘系统，两者仍各自记账。写操作后一律 `GET` 回读确认。
+**复盘向偶发写**（I2 · 默认 dry-run，`--apply` 才写；**不写** `habit_logs`、不参与四维）：
+
+```bash
+python -m review_tool clickup-task --create "买菜" [--list ID] [--apply]
+python -m review_tool clickup-task --status <task_id> complete [--apply]
+python -m review_tool clickup-task --comment <task_id> "备注" [--apply]
+```
+
+与 `clickup-push`（只勾「每日复盘总结」）**互不替代**。批量跨 list / 自定义字段批量
+仍用本机 `cu.bat` / 用户级 skill。写操作后一律 `GET` 回读确认。
 
 ---
 
@@ -204,7 +221,11 @@ python -m review_tool habits                                     # 依从率 / s
 python -m review_tool clickup-push 2026-10-12                    # 预览
 python -m review_tool clickup-push 2026-10-12 --apply            # 勾「每日复盘总结」
 
-# ③ 直接问 ClickUp（临时查 / 写其它任务）
+# ②b 复盘向偶发写（建任务/改状态/评论；默认 dry-run；不写 habit_logs）
+python -m review_tool clickup-task --create "买菜" --list <CLICKUP_LIST_ID> --apply
+python -m review_tool clickup-task --status <task_id> complete --apply
+
+# ③ 本机 cu.bat（通用工具；非复盘管道）
 PY=$(cat ~/.workbuddy/clickup-tools/python_path.txt)
 CLI=~/.workbuddy/clickup-tools/clickup_client.py
 $PY $CLI whoami                      # 确认连得上（认证失败 = token 失效/已轮换）

@@ -27,6 +27,10 @@ TZ_OFFSET_MIN = TZ_OFFSET_HOURS * 60  # 东八区，分钟（API 的 X-Timezone-
 RECORDS_PAGE_SIZE = 50
 BODY_LOGS_PAGE_SIZE = 100
 ACTIONS_PAGE_SIZE = 200
+HISTORY_PAGE_SIZE = 50
+TEMPLATES_PAGE_SIZE = 50
+FOOD_SEARCH_PAGE_SIZE = 30
+FOOD_LIST_PAGE_SIZE = 100
 MAX_PAGES = 40
 
 # M20：训练日 / 训练明细只认已完成记录（其余状态一律排除，不做延期补偿）
@@ -397,6 +401,86 @@ class Client:
                 break
         return out
 
+    def action_history(
+        self,
+        action_id: str,
+        start_date: str,
+        end_date: str,
+        *,
+        page_size: int = HISTORY_PAGE_SIZE,
+    ) -> list[dict]:
+        """GET ``/training/actions/{id}/history``；跟 ``hasMore`` 翻页。
+
+        中文无关；日期仍走 ``to_day_str``。**不**改 completed 过滤语义（本端点无 status）。
+        """
+        out: list[dict] = []
+        for page in range(1, MAX_PAGES + 1):
+            data = self.get(
+                f"/api/v1/ai/training/actions/{action_id}/history",
+                params={
+                    "startDate": to_day_str(start_date),
+                    "endDate": to_day_str(end_date),
+                    "page": page,
+                    "pageSize": min(int(page_size), HISTORY_PAGE_SIZE),
+                },
+            ) or {}
+            items = (
+                data.get("list")
+                or data.get("history")
+                or data.get("records")
+                or data.get("data")
+                or []
+            )
+            if isinstance(items, dict):
+                items = items.get("list") or []
+            out.extend(items if isinstance(items, list) else [])
+            if not data.get("hasMore"):
+                break
+        return out
+
+    def templates(self, *, page_size: int = TEMPLATES_PAGE_SIZE) -> list[dict]:
+        """GET ``/training/templates``；跟 ``hasMore`` 翻页。"""
+        out: list[dict] = []
+        for page in range(1, MAX_PAGES + 1):
+            data = self.get(
+                "/api/v1/ai/training/templates",
+                params={
+                    "page": page,
+                    "pageSize": min(int(page_size), TEMPLATES_PAGE_SIZE),
+                },
+            ) or {}
+            items = data.get("list") or data.get("templates") or data.get("data") or []
+            if isinstance(items, dict):
+                items = items.get("list") or []
+            out.extend(items if isinstance(items, list) else [])
+            if not data.get("hasMore"):
+                break
+        return out
+
+    def food_logs(self, day_str: str) -> Any:
+        """GET ``/food/logs``（**一次一天**；最近 60 天）。默认不进 daily-pull。
+
+        饮食权威仍在薄荷；本接口仅旁证 / 可选 CLI。
+        """
+        return self.get(
+            "/api/v1/ai/food/logs",
+            params={"dayStr": to_day_str(day_str)},
+        )
+
+    def food_search(self, keyword: str, *, page_size: int = FOOD_SEARCH_PAGE_SIZE) -> list[dict]:
+        """GET ``/food/search``；keyword 经 ``encode_query``（含中文）。"""
+        data = self.get(
+            "/api/v1/ai/food/search",
+            params={
+                "keyword": keyword,
+                "pageSize": min(int(page_size), FOOD_SEARCH_PAGE_SIZE),
+            },
+        ) or {}
+        items = data.get("list") or data.get("foods") or data.get("data") or []
+        if isinstance(items, dict):
+            items = items.get("list") or []
+        return list(items) if isinstance(items, list) else []
+
     # ---- 动作缓存（非权威，可丢）---------------------------------------
     def actions_cache_path(self) -> str:
         return os.path.join(self.cache_dir, "keepstrong-actions.json")
@@ -541,6 +625,94 @@ class Client:
         verify_schedule_response(body, resp)
         return resp, key
 
+    def create_template(
+        self,
+        name: str,
+        actions: list[dict],
+        *,
+        template_id: str | None = None,
+        user_confirmed: bool = False,
+        idempotency_key: str | None = None,
+    ) -> tuple[Any, str]:
+        """POST ``/training/templates``（创建或带 templateId 更新元数据）。"""
+        if not user_confirmed:
+            raise KeepStrongError("写操作需要明确确认（userConfirmed / --yes）")
+        if not actions:
+            raise KeepStrongError("模板 actions 不能为空")
+        key = idempotency_key or new_idempotency_key()
+        body: dict[str, Any] = {
+            "userConfirmed": True,
+            "name": name,
+            "actions": actions,
+        }
+        if template_id is not None:
+            body["templateId"] = template_id
+        resp = self.post(
+            "/api/v1/ai/training/templates", body, idempotency_key=key
+        )
+        verify_template_response(body, resp)
+        return resp, key
+
+    def replace_template_actions(
+        self,
+        template_id: str,
+        actions: list[dict],
+        *,
+        user_confirmed: bool = False,
+        idempotency_key: str | None = None,
+    ) -> tuple[Any, str]:
+        """POST ``/training/templates/{id}/actions``（**完整替换**）。"""
+        if not user_confirmed:
+            raise KeepStrongError("写操作需要明确确认（userConfirmed / --yes）")
+        if not actions:
+            raise KeepStrongError("模板 actions 不能为空")
+        key = idempotency_key or new_idempotency_key()
+        body = {"userConfirmed": True, "actions": actions}
+        resp = self.post(
+            f"/api/v1/ai/training/templates/{template_id}/actions",
+            body,
+            idempotency_key=key,
+        )
+        verify_template_actions_response(template_id, resp)
+        return resp, key
+
+    def running_plan_command(
+        self,
+        running_plan_id: str,
+        command: str,
+        *,
+        user_confirmed: bool = False,
+        idempotency_key: str | None = None,
+        **extra: Any,
+    ) -> tuple[Any, str]:
+        """POST ``/training/running-plans/{id}/commands``。
+
+        ``command`` ∈ delay / cancel_rest / add_alternative / add_temporary_workout。
+        """
+        if not user_confirmed:
+            raise KeepStrongError("写操作需要明确确认（userConfirmed / --yes）")
+        allowed = {
+            "delay",
+            "cancel_rest",
+            "add_alternative",
+            "add_temporary_workout",
+        }
+        cmd = (command or "").strip()
+        if cmd not in allowed:
+            raise KeepStrongError(
+                f"未知 running-plan command: {command!r}；允许 {sorted(allowed)}"
+            )
+        key = idempotency_key or new_idempotency_key()
+        body: dict[str, Any] = {"userConfirmed": True, "command": cmd, **extra}
+        resp = self.post(
+            f"/api/v1/ai/training/running-plans/{running_plan_id}/commands",
+            body,
+            idempotency_key=key,
+        )
+        if not isinstance(resp, dict):
+            raise KeepStrongError(f"计划命令返回体异常（非对象）: {resp!r}")
+        return resp, key
+
 
 def new_idempotency_key() -> str:
     """每次调用唯一；同一逻辑请求重试时应复用调用方持有的 key。"""
@@ -580,6 +752,31 @@ def verify_schedule_response(request_body: dict, resp: Any) -> None:
     ):
         raise KeepStrongError(
             f"返回 dayStr 不一致：请求 {request_body['dayStr']}，返回 {resp['dayStr']}"
+        )
+
+
+def verify_template_response(request_body: dict, resp: Any) -> None:
+    if not isinstance(resp, dict):
+        raise KeepStrongError(f"模板创建返回体异常（非对象）: {resp!r}")
+    if resp.get("name") is not None and str(resp["name"]) != str(request_body["name"]):
+        raise KeepStrongError(
+            f"返回 name 不一致：请求 {request_body['name']!r}，返回 {resp.get('name')!r}"
+        )
+    req_tid = request_body.get("templateId")
+    if req_tid is not None and resp.get("templateId") is not None:
+        if str(resp["templateId"]) != str(req_tid):
+            raise KeepStrongError(
+                f"返回 templateId 不一致：请求 {req_tid}，返回 {resp['templateId']}"
+            )
+
+
+def verify_template_actions_response(template_id: str, resp: Any) -> None:
+    if not isinstance(resp, dict):
+        raise KeepStrongError(f"模板动作替换返回体异常（非对象）: {resp!r}")
+    rid = resp.get("templateId")
+    if rid is not None and str(rid) != str(template_id):
+        raise KeepStrongError(
+            f"返回 templateId 不一致：请求 {template_id}，返回 {rid}"
         )
 
 

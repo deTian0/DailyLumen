@@ -6,6 +6,10 @@
 > **上游约定**：`skillVersion` 变更时服务端返回 `HTTP 426 + skillUpdateRequired=true`，
 > 需重新拉取上文 URL 并替换本文件（`skillUrl` 字段给出新地址）。
 > **原始快照**：`.workbuddy/cache/keepstrong-skill-1.28.0.json`（完整 JSON，不含密钥，不入 git）。
+> **仓库封装**（v1.60 / I3–I4）：`review_tool.integrations.keepstrong.Client`
+> —— 读：`action_history` / `templates` / `food_logs` / `food_search`；
+> 写：`create_template` / `replace_template_actions` / `running_plan_command`（须 `--yes`）；
+> ⛔ `POST food/logs` 默认不做（饮食权威在薄荷）。里程碑见 [`集成能力路线图.md`](集成能力路线图.md)。
 
 ---
 

@@ -26,8 +26,9 @@ import sys
 import urllib.error
 
 from ..config import CLICKUP_REVIEW_TASK, CLICKUP_TIMEOUT_S, DB_PATH
-from ..integrations.clickup import CredError, fetch_tasks, http_get, http_put, load_creds
+from ..integrations.clickup import Client, CredError, fetch_tasks, load_creds
 from ..integrations.flags import IntegrationDisabled, require_enabled
+from ..integrations.last_error import record_integration_error
 from ..storage.db import init_db
 
 USAGE = "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID] [--db PATH]"
@@ -91,23 +92,46 @@ def review_exists(conn, day: str) -> bool:
     return row is not None
 
 
-# ------------------------------------------------------------------ HTTP PUT（见 integrations.clickup.http_put）
+# ------------------------------------------------------------------ 写回（经 integrations.clickup.Client）
 
 
-def mark_complete(task_id: str, key: str, *, put=None, fetch=None,
-                  timeout: float = CLICKUP_TIMEOUT_S) -> dict:
-    """PUT 置 complete，再 GET 回读校验；不符则再试一次。
+def _client_from_transport(
+    key: str,
+    *,
+    client: Client | None = None,
+    put=None,
+    fetch=None,
+    timeout: float = CLICKUP_TIMEOUT_S,
+) -> Client:
+    """生产走默认 Client；测试可注入 ``client`` 或旧签名 ``put``/``fetch``。"""
+    if client is not None:
+        return client
+    if put is not None or fetch is not None:
+        return Client(key, get=fetch, put=put, timeout=timeout)
+    return Client(key, timeout=timeout)
 
-    ``put`` / ``fetch`` 可注入（测试离线）。成功返回回读到的任务 dict；
+
+def mark_complete(
+    task_id: str,
+    key: str,
+    *,
+    client: Client | None = None,
+    put=None,
+    fetch=None,
+    timeout: float = CLICKUP_TIMEOUT_S,
+) -> dict:
+    """经 Client 置 complete，再 GET 回读校验；不符则再试一次。
+
+    ``client`` / ``put`` / ``fetch`` 可注入（测试离线）。成功返回回读任务 dict；
     仍失败抛 ``RuntimeError``。
     """
-    put = http_put if put is None else put
-    fetch = http_get if fetch is None else fetch
-    path = f"/task/{task_id}"
+    cu = _client_from_transport(
+        key, client=client, put=put, fetch=fetch, timeout=timeout
+    )
     last: dict | None = None
     for _ in range(MAX_PUT_ATTEMPTS):
-        put(path, key, {"status": "complete"}, timeout=timeout)
-        last = fetch(path, key, timeout=timeout) or {}
+        cu.set_task_status(task_id, "complete")
+        last = cu.get_task(task_id) or {}
         if is_closed(last):
             return last
     raise RuntimeError(
@@ -118,14 +142,28 @@ def mark_complete(task_id: str, key: str, *, put=None, fetch=None,
 
 
 # ----------------------------------------------------------------------- 核心
-def plan_push(day: str, *, list_id: str, name: str, task_id: str | None,
-              key: str, fetch=None, timeout: float = CLICKUP_TIMEOUT_S) -> dict:
+def plan_push(
+    day: str,
+    *,
+    list_id: str,
+    name: str,
+    task_id: str | None,
+    key: str,
+    client: Client | None = None,
+    fetch=None,
+    timeout: float = CLICKUP_TIMEOUT_S,
+) -> dict:
     """只读规划：取任务、判状态。不写。
 
     返回 ``{task_id, name, closed, action}``，``action`` 为
     ``skip_closed`` / ``would_complete``。
     """
-    tasks = fetch_tasks(list_id, key, fetch=fetch, timeout=timeout)
+    cu = _client_from_transport(key, client=client, fetch=fetch, timeout=timeout)
+    if fetch is not None and client is None:
+        # 保留旧 fetch 注入（FakeNet 只实现 list 分页路径）
+        tasks = fetch_tasks(list_id, key, fetch=fetch, timeout=timeout)
+    else:
+        tasks = cu.list_tasks(list_id)
     task = find_review_task(tasks, name=name, task_id=task_id)
     tid = str(task.get("id") or "")
     closed = is_closed(task)
@@ -138,10 +176,20 @@ def plan_push(day: str, *, list_id: str, name: str, task_id: str | None,
     }
 
 
-def run_push(day: str, *, apply: bool, list_id: str | None = None,
-             db_path: str | None = None, key: str = "",
-             fetch=None, put=None, env=None, creds_path: str | None = None,
-             timeout: float = CLICKUP_TIMEOUT_S) -> tuple[int, str]:
+def run_push(
+    day: str,
+    *,
+    apply: bool,
+    list_id: str | None = None,
+    db_path: str | None = None,
+    key: str = "",
+    client: Client | None = None,
+    fetch=None,
+    put=None,
+    env=None,
+    creds_path: str | None = None,
+    timeout: float = CLICKUP_TIMEOUT_S,
+) -> tuple[int, str]:
     """执行一次 clickup-push。返回 ``(exit_code, message)``。
 
     不直接读 ``sys.argv`` —— CLI 与测试都走这里。
@@ -168,17 +216,40 @@ def run_push(day: str, *, apply: bool, list_id: str | None = None,
     finally:
         conn.close()
 
+    cu = _client_from_transport(
+        key, client=client, put=put, fetch=fetch, timeout=timeout
+    )
     try:
         planned = plan_push(
-            day, list_id=lid, name=name, task_id=tid_cfg,
-            key=key, fetch=fetch, timeout=timeout)
+            day,
+            list_id=lid,
+            name=name,
+            task_id=tid_cfg,
+            key=key,
+            client=cu if client is not None else None,
+            fetch=fetch,
+            timeout=timeout,
+        )
     except ValueError as e:
         return 2, f"任务定位失败: {e}"
     except urllib.error.HTTPError as e:
         code = getattr(e, "code", "?")
         hint = "（401/403 = token 失效或权限不足）" if str(code) in ("401", "403") else ""
+        record_integration_error(
+            "clickup",
+            command="clickup-push",
+            error_kind="HTTPError",
+            error_summary=f"取数失败: HTTP {code}",
+            http_code=code,
+        )
         return 1, f"取数失败: HTTP {code} {hint}"
     except urllib.error.URLError as e:
+        record_integration_error(
+            "clickup",
+            command="clickup-push",
+            error_kind="URLError",
+            error_summary=str(e.reason)[:200],
+        )
         return 1, f"取数失败: 网络不可达 —— {e.reason}"
 
     tid = planned["task_id"]
@@ -197,13 +268,34 @@ def run_push(day: str, *, apply: bool, list_id: str | None = None,
         )
 
     try:
-        mark_complete(tid, key, put=put, fetch=fetch, timeout=timeout)
+        mark_complete(
+            tid, key, client=cu, put=put, fetch=fetch, timeout=timeout
+        )
     except RuntimeError as e:
+        record_integration_error(
+            "clickup",
+            command="clickup-push",
+            error_kind="RuntimeError",
+            error_summary=str(e)[:200],
+        )
         return 1, f"回写失败: {e}"
     except urllib.error.HTTPError as e:
         code = getattr(e, "code", "?")
+        record_integration_error(
+            "clickup",
+            command="clickup-push",
+            error_kind="HTTPError",
+            error_summary=f"回写失败: HTTP {code}",
+            http_code=code,
+        )
         return 1, f"回写失败: HTTP {code}"
     except urllib.error.URLError as e:
+        record_integration_error(
+            "clickup",
+            command="clickup-push",
+            error_kind="URLError",
+            error_summary=str(e.reason)[:200],
+        )
         return 1, f"回写失败: 网络不可达 —— {e.reason}"
 
     return 0, f"[apply] {day} · 「{tname}」({tid}) 已标完成，回读校验通过。"

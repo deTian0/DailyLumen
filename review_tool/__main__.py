@@ -14,6 +14,7 @@
     python -m review_tool import-history [--check] [--src DIR]
     python -m review_tool clickup    [YYYY-MM-DD] [--out DIR] [--stdout] [--list ID] [--with-habits]
     python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
+    python -m review_tool clickup-task (--create|--status|--comment) [--apply]
     python -m review_tool keepstrong [--date D] [--write] [--ingest] [--stdout]
     python -m review_tool doctor     # 含收工摘要 + 今日红绿灯
     python -m review_tool day-help   [YYYY-MM-DD] [--mode …]  # 一日三步 + 可复制命令
@@ -59,15 +60,16 @@ import sys
 from collections.abc import Callable
 
 from . import __version__
+from .integrations.flags import is_enabled as _integration_enabled
 from .pipeline.clickup import main as clickup_main
 from .pipeline.clickup_pull import main as clickup_pull_main
 from .pipeline.clickup_sync import main as clickup_push_main
+from .pipeline.clickup_task import main as clickup_task_main
 from .pipeline.daily_pull import main as daily_pull_main
 from .pipeline.export import main as export_main
 from .pipeline.import_history import main as import_history_main
 from .pipeline.ingest import main as ingest_main
 from .pipeline.keepstrong import main as keepstrong_main
-from .integrations.flags import is_enabled as _integration_enabled
 from .pipeline.new_day import is_enabled as _new_day_enabled
 from .pipeline.new_day import main as new_day_main
 from .pipeline.promise_draft import main as promise_draft_main
@@ -170,6 +172,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "clickup-push": (
         clickup_push_main,
         "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]"),
+    "clickup-task": (
+        clickup_task_main,
+        "clickup-task (--create NAME | --status ID S | --comment ID TEXT) [--list ID] [--apply]"),
     "clickup-pull": (
         clickup_pull_main,
         "clickup-pull [--days N] [--list ID] [--dry-run]"),
@@ -178,7 +183,8 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
         "clickup-done [YYYY-MM-DD] [结束日期] [--json]"),
     "keepstrong": (
         keepstrong_main,
-        "keepstrong [--date D] [--write] [--ingest] | --set-weight/--log-body/--schedule --yes"),
+        "keepstrong [--date D] [--write] [--ingest] | --action-history/--templates | "
+        "--set-weight/--create-template/--plan-command --yes"),
     "doctor": (doctor_main, "doctor"),
     "day-help": (
         day_help_main,
@@ -233,7 +239,7 @@ def disabled_commands() -> set[str]:
     if not _new_day_enabled():
         off.add("new-day")
     if not _integration_enabled("clickup"):
-        off.update({"clickup", "clickup-push", "clickup-pull"})
+        off.update({"clickup", "clickup-push", "clickup-pull", "clickup-task"})
     if not _integration_enabled("keepstrong"):
         off.add("keepstrong")
     if not _integration_enabled("deepseek"):

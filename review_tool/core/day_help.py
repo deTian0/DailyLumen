@@ -78,7 +78,8 @@ def render_day_help(
         "  # 若草稿已 --archive-inbox，可跳过 inbox-archive",
         "",
         "收工检查",
-        "  python -m review_tool doctor   # 收工摘要 + 今日能否收工红绿灯",
+        "  python -m review_tool doctor   # 收工摘要 + 红绿灯 + 集成开关/最近失败",
+        "  # 关 INTEGRATION_* 时勿把缺 ClickUp/练练素材当库病",
         "  # 可选分数收口：python -m review_tool finalize "
         f"--date {day} --apply",
         "",
