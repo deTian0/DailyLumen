@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DailyLumen · Web 看板原型（新拟物）</title>
+  <style>
+    :root {
+      --bg: #e6e9ef;
+      --surface: #e6e9ef;
+      --text: #2c3340;
+      --muted: #6b7380;
+      --accent: #5b7c99;
+      --ok: #3d7a5f;
+      --shadow-out: 8px 8px 16px #c5c9d1, -8px -8px 16px #ffffff;
+      --shadow-in: inset 6px 6px 12px #c5c9d1, inset -6px -6px 12px #ffffff;
+      --radius: 18px;
+      --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh;
+      font-family: var(--font); color: var(--text);
+      background: var(--bg);
+      padding: 28px clamp(16px, 4vw, 48px) 48px;
+    }
+    .shell { max-width: 1100px; margin: 0 auto; }
+    .note {
+      margin-bottom: 18px; padding: 12px 16px; border-radius: 12px;
+      box-shadow: var(--shadow-in); color: var(--muted); font-size: 13px;
+    }
+    header.top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; margin-bottom: 22px;
+      padding: 18px 22px; border-radius: var(--radius);
+      background: var(--surface); box-shadow: var(--shadow-out);
+    }
+    header h1 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: 0.02em; }
+    header .sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+    .btn {
+      border: 0; cursor: pointer; font: inherit; font-weight: 600;
+      color: var(--text); background: var(--surface);
+      padding: 12px 22px; border-radius: 999px;
+      box-shadow: var(--shadow-out); transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .btn:active, .btn.is-busy {
+      box-shadow: var(--shadow-in); transform: translateY(1px);
+    }
+    .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 22px;
+    }
+    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+    .panel {
+      padding: 18px; border-radius: var(--radius);
+      background: var(--surface); box-shadow: var(--shadow-out);
+      min-height: 360px; display: flex; flex-direction: column;
+    }
+    .panel h2 {
+      margin: 0 0 14px; font-size: 1rem; display: flex;
+      align-items: baseline; justify-content: space-between;
+    }
+    .panel h2 span.count {
+      font-size: 12px; color: var(--muted); font-weight: 500;
+    }
+    .slot {
+      flex: 1; border-radius: 14px; padding: 10px;
+      box-shadow: var(--shadow-in); overflow: auto;
+    }
+    .task {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 12px 12px; margin-bottom: 8px;
+      border-radius: 12px; background: var(--surface);
+      box-shadow: var(--shadow-out);
+    }
+    .task:last-child { margin-bottom: 0; }
+    .task .dot {
+      width: 10px; height: 10px; margin-top: 5px; border-radius: 50%;
+      background: var(--accent); flex-shrink: 0;
+      box-shadow: inset 1px 1px 2px #4a657c, inset -1px -1px 2px #7a9bb8;
+    }
+    .task.done .dot { background: var(--ok); }
+    .task .title { font-size: 14px; font-weight: 600; }
+    .task .meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    footer.status {
+      margin-top: 22px; padding: 14px 18px; border-radius: var(--radius);
+      box-shadow: var(--shadow-in); font-size: 12px; color: var(--muted);
+      display: flex; flex-wrap: wrap; gap: 12px 20px;
+    }
+    footer code { color: var(--text); }
+    .toast {
+      position: fixed; right: 24px; bottom: 24px;
+      padding: 12px 16px; border-radius: 12px;
+      background: var(--surface); box-shadow: var(--shadow-out);
+      font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <p class="note">
+      设计原型（非成品）：新拟物主题 · Vite+React 实现前可双击本文件预览交互感。
+      数据为示意；真机「刷新」将走本机 API → 复用现有 ClickUp / <code>LIST_*</code> / 归日规则。
+    </p>
+
+    <header class="top">
+      <div>
+        <h1>DailyLumen · 今日</h1>
+        <p class="sub">面板原型 · 待办 / 已办 · 沿用 LIST_* 口径</p>
+      </div>
+      <button type="button" class="btn" id="refreshBtn" aria-label="从 ClickUp 刷新今日">刷新</button>
+    </header>
+
+    <div class="grid">
+      <section class="panel" aria-labelledby="todo-title">
+        <h2 id="todo-title">今日待办 <span class="count" id="todoCount">4</span></h2>
+        <div class="slot" id="todoList">
+          <div class="task"><span class="dot"></span><div><div class="title">写周报草稿</div><div class="meta">工作 · LIST_WORK</div></div></div>
+          <div class="task"><span class="dot"></span><div><div class="title">复盘素材投递</div><div class="meta">日常事务 · LIST_DAILY</div></div></div>
+          <div class="task"><span class="dot"></span><div><div class="title">墨墨背单词</div><div class="meta">习惯与打卡 · LIST_HABITS</div></div></div>
+          <div class="task"><span class="dot"></span><div><div class="title">孵化：原型草图</div><div class="meta">项目孵化 · LIST_INCUBATOR</div></div></div>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="done-title">
+        <h2 id="done-title">今日已办 <span class="count" id="doneCount">3</span></h2>
+        <div class="slot" id="doneList">
+          <div class="task done"><span class="dot"></span><div><div class="title">晨间拉伸</div><div class="meta">已办 · 归日 date_closed（含次日早上回拨）</div></div></div>
+          <div class="task done"><span class="dot"></span><div><div class="title">站会纪要</div><div class="meta">工作 · 今日完成</div></div></div>
+          <div class="task done"><span class="dot"></span><div><div class="title">阅读 20 页</div><div class="meta">日常事务 · 今日完成</div></div></div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="status">
+      <span>mode：<code>workbuddy</code></span>
+      <span>ClickUp：<code>ON</code></span>
+      <span>DeepSeek：<code>OFF</code></span>
+      <span>最近刷新：原型示意</span>
+    </footer>
+  </div>
+  <div class="toast" id="toast">已模拟刷新（设计原型，未请求网络）</div>
+  <script>
+    const btn = document.getElementById("refreshBtn");
+    const toast = document.getElementById("toast");
+    btn.addEventListener("click", () => {
+      btn.classList.add("is-busy");
+      btn.textContent = "刷新中…";
+      setTimeout(() => {
+        btn.classList.remove("is-busy");
+        btn.textContent = "刷新";
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 1600);
+      }, 700);
+    });
+  </script>
+</body>
+</html>
