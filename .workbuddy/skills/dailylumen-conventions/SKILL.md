@@ -28,7 +28,7 @@ agent_created: true
   **草稿/定稿**：七-A vs 七-B；`llm-finalize` 写前并排 diff；含待人审标记时 ingest 默认跳过；
   收件箱可 `inbox-archive` / `llm-day --archive-inbox` → `已处理/日/`；
   `doctor` / `llm-day` 收工摘要 + 今日红绿灯；闭环
-  `投放收件箱 → 草稿 → 定稿入库归档`；独立部署见
+  `投放收件箱 → 草稿 → 定稿入库归档`（可执行清单：`day-help`）；独立部署见
   [`docs/独立部署.md`](../../../docs/独立部署.md)；契约见
   [`docs/LLM能力拆分草案.md`](../../../docs/LLM能力拆分草案.md) + skill `llm-host-contract`；
   产出仍先落 md 再 ingest；⛔ 无 WorkBuddy HTTP API。

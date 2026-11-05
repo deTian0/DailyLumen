@@ -379,12 +379,13 @@ API 失败**不写「否」**（CLI 明示离线兜底，留给 `fill_training_d
 > deepseek＝仓库调 API）。⛔ 无论哪种 mode，产出都**先落 md 再 `ingest`**，禁止只进库。
 > ⛔ **无** WorkBuddy HTTP API / SDK——`workbuddy` 模式只能由宿主在对话里履约落 md。
 
-### 4.0 双 mode 操作步骤（v1.58.0）
+### 4.0 双 mode 操作步骤（v1.58.1）
 
 先看 `doctor` 的 `[LLM 模式]`，或 `local/.env` 里的 `DAILYLUMEN_LLM_MODE`。  
+可执行清单：`python -m review_tool day-help`（按当前 mode 打印可复制命令）。  
 无 WorkBuddy 安装见 [`docs/独立部署.md`](../../../docs/独立部署.md)。
 
-**一日三步**：① 投放收件箱 → ② 草稿（数据块 ±「七、AI」）→ ③ 定稿入库归档。  
+**一日三步**：① 投放收件箱 → ② 草稿（llm-day 或 WorkBuddy 宿主）→ ③ 定稿入库归档（`llm-finalize` → `ingest` → 归档）；有事看 `doctor` 红绿灯。  
 健康叙事：**体重 + 饮食 + 睡眠 + 训练**（体脂可选，勿伪造）。
 
 **草稿 / 定稿**：七-A = AI 草稿（「草稿 / 待人审」）；七-B = 人审定稿。  

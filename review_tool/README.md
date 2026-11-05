@@ -112,6 +112,7 @@ python -m review_tool clickup-pull [--days N]               # 已完成任务 �
 python -m review_tool clickup-done 2026-10-20               # 那天完成了什么（写复盘用）
 python -m review_tool keepstrong [--date D] [--write] [--ingest]
 python -m review_tool doctor                           # 体检 + 收工摘要 + 今日红绿灯
+python -m review_tool day-help [日] [--mode …]         # 一日三步 + 可复制命令（按 mode）
 python -m review_tool finalize [--date D] [--apply]    # 入库分数收口（≠ llm-finalize）
 python -m review_tool body [--json]                    # 体征趋势（BMI / 均线 / 距目标）
 python -m review_tool coach [YYYY-MM-DD] [--json]      # 训练教练建议（达标 / 渐进 / 恢复 / 轮换）
@@ -129,7 +130,7 @@ python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 python -m review_tool stats [--json]                   # 一键统计（文档取数）
 python -m review_tool chart [--type body|training|nutrition|all] [--out 目录] [--stdout]
 python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（样本不足 10 仅观察）
-# 权威列表：python -m review_tool -h（当前 38 子命令；new-day 默认关闭）
+# 权威列表：python -m review_tool -h（当前 39 子命令；new-day 默认关闭）
 ```
 
 ## 目录约定

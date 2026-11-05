@@ -114,26 +114,38 @@ def assess_day_ready(
     return status
 
 
-def suggest_next_command(status: dict[str, Any]) -> str:
-    """按红绿灯状态给一条可复制的下一条命令。"""
+def suggest_next_command(
+    status: dict[str, Any],
+    *,
+    mode: str | None = None,
+) -> str:
+    """按红绿灯状态给一条可复制的下一条命令（对齐一日三步）。"""
+    from ..config import get_llm_mode
+    from ..core.day_help import draft_next_hint
+    from ..core.llm_mode import LLM_MODE_DEEPSEEK, normalize_llm_mode
+
     day = status.get("day") or datetime.date.today().isoformat()
+    m = normalize_llm_mode(mode if mode is not None else get_llm_mode())
     if not status.get("md_exists"):
-        return (
-            f"复制模板为复盘 md 后："
-            f"python -m review_tool llm-day --image 图 --date {day} --diff"
-        )
+        return draft_next_hint(day, m)
     if status.get("pending_draft"):
         return f"python -m review_tool llm-finalize {day} --write"
     if status.get("missing_focus"):
+        if m == LLM_MODE_DEEPSEEK:
+            return (
+                f"python -m review_tool llm-vision --image 图 --date {day} "
+                f"--kind diet|sleep|screen --diff"
+            )
         return (
-            f"python -m review_tool llm-vision --image 图 --date {day} "
-            f"--kind diet|sleep|screen --diff"
+            f"宿主补关注字段后："
+            f"python -m review_tool llm-finalize {day} --write"
+            f"（流程：python -m review_tool day-help）"
         )
     if not status.get("ingested"):
         return f"python -m review_tool ingest {status.get('md_path') or ''}".rstrip()
     if status.get("inbox_pending"):
         return f"python -m review_tool inbox-archive --date {day} --file 图 --write"
-    return f"python -m review_tool doctor"
+    return "一日三步已齐；复习流程：python -m review_tool day-help"
 
 
 def close_summary_for_llm_day(result: dict[str, Any]) -> str:

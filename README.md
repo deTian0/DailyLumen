@@ -3,20 +3,21 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.58.0**（收工摘要 + 定稿并排 diff + 收工红绿灯 + 周月报润色 + vision `--kind`）（历史：v1.57.0 定稿/归档闭环；v1.56.x；schema **v11**）｜测试数以全量跑为准
+> 当前版本 **1.58.1**（一日三步 CLI `day-help` + 文档对齐）（历史：v1.58.0 收工摘要/红绿灯/`--kind`/`--polish`；v1.57.0；schema **v11**）｜测试数以全量跑为准
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜**无 WorkBuddy 安装**见 [`docs/独立部署.md`](docs/独立部署.md)｜包级速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
 
 ## 一日三步（心智模型）
 
-日常只记三步——**先 md，再入库**；体脂可选、勿伪造。
+日常只记三步——**先 md，再入库**；体脂可选、勿伪造。  
+可执行清单（按当前 mode 给可复制命令）：`python -m review_tool day-help`
 
 1. **投放收件箱** — 截图 / 简报放进 `local/每日复盘/收件箱/`（或口述给宿主）
-2. **草稿** — `llm-day` / `llm-vision`（可 `--kind diet|sleep|screen`）写数据块 ±「七、AI」草稿；或宿主按 intake 手填
+2. **草稿** — `llm-day` / `llm-vision`（可 `--kind`；仅 deepseek）；或 WorkBuddy 宿主按 intake 手填
 3. **定稿入库归档** — `llm-finalize --write` → `ingest` → `inbox-archive`（或 `llm-day --archive-inbox`）
 
-健康叙事对外口径：**体重 + 饮食 + 睡眠 + 训练**（体脂不作为必填）。`doctor` 末尾有「今日能否收工」红绿灯与收工摘要。
+有事看 `doctor`（收工摘要 +「今日能否收工」红绿灯）。健康叙事：**体重 + 饮食 + 睡眠 + 训练**。
 
 ---
 
@@ -125,6 +126,7 @@
 | `clickup-done [YYYY-MM-DD]`                          | 某日 ClickUp 完成了什么（离线读快照，写复盘用） |
 | `keepstrong [--date D] [--write] [--ingest] / --set-weight … --yes` | 练练读/落 md；写回须 `--yes` |
 | `doctor`                                             | 数据体检 + 收工摘要 +「今日能否收工」红绿灯（缺字段/未定稿/未归档） |
+| `day-help [YYYY-MM-DD] [--mode …]`                   | 一日三步 + workbuddy/deepseek 可复制命令模板 |
 | `finalize [--date D] [--apply]`                      | 入库收尾：重算库分 + sync-docs 一键收口（默认 dry-run；≠ `llm-finalize`） |
 | `promises [起始] [结束] [--json]`                    | 承诺对账：改进点 / 明日 Top 3 次日证据判定 |
 | `body [--json]`                                      | 体征趋势：最新体重 / BMI / 7 日均 / 周变化 / 距目标 + **建议段**（M23，趋势×带位×外推） |
@@ -149,6 +151,7 @@
 典型日常（复盘当晚）——对齐「一日三步」：
 
 ```bash
+python -m review_tool day-help           # 按当前 mode 打印可复制命令
 # 1. 投放：截图 → local/每日复盘/收件箱/；复制模板 → 复盘/YYYY-MM/YYYY-MM-DD.md
 # 2. 草稿（deepseek 示例；workbuddy 则宿主按 intake 手填）
 python -m review_tool llm-day --image 收件箱/….jpg --date YYYY-MM-DD --diff

@@ -16,6 +16,7 @@
     python -m review_tool clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]
     python -m review_tool keepstrong [--date D] [--write] [--ingest] [--stdout]
     python -m review_tool doctor     # 含收工摘要 + 今日红绿灯
+    python -m review_tool day-help   [YYYY-MM-DD] [--mode …]  # 一日三步 + 可复制命令
     python -m review_tool body       [--json]
     python -m review_tool coach      [YYYY-MM-DD] [--json]
     python -m review_tool habits     [--json] [--sync ...]
@@ -79,6 +80,7 @@ from .reports.chart import main as chart_main
 from .reports.clickup_done import main as clickup_done_main
 from .reports.coach import main as coach_main
 from .reports.correlate import main as correlate_main
+from .reports.day_help import main as day_help_main
 from .reports.doctor import main as doctor_main
 from .reports.finalize import main as finalize_main
 from .reports.fuse import main as fuse_main
@@ -177,6 +179,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
         keepstrong_main,
         "keepstrong [--date D] [--write] [--ingest] | --set-weight/--log-body/--schedule --yes"),
     "doctor": (doctor_main, "doctor"),
+    "day-help": (
+        day_help_main,
+        "day-help [YYYY-MM-DD] [--date D] [--mode workbuddy|deepseek]"),
     "finalize": (
         finalize_main,
         "finalize [--date YYYY-MM-DD] [--apply]"),
