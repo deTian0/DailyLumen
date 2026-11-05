@@ -97,9 +97,10 @@ python -m review_tool version                       # 版本
 python -m review_tool new-day [YYYY-MM-DD] [--force]   # 生成当天文件 → 复盘/YYYY-MM/
 python -m review_tool ingest [文件] [--overwrite] [--prune-tracks] [--allow-ai-draft]  # 默认跳过未定稿
 python -m review_tool week [周号] [--json]             # 周报（省略 = 全部周）
-python -m review_tool month [YYYYMM] [--json]          # 月报（省略 = 最近一个月）
-python -m review_tool ai-context YYYY-MM-DD            # AI 上下文（当日 + 7 日趋势 + 关注点）
-python -m review_tool llm-day --image 图 [--image …] --date 日 [--review] [--write] [--archive-inbox] [--diff]  # 一键日流程（默认 dry-run）
+python -m review_tool week-done [ISO周] [--json]       # 本周做成了什么（ClickUp + 三件事）
+python -m review_tool month [YYYYMM] [--json] [--deep] # 月报；--deep = 深评素材
+python -m review_tool ai-context YYYY-MM-DD            # AI 上下文（当日 + 7 日趋势 + 关注点；纯本地）
+python -m review_tool llm-day --image 图 [--image …] --date 日 [--review] [--write] [--archive-inbox] [--diff]  # 一键日流程（仅 deepseek）
 python -m review_tool llm-finalize YYYY-MM-DD [--write]   # 本地定稿：清 pending；七-A→七-B（不依赖 DeepSeek）
 python -m review_tool inbox-archive --date 日 --file 图 [--write]  # 收件箱→已处理/日/（优先移动）
 python -m review_tool llm-review YYYY-MM-DD [--write] [--diff]  # DeepSeek→「七、AI」草稿（默认 dry-run；仅 deepseek）
@@ -109,19 +110,26 @@ python -m review_tool clickup [YYYY-MM-DD] [--out 目录] [--stdout] [--list ID]
 python -m review_tool clickup-push [YYYY-MM-DD] [--apply]   # 勾「每日复盘总结」（默认 dry-run）
 python -m review_tool clickup-pull [--days N]               # 已完成任务 → clickup_done 快照
 python -m review_tool clickup-done 2026-10-20               # 那天完成了什么（写复盘用）
+python -m review_tool keepstrong [--date D] [--write] [--ingest]
 python -m review_tool doctor                           # 数据体检（exit≠0 表示有问题）
+python -m review_tool finalize [--date D] [--apply]    # 入库分数收口（≠ llm-finalize）
 python -m review_tool body [--json]                    # 体征趋势（BMI / 均线 / 距目标）
 python -m review_tool coach [YYYY-MM-DD] [--json]      # 训练教练建议（达标 / 渐进 / 恢复 / 轮换）
 python -m review_tool habits [--json] [--sync ...]     # 行为习惯报告 / ClickUp→habit_logs
+python -m review_tool daily-pull [--date D] [--apply]  # 夜间采集拉齐（会打网；默认 dry-run）
+python -m review_tool promise-draft / three-things-draft / improve-draft [--date D]
 python -m review_tool nutrition [YYYY-MM-DD] [--json]  # 营养缺口 + FOOD_LIB 建议
+python -m review_tool promises [起始] [结束] [--json]  # 承诺对账
 python -m review_tool tutor [YYYY-MM-DD] [--json]      # 学习/复习队列
 python -m review_tool steward --slot morning|evening|week […]  # 总管家编排
 python -m review_tool fuse                             # 熔断检测（有绝对熔断时 exit=1）
 python -m review_tool sync-docs [--check]              # 库中分数回写到 md（--check 仅报告）
 python -m review_tool recompute-scores [--apply]       # 按规则重算四维/系统分（默认试算）
 python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
+python -m review_tool stats [--json]                   # 一键统计（文档取数）
 python -m review_tool chart [--type body|training|nutrition|all] [--out 目录] [--stdout]
 python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（样本不足 10 仅观察）
+# 权威列表：python -m review_tool -h（当前 38 子命令；new-day 默认关闭）
 ```
 
 ## 目录约定
@@ -151,7 +159,7 @@ python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（�
 ## 测试与代码风格
 
 ```bash
-python -m unittest discover -s tests -t .   # 全量 649 项，标准库零依赖
+python -m unittest discover -s tests -t .   # 全量（测试数以跑为准）；业务测不另引第三方
 ruff check .                                # 静态检查（CI 同款）
 ```
 

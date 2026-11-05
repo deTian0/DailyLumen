@@ -35,8 +35,8 @@ agent_created: true
 - [ ] 截图 / 口述 → 填数据块或附录（缺项空着）  
 - [ ] `python -m review_tool ai-context <日>` + 看 `doctor` 熔断 / 相对基线  
 - [ ] 建议段挂 `life-decision-guide`（人勾选才落改进点）  
-- [ ] 撰写「七、AI」→ 可先七-A 草稿；人审后七-B 定稿并**去掉待人审标记**  
-- [ ] `ingest`（未定稿会被跳过）→ `finalize --apply`  
+- [ ] 撰写「七、AI」→ 可先七-A 草稿；人审后 `llm-finalize <日> --write`（或手清 pending / 七-B）  
+- [ ] `ingest`（未定稿会被跳过）→ `finalize --apply`（分数收口；≠ `llm-finalize`） 
 
 ## deepseek 对照（非本 skill 主路径）
 

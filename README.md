@@ -102,15 +102,20 @@
 | `week [ISO周] [--json] [--write]` / `month …`         | 周 / 月分析；`--write` 落盘结构化总结（v1.32.0 起含「数据要点」段）；`month <YYYYMM> --deep` 聚合深评素材（概览 + 月窗图 + 相关 + 熔断 + 快照） |
 | `week-done [ISO周] [--json]`                         | 本周做成了什么：ClickUp 完成 + 复盘三件事只读清单（FR-A4） |
 | `ai-context [YYYY-MM-DD]`                            | 输出「七、AI 评价与建议」的确定性上下文                  |
-| `llm-day --image PATH [--image …] --date D [--review] [--write]` | 一键：多图 vision → 可选评价草稿（默认 dry-run；仅 deepseek；体脂可选） |
+| `llm-day --image PATH [--image …] --date D [--review] [--write] [--archive-inbox]` | 一键：多图 vision → 可选评价草稿（默认 dry-run；仅 deepseek；体脂可选） |
 | `llm-review [YYYY-MM-DD] [--write]`                  | DeepSeek：ai-context → 写「七、AI」草稿（默认 dry-run；仅 mode=deepseek） |
 | `llm-vision --image PATH --date D [--write]`         | DeepSeek 读图 → 契约字段写入 md（后图覆盖；体脂可选；不直写库） |
+| `llm-finalize [YYYY-MM-DD] [--write]`                | 本地定稿：清 pending；七-A→七-B（**不依赖** DeepSeek / mode） |
+| `inbox-archive --date D --file PATH [--write]`       | 收件箱截图 → `已处理/日/`（优先移动；可还原） |
 | `import-history [--check] [--src DIR]`               | 语雀历史文件转换为标准格式                          |
 | `clickup [YYYY-MM-DD] [--out DIR] [--stdout] [--with-habits]` | 拉 ClickUp 当日素材；`--with-habits` 附习惯段并同步 `habit_logs` |
 | `clickup-push [YYYY-MM-DD] [--apply]`                | 复盘已入库 → 勾 ClickUp「每日复盘总结」（**默认 dry-run**） |
+| `clickup-pull [--days N]`                            | ClickUp 已完成任务 → `clickup_done` 快照（会打网） |
+| `clickup-done [YYYY-MM-DD]`                          | 某日 ClickUp 完成了什么（离线读快照，写复盘用） |
 | `keepstrong [--date D] [--write] [--ingest] / --set-weight … --yes` | 练练读/落 md；写回须 `--yes` |
-| `doctor`                                             | 数据体检：对账 / R3 习惯隔离 / 习惯断更 / 体征 / 熔断… |
-| `finalize [--date D] [--apply]`                      | 入库收尾：重算库分 + sync-docs 一键收口（默认 dry-run） |
+| `doctor`                                             | 数据体检：对账 / R3 习惯隔离 / 习惯断更 / 体征 / 熔断 / LLM mode… |
+| `finalize [--date D] [--apply]`                      | 入库收尾：重算库分 + sync-docs 一键收口（默认 dry-run；≠ `llm-finalize`） |
+| `promises [起始] [结束] [--json]`                    | 承诺对账：改进点 / 明日 Top 3 次日证据判定 |
 | `body [--json]`                                      | 体征趋势：最新体重 / BMI / 7 日均 / 周变化 / 距目标 + **建议段**（M23，趋势×带位×外推） |
 | `coach [YYYY-MM-DD] [--json]`                        | 训练教练建议：达标 / 渐进 / 恢复 / 部位轮换（每条带依据数字） |
 | `habits [--json] [--sync [D [D]]]`                   | 行为习惯报告；`--sync` 支持单日 / 闭区间回填 → `habit_logs` |
