@@ -3,155 +3,360 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DailyLumen · Web 看板原型（新拟物）</title>
+  <title>DailyLumen · Web 看板原型 v2（新拟物）</title>
   <style>
     :root {
-      --bg: #e6e9ef;
-      --surface: #e6e9ef;
-      --text: #2c3340;
-      --muted: #6b7380;
-      --accent: #5b7c99;
-      --ok: #3d7a5f;
-      --shadow-out: 8px 8px 16px #c5c9d1, -8px -8px 16px #ffffff;
-      --shadow-in: inset 6px 6px 12px #c5c9d1, inset -6px -6px 12px #ffffff;
-      --radius: 18px;
+      --bg: #e8edf5;
+      --surface: #e8edf5;
+      --text: #2a3142;
+      --muted: #7a8499;
+      --blue: #4d7cff;
+      --green: #2f9e6b;
+      --red: #e25555;
+      --shadow-out: 9px 9px 18px #c5cad6, -9px -9px 18px #ffffff;
+      --shadow-out-sm: 5px 5px 10px #c5cad6, -5px -5px 10px #ffffff;
+      --shadow-in: inset 6px 6px 12px #c5cad6, inset -6px -6px 12px #ffffff;
+      --shadow-in-sm: inset 3px 3px 7px #c5cad6, inset -3px -3px 7px #ffffff;
+      --radius: 22px;
+      --radius-sm: 14px;
       --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --sidebar-w: 220px;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; min-height: 100vh;
-      font-family: var(--font); color: var(--text);
-      background: var(--bg);
-      padding: 28px clamp(16px, 4vw, 48px) 48px;
+      margin: 0; min-height: 100vh; font-family: var(--font);
+      color: var(--text); background: var(--bg);
     }
-    .shell { max-width: 1100px; margin: 0 auto; }
-    .note {
-      margin-bottom: 18px; padding: 12px 16px; border-radius: 12px;
-      box-shadow: var(--shadow-in); color: var(--muted); font-size: 13px;
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar-w) 1fr;
+      min-height: 100vh;
     }
-    header.top {
+    @media (max-width: 900px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+
+    /* Sidebar */
+    .sidebar {
+      padding: 28px 18px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px 22px; font-weight: 700; font-size: 1.05rem;
+    }
+    .brand-mark {
+      width: 34px; height: 34px; border-radius: 12px;
+      box-shadow: var(--shadow-out-sm); display: grid; place-items: center;
+      color: var(--blue); font-size: 14px; font-weight: 800;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px; border-radius: 14px; color: var(--muted);
+      text-decoration: none; font-size: 14px; font-weight: 600;
+      border: 0; background: transparent; width: 100%; text-align: left;
+      cursor: pointer; font-family: inherit;
+    }
+    .nav-item.active {
+      color: var(--text); box-shadow: var(--shadow-out-sm); background: var(--surface);
+    }
+    .nav-item .ico { width: 18px; text-align: center; opacity: 0.85; }
+    .sidebar-foot { margin-top: auto; padding-top: 18px; }
+    .btn-primary {
+      width: 100%; border: 0; cursor: pointer; font: inherit; font-weight: 700;
+      color: #fff; background: linear-gradient(180deg, #6b93ff, var(--blue));
+      padding: 14px 16px; border-radius: 16px;
+      box-shadow: 6px 6px 14px #b7c0d4, -4px -4px 10px #ffffff, inset 0 1px 0 rgba(255,255,255,.35);
+    }
+    .btn-primary:active { filter: brightness(0.96); }
+
+    /* Main */
+    .main { padding: 28px 32px 40px; }
+    .banner {
+      margin-bottom: 16px; padding: 10px 14px; border-radius: 12px;
+      box-shadow: var(--shadow-in-sm); color: var(--muted); font-size: 12px;
+    }
+    .topbar {
       display: flex; align-items: center; justify-content: space-between;
-      gap: 16px; margin-bottom: 22px;
-      padding: 18px 22px; border-radius: var(--radius);
+      gap: 16px; margin-bottom: 22px; flex-wrap: wrap;
+    }
+    .topbar h1 { margin: 0; font-size: 1.55rem; font-weight: 700; }
+    .top-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .search {
+      display: flex; align-items: center; gap: 8px;
+      min-width: min(280px, 70vw); padding: 12px 16px; border-radius: 999px;
+      box-shadow: var(--shadow-in); background: var(--surface);
+    }
+    .search input {
+      border: 0; outline: 0; background: transparent; width: 100%;
+      font: inherit; color: var(--text);
+    }
+    .icon-btn {
+      width: 42px; height: 42px; border-radius: 14px; border: 0;
+      background: var(--surface); box-shadow: var(--shadow-out-sm);
+      cursor: pointer; color: var(--muted); font-size: 16px;
+    }
+    .icon-btn:active { box-shadow: var(--shadow-in-sm); }
+    .chip-green {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; border-radius: 999px; border: 0;
+      background: linear-gradient(180deg, #45c58a, var(--green));
+      color: #fff; font-weight: 700; font-size: 13px; cursor: pointer;
+      box-shadow: 5px 5px 12px #b7c0d4;
+    }
+    .avatar {
+      width: 42px; height: 42px; border-radius: 50%;
+      box-shadow: var(--shadow-out-sm); background: #d9e0ec;
+      display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--muted);
+    }
+
+    .stats {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 1100px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat {
+      padding: 16px 18px; border-radius: var(--radius);
       background: var(--surface); box-shadow: var(--shadow-out);
     }
-    header h1 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: 0.02em; }
-    header .sub { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
-    .btn {
-      border: 0; cursor: pointer; font: inherit; font-weight: 600;
-      color: var(--text); background: var(--surface);
-      padding: 12px 22px; border-radius: 999px;
-      box-shadow: var(--shadow-out); transition: box-shadow 0.15s, transform 0.15s;
+    .stat .label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .stat .value { font-size: 1.45rem; font-weight: 750; letter-spacing: -0.02em; }
+    .stat .delta { margin-top: 6px; font-size: 12px; font-weight: 650; }
+    .stat .delta.up { color: var(--green); }
+    .stat .delta.flat { color: var(--muted); }
+    .spark {
+      margin-top: 10px; height: 28px; border-radius: 8px;
+      box-shadow: var(--shadow-in-sm);
+      background:
+        linear-gradient(180deg, transparent 40%, rgba(77,124,255,.12)),
+        repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(255,255,255,.35) 8px, rgba(255,255,255,.35) 9px);
+      position: relative; overflow: hidden;
     }
-    .btn:active, .btn.is-busy {
-      box-shadow: var(--shadow-in); transform: translateY(1px);
+    .spark::after {
+      content: ""; position: absolute; left: 8%; right: 8%; top: 35%; height: 2px;
+      background: var(--blue); border-radius: 2px;
+      box-shadow: 0 8px 0 -1px rgba(47,158,107,.55);
+      opacity: 0.85;
     }
-    .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-    .grid {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 22px;
+
+    .row {
+      display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 18px;
+      margin-bottom: 18px;
     }
-    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
-    .panel {
+    @media (max-width: 1100px) { .row { grid-template-columns: 1fr; } }
+    .card {
       padding: 18px; border-radius: var(--radius);
       background: var(--surface); box-shadow: var(--shadow-out);
-      min-height: 360px; display: flex; flex-direction: column;
+      min-height: 320px; display: flex; flex-direction: column;
     }
-    .panel h2 {
-      margin: 0 0 14px; font-size: 1rem; display: flex;
-      align-items: baseline; justify-content: space-between;
+    .card-h {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; gap: 10px;
     }
-    .panel h2 span.count {
-      font-size: 12px; color: var(--muted); font-weight: 500;
-    }
-    .slot {
-      flex: 1; border-radius: 14px; padding: 10px;
+    .card-h h2 { margin: 0; font-size: 1.05rem; }
+    .card-h .meta { font-size: 12px; color: var(--muted); }
+    .well {
+      flex: 1; border-radius: 16px; padding: 12px;
       box-shadow: var(--shadow-in); overflow: auto;
     }
     .task {
-      display: flex; gap: 10px; align-items: flex-start;
-      padding: 12px 12px; margin-bottom: 8px;
-      border-radius: 12px; background: var(--surface);
-      box-shadow: var(--shadow-out);
+      display: grid; grid-template-columns: 14px 1fr auto; gap: 12px;
+      align-items: start; padding: 14px 14px; margin-bottom: 10px;
+      border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-out-sm);
     }
     .task:last-child { margin-bottom: 0; }
-    .task .dot {
+    .dot {
       width: 10px; height: 10px; margin-top: 5px; border-radius: 50%;
-      background: var(--accent); flex-shrink: 0;
-      box-shadow: inset 1px 1px 2px #4a657c, inset -1px -1px 2px #7a9bb8;
+      background: var(--blue);
+      box-shadow: inset 1px 1px 2px #355899, inset -1px -1px 2px #7ea0ff;
     }
-    .task.done .dot { background: var(--ok); }
-    .task .title { font-size: 14px; font-weight: 600; }
-    .task .meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
-    footer.status {
-      margin-top: 22px; padding: 14px 18px; border-radius: var(--radius);
-      box-shadow: var(--shadow-in); font-size: 12px; color: var(--muted);
-      display: flex; flex-wrap: wrap; gap: 12px 20px;
+    .task.done .dot { background: var(--green); box-shadow: none; }
+    .task .title { font-size: 14px; font-weight: 700; }
+    .task .sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .pill {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      padding: 6px 10px; border-radius: 999px; box-shadow: var(--shadow-in-sm);
+      white-space: nowrap;
     }
-    footer code { color: var(--text); }
-    .toast {
-      position: fixed; right: 24px; bottom: 24px;
-      padding: 12px 16px; border-radius: 12px;
+
+    .cal-card { min-height: 280px; }
+    .week {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;
+      margin-bottom: 14px;
+    }
+    .day {
+      aspect-ratio: 1; border-radius: 14px; display: grid; place-items: center;
+      font-size: 13px; font-weight: 700; color: var(--muted);
+      box-shadow: var(--shadow-out-sm); background: var(--surface);
+    }
+    .day.sel {
+      color: #fff; background: #3a4254;
+      box-shadow: var(--shadow-in-sm);
+    }
+    .event {
+      display: flex; justify-content: space-between; gap: 10px;
+      padding: 12px 12px; margin-bottom: 8px; border-radius: 12px;
+      box-shadow: var(--shadow-out-sm); background: var(--surface); font-size: 13px;
+    }
+    .event .t { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+    .wide {
+      padding: 18px; border-radius: var(--radius);
       background: var(--surface); box-shadow: var(--shadow-out);
-      font-size: 13px; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+    }
+    .wide h2 { margin: 0 0 12px; font-size: 1.05rem; }
+    .bars {
+      display: grid; gap: 10px; padding: 14px; border-radius: 16px;
+      box-shadow: var(--shadow-in);
+    }
+    .bar-row { display: grid; grid-template-columns: 88px 1fr; gap: 12px; align-items: center; }
+    .bar-row .name { font-size: 12px; color: var(--muted); font-weight: 650; }
+    .track {
+      height: 14px; border-radius: 999px; box-shadow: var(--shadow-in-sm);
+      position: relative; overflow: hidden;
+    }
+    .fill {
+      position: absolute; top: 3px; bottom: 3px; border-radius: 999px;
+      background: linear-gradient(90deg, #7aa2ff, var(--blue));
+      box-shadow: 2px 2px 4px rgba(60,80,120,.2);
+    }
+    .fill.g { background: linear-gradient(90deg, #6ed6a5, var(--green)); left: 10%; width: 45%; }
+    .fill.b { left: 5%; width: 62%; }
+    .fill.o { left: 35%; width: 40%; background: linear-gradient(90deg, #ffc27a, #f0a04b); }
+
+    .toast {
+      position: fixed; right: 24px; bottom: 24px; z-index: 20;
+      padding: 12px 16px; border-radius: 14px; font-size: 13px; font-weight: 650;
+      background: var(--surface); box-shadow: var(--shadow-out);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s;
     }
     .toast.show { opacity: 1; }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <p class="note">
-      设计原型（非成品）：新拟物主题 · Vite+React 实现前可双击本文件预览交互感。
-      数据为示意；真机「刷新」将走本机 API → 复用现有 ClickUp / <code>LIST_*</code> / 归日规则。
-    </p>
-
-    <header class="top">
-      <div>
-        <h1>DailyLumen · 今日</h1>
-        <p class="sub">面板原型 · 待办 / 已办 · 沿用 LIST_* 口径</p>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">DL</div>DailyLumen</div>
+      <button class="nav-item active" type="button"><span class="ico">⌂</span>今日看板</button>
+      <button class="nav-item" type="button"><span class="ico">☰</span>待办</button>
+      <button class="nav-item" type="button"><span class="ico">✓</span>已办</button>
+      <button class="nav-item" type="button"><span class="ico">◎</span>复盘</button>
+      <button class="nav-item" type="button"><span class="ico">⚡</span>集成</button>
+      <div class="sidebar-foot">
+        <button class="btn-primary" type="button" id="refreshBtn">↻ 刷新今日</button>
       </div>
-      <button type="button" class="btn" id="refreshBtn" aria-label="从 ClickUp 刷新今日">刷新</button>
-    </header>
+    </aside>
 
-    <div class="grid">
-      <section class="panel" aria-labelledby="todo-title">
-        <h2 id="todo-title">今日待办 <span class="count" id="todoCount">4</span></h2>
-        <div class="slot" id="todoList">
-          <div class="task"><span class="dot"></span><div><div class="title">写周报草稿</div><div class="meta">工作 · LIST_WORK</div></div></div>
-          <div class="task"><span class="dot"></span><div><div class="title">复盘素材投递</div><div class="meta">日常事务 · LIST_DAILY</div></div></div>
-          <div class="task"><span class="dot"></span><div><div class="title">墨墨背单词</div><div class="meta">习惯与打卡 · LIST_HABITS</div></div></div>
-          <div class="task"><span class="dot"></span><div><div class="title">孵化：原型草图</div><div class="meta">项目孵化 · LIST_INCUBATOR</div></div></div>
-        </div>
-      </section>
-      <section class="panel" aria-labelledby="done-title">
-        <h2 id="done-title">今日已办 <span class="count" id="doneCount">3</span></h2>
-        <div class="slot" id="doneList">
-          <div class="task done"><span class="dot"></span><div><div class="title">晨间拉伸</div><div class="meta">已办 · 归日 date_closed（含次日早上回拨）</div></div></div>
-          <div class="task done"><span class="dot"></span><div><div class="title">站会纪要</div><div class="meta">工作 · 今日完成</div></div></div>
-          <div class="task done"><span class="dot"></span><div><div class="title">阅读 20 页</div><div class="meta">日常事务 · 今日完成</div></div></div>
-        </div>
-      </section>
-    </div>
+    <main class="main">
+      <p class="banner">
+        设计原型 v2（对齐参考稿完成度：侧栏 / 凹陷搜索 / 指标卡 / 双栏任务 / 日历条）。
+        非成品；刷新仅示意。真机将复用 <code>LIST_*</code> + ClickUp 归日，不另写逻辑。
+      </p>
 
-    <footer class="status">
-      <span>mode：<code>workbuddy</code></span>
-      <span>ClickUp：<code>ON</code></span>
-      <span>DeepSeek：<code>OFF</code></span>
-      <span>最近刷新：原型示意</span>
-    </footer>
+      <div class="topbar">
+        <h1>今日看板</h1>
+        <div class="top-actions">
+          <label class="search"><span aria-hidden="true">⌕</span><input placeholder="搜索任务（原型）" /></label>
+          <button class="chip-green" type="button" title="示意">本机 · workbuddy</button>
+          <button class="icon-btn" type="button" aria-label="通知">⚑</button>
+          <div class="avatar">63516</div>
+        </div>
+      </div>
+
+      <section class="stats" aria-label="今日摘要">
+        <article class="stat">
+          <div class="label">今日待办</div>
+          <div class="value">4</div>
+          <div class="delta up">↑ 待处理</div>
+          <div class="spark" aria-hidden="true"></div>
+        </article>
+        <article class="stat">
+          <div class="label">今日已办</div>
+          <div class="value">3</div>
+          <div class="delta up">↑ 已归日</div>
+          <div class="spark" aria-hidden="true"></div>
+        </article>
+        <article class="stat">
+          <div class="label">ClickUp</div>
+          <div class="value" style="font-size:1.1rem">ON</div>
+          <div class="delta flat">LIST_DAILY / WORK / HABITS</div>
+          <div class="spark" aria-hidden="true"></div>
+        </article>
+        <article class="stat">
+          <div class="label">收工灯</div>
+          <div class="value" style="font-size:1.1rem;color:var(--green)">黄灯</div>
+          <div class="delta flat">示意 · doctor 后置</div>
+          <div class="spark" aria-hidden="true"></div>
+        </article>
+      </section>
+
+      <section class="row">
+        <article class="card">
+          <div class="card-h">
+            <h2>今日待办</h2>
+            <span class="meta">未完成 · 日常/习惯/工作</span>
+          </div>
+          <div class="well" id="todoList">
+            <div class="task"><span class="dot"></span><div><div class="title">写周报草稿</div><div class="sub">工作 · LIST_WORK</div></div><span class="pill">due 今天</span></div>
+            <div class="task"><span class="dot"></span><div><div class="title">复盘素材投递</div><div class="sub">日常事务 · LIST_DAILY</div></div><span class="pill">收件箱</span></div>
+            <div class="task"><span class="dot"></span><div><div class="title">墨墨背单词</div><div class="sub">习惯与打卡 · LIST_HABITS</div></div><span class="pill">习惯</span></div>
+            <div class="task"><span class="dot"></span><div><div class="title">站会纪要补全</div><div class="sub">工作 · LIST_WORK</div></div><span class="pill">P1</span></div>
+          </div>
+        </article>
+
+        <article class="card cal-card">
+          <div class="card-h">
+            <h2>本周节奏</h2>
+            <span class="meta">日历条（示意）</span>
+          </div>
+          <div class="week" aria-label="本周">
+            <div class="day">一</div><div class="day">二</div><div class="day">三</div>
+            <div class="day sel">四</div><div class="day">五</div><div class="day">六</div><div class="day">日</div>
+          </div>
+          <div class="event"><span>已办：晨间拉伸</span><span class="t">07:40</span></div>
+          <div class="event"><span>已办：站会纪要</span><span class="t">10:15</span></div>
+          <div class="event"><span>待办：周报草稿</span><span class="t">今晚</span></div>
+        </article>
+      </section>
+
+      <section class="row">
+        <article class="card">
+          <div class="card-h">
+            <h2>今日已办</h2>
+            <span class="meta">date_closed 归日 · 含回拨</span>
+          </div>
+          <div class="well">
+            <div class="task done"><span class="dot"></span><div><div class="title">晨间拉伸</div><div class="sub">习惯 · 今日完成</div></div><span class="pill">done</span></div>
+            <div class="task done"><span class="dot"></span><div><div class="title">阅读 20 页</div><div class="sub">日常事务 · 今日完成</div></div><span class="pill">done</span></div>
+            <div class="task done"><span class="dot"></span><div><div class="title">站会纪要</div><div class="sub">工作 · 今日完成</div></div><span class="pill">done</span></div>
+          </div>
+        </article>
+        <article class="wide" style="min-height:auto">
+          <h2>本周负荷（示意条，非甘特业务）</h2>
+          <div class="bars">
+            <div class="bar-row"><span class="name">工作</span><div class="track"><div class="fill b"></div></div></div>
+            <div class="bar-row"><span class="name">习惯</span><div class="track"><div class="fill g"></div></div></div>
+            <div class="bar-row"><span class="name">日常</span><div class="track"><div class="fill o"></div></div></div>
+          </div>
+          <p class="meta" style="margin:12px 0 0;font-size:12px;color:var(--muted)">P0 不做真甘特；此条仅对齐参考稿「底层宽卡」层次。</p>
+        </article>
+      </section>
+    </main>
   </div>
   <div class="toast" id="toast">已模拟刷新（设计原型，未请求网络）</div>
   <script>
     const btn = document.getElementById("refreshBtn");
     const toast = document.getElementById("toast");
     btn.addEventListener("click", () => {
-      btn.classList.add("is-busy");
+      const old = btn.textContent;
       btn.textContent = "刷新中…";
+      btn.disabled = true;
       setTimeout(() => {
-        btn.classList.remove("is-busy");
-        btn.textContent = "刷新";
+        btn.textContent = old;
+        btn.disabled = false;
         toast.classList.add("show");
         setTimeout(() => toast.classList.remove("show"), 1600);
-      }, 700);
+      }, 750);
     });
   </script>
 </body>
