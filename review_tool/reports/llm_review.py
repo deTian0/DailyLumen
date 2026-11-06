@@ -223,11 +223,15 @@ def run_llm_review(
     now: Callable[[], str] | None = None,
     log_path: str | None = None,
     skip_runlog: bool = False,
+    conn=None,
 ) -> dict[str, Any]:
     """编排：取上下文 → DeepSeek → 组装草稿 → 可选写 md。
 
     ``client`` 可注入（测试 mock）；``mode`` 可覆盖 Settings。
+    ``conn``：可选外部连接（Web 只读预览用），透传给 ``build_context``，不建库不迁移。
     """
+    if write and conn is not None:
+        raise ValueError("传入外部连接时只允许预览（write=False）")
     m = normalize_llm_mode(mode) if mode is not None else get_llm_mode()
 
     def _log(ok: bool, **extra: Any) -> None:
@@ -258,7 +262,7 @@ def run_llm_review(
             f"（{LLM_MODE_WORKBUDDY!r}=宿主代劳，仓库不调外部模型）"
         )
 
-    ctx = build_context(day, db_path=db_path)
+    ctx = build_context(day, db_path=db_path, conn=conn)
     context_md = render_markdown(ctx)
     stamp = now() if callable(now) else datetime.datetime.now().strftime(
         "%Y-%m-%d %H:%M"

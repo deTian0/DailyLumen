@@ -59,6 +59,9 @@ export const api = {
   integrationErrors: (o) => json('/api/integrations/errors', o),
   life: (domain, params, o) => json(`/api/${domain}${qs(params)}`, o),
   steward: (slot, params, o) => json(`/api/steward/${slot}${qs(params)}`, o),
+  aiStatus: (o) => json('/api/ai/status', o),
+  aiReviewPreview: (date, o) =>
+    json(`/api/ai/review-preview${qs({ date })}`, { ...o, method: 'POST' }),
   chartUrl: (kind) => `/api/charts/${kind}`,
   weekMdUrl: (year, week) => `/api/reports/week.md${qs({ year, week })}`,
   monthMdUrl: (month) => `/api/reports/month.md${qs({ month })}`,

@@ -110,15 +110,69 @@ function MonthView({ toast }) {
   )
 }
 
+// AI 评价预览（W8）：只预览不落盘；mode≠deepseek 时按钮禁用并说明原因
+function AiPreview({ date, toast }) {
+  const st = useAsync((signal) => api.aiStatus({ signal }), [])
+  const [busy, setBusy] = useState(false)
+  const [res, setRes] = useState(null)
+  const [err, setErr] = useState(null)
+  async function run() {
+    setBusy(true)
+    setErr(null)
+    try {
+      setRes(await api.aiReviewPreview(date))
+    } catch (e) {
+      setErr(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const allowed = st.data?.allowed
+  return (
+    <Card title="AI 评价预览" meta={st.data ? `mode=${st.data.mode}` : ''}
+      actions={
+        <button type="button" className="btn-primary" onClick={run} disabled={!allowed || busy}
+          aria-describedby="ai-gate-note">
+          {busy ? '生成中…' : '生成预览'}
+        </button>
+      }>
+      <p id="ai-gate-note" className="hint">
+        {st.data && !allowed
+          ? st.data.reason
+          : '调用 DeepSeek 生成「七、AI 评价与建议」草稿，仅预览，不写 md、不写库；确认后用下方 CLI 落盘。'}
+      </p>
+      {err && <ErrorBox error={err} onRetry={allowed ? run : undefined} />}
+      {res && (
+        <div aria-live="polite">
+          <Markdown source={res.section} />
+          <div className="card-actions">
+            <CopyButton text={res.section} toast={toast} />
+            <CopyButton text={res.cli} toast={toast} label="复制落盘命令" />
+          </div>
+          {res.diff_text && (
+            <details>
+              <summary>与 md 现有「七、AI」的差异</summary>
+              <pre className="plain">{res.diff_text}</pre>
+            </details>
+          )}
+        </div>
+      )}
+    </Card>
+  )
+}
+
 function CtxView({ toast }) {
   const ctx = useAsync((signal) => api.aiContext(undefined, { signal }), [])
   if (ctx.error) return <ErrorBox error={ctx.error} onRetry={ctx.reload} />
   if (!ctx.data) return <Loading />
   return (
-    <Card title={`复盘上下文 · ${ctx.data.date}`} meta="当日事实 / 近 7 日 / 规则关注点"
-      actions={<CopyButton text={ctx.data.markdown} toast={toast} />}>
-      <Markdown source={ctx.data.markdown} />
-    </Card>
+    <>
+      <Card title={`复盘上下文 · ${ctx.data.date}`} meta="当日事实 / 近 7 日 / 规则关注点"
+        actions={<CopyButton text={ctx.data.markdown} toast={toast} />}>
+        <Markdown source={ctx.data.markdown} />
+      </Card>
+      <AiPreview date={ctx.data.date} toast={toast} />
+    </>
   )
 }
 
