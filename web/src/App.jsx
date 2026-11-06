@@ -5,9 +5,11 @@ import Today from './pages/Today.jsx'
 import Reports from './pages/Reports.jsx'
 import Analytics from './pages/Analytics.jsx'
 import Doctor from './pages/Doctor.jsx'
+import Life from './pages/Life.jsx'
 
 const NAV = [
   { id: 'today', label: '今日看板', ico: '⌂', Page: Today },
+  { id: 'life', label: '生活管家', ico: '♥', Page: Life },
   { id: 'reports', label: '复盘与报告', ico: '◎', Page: Reports },
   { id: 'analytics', label: '分析', ico: '▤', Page: Analytics },
   { id: 'doctor', label: '体检', ico: '✚', Page: Doctor },

@@ -267,7 +267,7 @@ export default function Today({ toast, health }) {
         </Card>
       </div>
 
-      <div className="row">
+      <div className="row row-full">
         <SystemCard health={health} />
       </div>
     </>

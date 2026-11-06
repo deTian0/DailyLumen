@@ -231,6 +231,52 @@
   box-shadow: var(--shadow-in-sm);
 }
 
+/* ---------- 管家步骤清单（steward evening） ---------- */
+.steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.steps > li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-out-sm);
+}
+.steps > li::before {
+  content: counter(step);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  box-shadow: var(--shadow-in-sm);
+}
+.steps .title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.steps .sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.steps code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Banners / toast / states ---------- */
 .banner {
   margin-bottom: 16px;
@@ -741,4 +787,53 @@
 }
 .md-table tbody tr:last-child td {
   border-bottom: 0;
+}
+
+/* ---------- 系统状态 kv ---------- */
+.kv {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.kv > div {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-in-sm);
+}
+.kv dt {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 650;
+  margin-bottom: 6px;
+}
+.kv dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.row-full {
+  grid-template-columns: 1fr;
+}
+
+/* ---------- 报告切换 / 卡片操作 ---------- */
+.picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.picker .btn-ghost {
+  min-width: 40px;
+  justify-content: center;
+  font-size: 16px;
+}
+.card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
 }

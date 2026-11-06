@@ -58,7 +58,7 @@
 | W3 | ClickUp 今日 API | ✅ | `clickup_queries` / `routes_clickup`，20 用例 | `v1.63.0` |
 | W4 | 报告与分析 API | ✅ | `routes_reports`（周/月/ai-context/stats/doctor/fuse/charts），23 用例 | `v1.64.0` |
 | W5 | 前端脚手架 + P0 页面 + dist 入库 | ✅ | 四页 + dist 入库 + `test_web_dist` | `v1.65.0` |
-| W6 | 健康与学习督导查询 | 未开始 | — | — |
+| W6 | 健康与学习督导查询 | ✅ | `life_queries` / `routes_life` + 生活管家页，12 用例 | `v1.66.0` |
 | W7 | 报表增强 | 未开始 | — | — |
 | W8 | AI 预览 + mode 门禁 | 未开始 | — | — |
 | W9 | P2 写操作第一批 | 未开始 | — | — |

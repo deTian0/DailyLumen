@@ -58,7 +58,7 @@ wheels = [
 
 [[package]]
 name = "dailylumen"
-version = "1.65.0"
+version = "1.66.0"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },
