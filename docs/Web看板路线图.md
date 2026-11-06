@@ -145,3 +145,72 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 **验收**：全量 1076 通过 / 2 跳过；ruff 全绿。
 
 ---
+
+---
+
+## 收口：最终设计复查与清单（W0–W12，v1.72.0）
+
+> 本节追加于 W12 提交后，作为 Web 生活管家面板一期收口记录；后续新里程碑另起文档，不在本节续写。
+
+### 1. 设计复查结论
+
+**四层架构 + api 守卫**：仍成立。`core ← storage ← pipeline ← reports` 单向依赖与「其余层不得 import `api` / Web 栈」由 `tests/architecture/test_architecture.py` 强制，W12 新增代码全部落在 `review_tool/api/` 与 `web/`，未触碰评分 / 归日。批量完成复用 `pipeline.clickup_task.run_status`，快照投影复用 `storage.db.load_clickup_done` + `pipeline.clickup_pull.collect`，复盘进度复用 `reports.day_close.assess_day_ready`（R1 单源）。
+
+**后端可演进性**：
+- 只读编排（`queries` / `clickup_queries` / `life_queries` / `ai_queries`）不依赖 fastapi，可被 CLI / 测试直接调用；对拍测试锁住与 CLI 同源。
+- 写操作框架统一为 `plan_*`（预览 + `TokenStore` 一次性 token + 等价 CLI）→ `confirm`（`_WRITE_LOCK` 串行、写前备份、写后回读）。新增写类型（如练练写回）只需补一对 `plan_x` / `_apply_x` + 一条路由 + 前端 `WriteFlow` 的 `renderPreview`。
+- 可改进点：`confirm` 的动作分派是 `if/elif` 链（10 种动作、9 个分支），再加类型前建议改成 `action → apply` 注册表；`write_ops.py` 已 713 行，建议按域拆成 `write_clickup` / `write_review` / `write_vision`。
+
+**前端可维护性**：无路由 / 状态库依赖，`useAsync` + `lib/api.js` 单一取数入口，`WriteFlow` 统一预览→确认交互，`lib/route.js` 拆出 hash 查询避免循环依赖。风险点：`Today.jsx` 574 行、`app.css` 989 行，建议把待办分组 / 批量栏 / 快照预览拆到 `components/`，CSS 按页面拆分。
+
+**安全面**：
+- 回环绑定：`serve` 默认 `127.0.0.1`；非回环地址启动时显式告警（无鉴权）。
+- Host / Origin：中间件只放行回环 Host（防 DNS rebinding），写接口校验 Origin。
+- 写开关：写路由仅 `--enable-write` 时挂载；默认只读。
+- Token：`secrets.token_urlsafe(24)`、5 分钟 TTL、一次性（`pop`），进程内存，重启即失效；批量完成一 token 对应一批（≤20）。
+- 路径白名单：ingest 限 `local/每日复盘/`；收件箱归档与缩略图端点只接受纯文件名，`realpath` + `commonpath` 锁在收件箱顶层，magic bytes 嗅探类型，响应带 `no-store` / `nosniff`。
+- 密钥不下发：`/api/health` 只给 integrations 布尔值；错误文案只提示 `.env` 键名，不回显值。
+
+### 2. 已完成功能（按页面）
+
+| 页面 | 功能 |
+| --- | --- |
+| 今日看板 | ClickUp 今日待办（逾期默认折叠 / 今日到期·进行中 / 无截止）、搜索、单条完成 + 批量完成、新建任务、今日已办（含回拨）、昨日收工灯 + 「昨日复盘还差几步」导流条、本周节奏 + 快照拉取（替换日期 before→after + 本周投影）、今日负荷、系统状态 |
+| 生活管家 | 早报 / 健康 / 训练 / 营养 / 习惯 / 学习 / 承诺，习惯同步（预览→确认） |
+| 复盘与报告 | 周报 / 月报 / 昨日上下文；复盘四步进度条；AI 预览；读图日流程（上传 / 收件箱缩略图 → 字段预览 → 写 md → ingest → 可选归档）；AI 草稿写入、定稿、入库 |
+| 分析 | 指标趋势与相关性（与 CLI analyze 同源） |
+| 体检 | doctor / fuse 同源只读结果 |
+| 全局 | 只读 / 写开启状态按 `/api/health` 动态显示；非 deepseek / 只读时写卡折叠成一行说明；写按钮 aria-label 带动作名；焦点可见；窄屏 ≤768px 适配 |
+
+### 3. 验证情况
+
+- 全量测试 1184 通过 / 2 跳过；`uv run ruff check .` 全绿；`npm run build` 通过并重建 `web/dist`。
+- 写路径全部用 mock / 临时库覆盖（W9–W12），未对真实 ClickUp / 真库执行确认。
+- 浏览器（`serve --port 8793 --enable-write`，`llm_mode=workbuddy`）只点到预览：批量完成预览（2 条，逐条 CLI 正确）、快照预览（替换 4 天、本周投影）、复盘页门禁折叠与进度条、390px 窄屏无横向溢出；截图在 `local/screenshots/w12/`；测完已关闭 8793。
+
+### 4. 已知问题 / 风险
+
+- 服务无鉴权，安全完全依赖回环绑定 + Host/Origin；改监听地址会暴露全部数据。
+- Token 在进程内存，重启后进行中的确认全部失效（设计如此）。
+- 批量完成是逐条调用 ClickUp，非原子；部分失败会逐条回报，需要用户重试。
+- 本周节奏依赖已入库的 `clickup_done` 快照，未拉取时全为 0（已有空态说明）。
+- 缩略图端点每次读原图，无缩放；收件箱图片多时首屏流量偏大（已 `loading="lazy"`）。
+- `Today.jsx` / `write_ops.py` / `app.css` 体量偏大，见第 1 节拆分建议。
+- 对比度只做了人工检查，未用辅助技术做完整 WCAG 验证。
+
+### 5. 建议后续里程碑
+
+1. 练练写回（POST，仅用户明确要求时；复用 `plan/confirm` 框架，不落库）。
+2. `confirm` 分派注册表 + `write_ops` 按域拆分（纯重构，无行为变化）。
+3. 图表升级（ECharts 或继续自绘 SVG，需先定依赖策略）。
+4. 批量操作扩展：批量改期 / 批量改状态（非 complete）。
+5. 前端组件拆分 + CSS 分文件；补前端单测（Vitest）。
+6. 缩略图服务端缩放（需评估是否引入图像依赖，当前标准库无法做）。
+
+### 6. 需要用户拍板的事项
+
+- 是否引入 ECharts（新增前端依赖）还是保持零依赖自绘。
+- 练练写回是否做、做到什么范围（只建训练计划 / 也改记录）。
+- 是否需要给 serve 加最小鉴权（如启动时生成的本机 token），以便将来非回环访问。
+- 前端是否引入 Vitest 测试框架。
+- 是否 push `v1.66.0`–`v1.72.0` 这批 commit 与 tag 到远端（当前全部未 push）。
