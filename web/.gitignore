@@ -1,0 +1,5 @@
+# 依赖与缓存不入库；dist 刻意入库（开箱即用，见 docs/Web看板PRD.md）
+node_modules
+.vite
+*.local
+*.log
