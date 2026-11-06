@@ -4,6 +4,7 @@ import { useAsync } from '../lib/useAsync'
 import { Markdown } from '../lib/markdown'
 import { Card, CopyButton, Empty, ErrorBox, Loading, Stat } from '../components/Common'
 import { WriteFlow } from '../components/WriteFlow'
+import { VisionDay } from '../components/VisionDay'
 
 const TABS = [
   { id: 'week', label: '周报' },
@@ -197,6 +198,10 @@ function CtxView({ toast, health }) {
         <Markdown source={ctx.data.markdown} />
       </Card>
       <AiPreview date={ctx.data.date} toast={toast} />
+      <Card title="读图写入数据块" meta="截图 → 预览字段 → 写 md（不写库）→ 定稿 → 入库">
+        <VisionDay date={ctx.data.date} health={health} toast={toast} ai={ai.data}
+          onWritten={() => { ctx.reload(); setIngestKick((k) => k + 1) }} />
+      </Card>
       <Card title="写入与定稿" meta="只写复盘 md，不写库；入库另跑 ingest">
         <WriteFlow action="ai-draft" params={{ date: ctx.data.date }} health={health} toast={toast}
           title="写入「七-A AI 草稿」"

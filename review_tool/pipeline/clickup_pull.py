@@ -56,6 +56,27 @@ def pull(
     ``days`` 只过滤**入库范围**（不减少 API 调用 —— ClickUp 按 list 拉全量，
     分页反而更慢；830 条的体量下全拉一次不到 2 秒）。
     """
+    stats, by_date = collect(list_ids=list_ids, days=days, today=today, fetch=fetch, key=key)
+    if dry_run or not by_date:
+        return stats
+
+    stats["applied"] = replace_clickup_days(conn, by_date)
+    conn.commit()
+    return stats
+
+
+def collect(
+    *,
+    list_ids: tuple[str, ...] = DEFAULT_LISTS,
+    days: int | None = None,
+    today: str | None = None,
+    fetch=None,
+    key: str | None = None,
+) -> tuple[dict, dict[str, list[dict]]]:
+    """只拉取 + 归日（不碰库）：返回 ``(stats, by_date)``。
+
+    ``pull`` 与 Web 预览共用（R1：归日口径单一来源）；Web 确认时直接写预览过的 ``by_date``。
+    """
     from datetime import date as _date
     from datetime import datetime, timedelta
 
@@ -99,12 +120,7 @@ def pull(
         "range": (min(by_date), max(by_date)) if by_date else None,
         "applied": {},
     }
-    if dry_run or not by_date:
-        return stats
-
-    stats["applied"] = replace_clickup_days(conn, by_date)
-    conn.commit()
-    return stats
+    return stats, dict(by_date)
 
 
 def main(argv: list[str] | None = None) -> int:

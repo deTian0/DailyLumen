@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { api, errText, todayStr } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { Card, Empty, ErrorBox, Loading, Stat } from '../components/Common'
+import { WriteFlow } from '../components/WriteFlow'
 
 const LIGHT = {
   green: { text: '绿灯', tone: 'green', hint: '可以收工' },
@@ -356,9 +357,30 @@ export default function Today({ toast, health }) {
             </ol>
           )}
           {weekDone.data && weekDone.data.total === 0 ? (
-            <p className="hint hint-warn">
-              本地还没有 ClickUp 完成快照，先在命令行跑一次 <code>python -m review_tool clickup-pull</code>。
-            </p>
+            <>
+              <p className="hint hint-warn">
+                本周还没有已入库的 ClickUp 完成快照，所以每天都显示 0（不代表没做事）。
+                拉取一次快照后这里才有数字；今日待办 / 已办以上方实时数据为准。
+              </p>
+              <WriteFlow action="clickup-pull" body={{ days: 14 }} health={health} toast={toast}
+                title="拉取完成快照（clickup-pull）"
+                desc="拉近 14 天已完成任务，按天预览条数；确认后整天替换 clickup_done（写库前自动备份，写后回读）。"
+                confirmLabel="确认写入快照"
+                canConfirm={(p) => p.closed > 0}
+                onDone={() => weekDone.reload()}
+                renderPreview={(p) => (
+                  <>
+                    <p className="muted">
+                      拉取 {p.fetched} 条 · 已完成 {p.closed} 条 · 覆盖 {p.dates} 天 → 写入 <code>{p.target_table}</code>（{p.strategy}）
+                    </p>
+                    {p.per_day.length ? (
+                      <ul className="chips" aria-label="按天条数">
+                        {p.per_day.map((x) => <li key={x.date}>{x.date.slice(5)} · {x.count}</li>)}
+                      </ul>
+                    ) : <p className="muted">窗口内没有已完成任务，无需写入。</p>}
+                  </>
+                )} />
+            </>
           ) : (
             <p className="hint">本周合计完成 {weekDone.data?.total ?? '—'} 项（来自已入库的 ClickUp 完成快照，今日数据以上方实时为准）。</p>
           )}

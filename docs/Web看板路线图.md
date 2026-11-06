@@ -63,7 +63,8 @@
 | W8 | AI 预览 + mode 门禁 | ✅ | `ai_queries` / `routes_ai` + 报告页 AI 预览卡，门禁 409 | `v1.68.0` |
 | W9 | P2 写操作第一批 | ✅ | `write_ops` / `routes_write`（--enable-write 才挂载、一次性 token、写前备份、回读校验）+ `WriteFlow` | `v1.69.0` |
 | W10 | P2 写操作第二批（FR-J1 ClickUp 建任务/改状态 + FR-K1 ingest 单文件） | ✅ | `write_ops` 扩 `task_create` / `task_status` / `ingest`（list 白名单、INPUT_DIR 防穿越、写库前备份、写后回读）+ 今日页内联完成/新建、定稿→入库串联；FR-I2 读图日流程 / 练练写回顺延 | `v1.70.0` |
-| W11 | 前端自绘图（可选） | 未开始 | — | — |
+| W11 | 读图日流程（FR-I2）+ 本周节奏快照空态 | ✅ | `write_ops` 扩 `vision`（上传 ≤6 张 / 单张 ≤8MB / magic 嗅探 PNG·JPEG·WebP、临时目录 finally 清理、mode 门禁先于 I/O、later_wins 冲突预览）/ `inbox_archive`（防穿越、移到 `已处理/日期/`）/ `clickup_pull`（`collect` 纯拉取、写前备份、整天替换、回读条数）；复盘页读图卡 → 写 md → ingest、今日页快照空态按钮；练练写回 / 自绘图顺延 | `v1.71.0` |
+| W12 | 「好用」导向 UI / 交互打磨 | 未开始 | — | — |
 
 > 本表随每个里程碑完成实时更新；详细验收记录写在下方对应小节。
 

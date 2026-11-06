@@ -19,7 +19,7 @@ import json
 import os
 import re
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from ..config import WEEKDAY_CN
@@ -179,6 +179,38 @@ def data_block_diff_lines(before_body: str, after_body: str) -> list[str]:
             if s.startswith(key) and key in b_map and b_map[key] != s:
                 if f"+ {s}" not in out:
                     out.append(f"~ {b_map[key]}  →  {s}")
+    return out
+
+
+def write_data_block_fields(path: str, fields: Mapping[str, Any]) -> dict[str, Any]:
+    """字段合并进 md ```data``` 块 + 打「待人审」标记；写后回读校验。
+
+    CLI ``llm-vision`` / ``llm-day --write`` 与 Web 读图写入共用
+    （PRE-08：Web 不另写 ``open(..., "w")``）。⛔ 只动 md，不写库（规则 9/13）。
+    返回 ``changed`` / ``written`` / ``before_block`` / ``after_block`` / ``diff_lines``。
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"找不到复盘 md：{path}")
+    with open(path, encoding="utf-8") as f:
+        original = f.read()
+    updated = stamp_llm_pending(merge_data_block_fields(original, fields))
+    changed = updated.replace("\r\n", "\n") != original.replace("\r\n", "\n")
+    out = {
+        "changed": changed,
+        "written": False,
+        "before_block": extract_data_block_body(original),
+        "after_block": extract_data_block_body(updated),
+    }
+    out["diff_lines"] = data_block_diff_lines(out["before_block"], out["after_block"])
+    if not changed:
+        return out
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(updated)
+    with open(path, encoding="utf-8") as f:
+        got = f.read()
+    if got.replace("\r\n", "\n") != updated.replace("\r\n", "\n"):
+        raise OSError(f"写盘回读不一致: {path}")
+    out["written"] = True
     return out
 
 
@@ -425,26 +457,14 @@ def run_vision_intake(
         _fail_log(False, error_kind="file", error_summary=f"找不到复盘 md：{path}")
         raise FileNotFoundError(f"找不到复盘 md：{path}")
 
-    with open(path, encoding="utf-8") as f:
-        original = f.read()
-    updated = stamp_llm_pending(merge_data_block_fields(original, clean))
-    result["changed"] = updated.replace("\r\n", "\n") != original.replace(
-        "\r\n", "\n"
-    )
-    if result["changed"]:
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write(updated)
-        with open(path, encoding="utf-8") as f:
-            got = f.read()
-        if got.replace("\r\n", "\n") != updated.replace("\r\n", "\n"):
-            raise OSError(f"写盘回读不一致: {path}")
+    w = write_data_block_fields(path, clean)
+    result["changed"] = w["changed"]
+    if w["written"]:
         result["written"] = True
         result["pending_review"] = True
-        result["before_block"] = extract_data_block_body(original)
-        result["after_block"] = extract_data_block_body(updated)
-        result["diff_lines"] = data_block_diff_lines(
-            result["before_block"], result["after_block"]
-        )
+        result["before_block"] = w["before_block"]
+        result["after_block"] = w["after_block"]
+        result["diff_lines"] = w["diff_lines"]
 
     _fail_log(
         True,

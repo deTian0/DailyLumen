@@ -878,3 +878,26 @@
 .new-task-row { display: flex; gap: 8px; }
 .new-task-row input { flex: 1; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(122,132,153,.35); background: transparent; font: inherit; }
 .check { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 13px; }
+
+/* W11 通用：屏幕阅读器可读、视觉隐藏 */
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.hint-warn { color: #b26a00; }
+.chips { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chips li {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px;
+  font-size: 12px; border: 1px solid rgba(122,132,153,.35);
+}
+.chip-x { border: 0; background: transparent; cursor: pointer; font: inherit; padding: 0 2px; color: inherit; }
+.chip-x:focus-visible { outline: 2px solid currentColor; border-radius: 4px; }
+
+/* W11 读图日流程 */
+.vision-pick { border: 0; padding: 0; margin: 0 0 10px; min-width: 0; }
+.vision-pick:disabled { opacity: .55; }
+.vision-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.vision-row select { padding: 4px 8px; border-radius: 8px; font: inherit; }
+.file-btn { position: relative; cursor: pointer; }
+.file-btn:focus-within { outline: 2px solid currentColor; outline-offset: 2px; }
+.inbox-pick { margin-top: 10px; display: grid; gap: 2px; }

@@ -73,6 +73,8 @@ export const api = {
   writePlanBody: (action, body, o) =>
     json(`/api/write/${action}/plan`, { ...o, method: 'POST', body }),
   writeConfirm: (token, o) => json('/api/write/confirm', { ...o, method: 'POST', body: { token } }),
+  // W11：收件箱待处理截图清单（只读；写接口未挂载时 404）
+  inbox: (o) => json('/api/write/inbox', o),
   chartUrl: (kind) => `/api/charts/${kind}`,
   weekMdUrl: (year, week) => `/api/reports/week.md${qs({ year, week })}`,
   monthMdUrl: (month) => `/api/reports/month.md${qs({ month })}`,
@@ -94,6 +96,14 @@ export function errText(e) {
     credentials_missing: 'ClickUp 未配置凭据，今日数据不可用（在 local/.env 配置后重启 serve）',
     upstream_auth: 'ClickUp 拒绝访问：token 失效或权限不足',
     upstream_unreachable: 'ClickUp 网络不可达或超时，稍后再试',
+    mode_gated: '当前 mode 不调 DeepSeek：读图 / AI 评价请改 local/.env 的 DAILYLUMEN_LLM_MODE=deepseek',
+    image_too_large: '图片太大（单张上限 8 MB），请裁剪或压缩后重试',
+    invalid_image: '只支持 PNG / JPEG / WebP 截图',
+    too_many_images: '一次最多 6 张截图',
+    md_missing: '找不到该日复盘 md，请先从模板建当日复盘文件',
+    stale_plan: '复盘 md 在预览后被改动，请重新预览再确认',
+    token_invalid: '确认已失效或已使用，请重新预览',
+    token_expired: '确认已过期（5 分钟），请重新预览',
   }
   return map[e.code] || e.message || '未知错误'
 }
