@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildChartOption, shortDate } from './chartOption'
+import { buildChartOption, defaultLegendSelected, shortDate } from './chartOption'
 
 const series = (over = {}) => ({
   kind: 'trends',
@@ -31,6 +31,19 @@ describe('buildChartOption trends', () => {
   it('单序列时 legend 不显示', () => {
     const opt = buildChartOption({ ...series(), series: [series().series[0]] })
     expect(opt.legend.show).toBe(false)
+  })
+
+  it('≥3 条时默认只选前两条，其余图例可切', () => {
+    const three = {
+      ...series(),
+      series: [
+        ...series().series,
+        { key: 'work_score', name: '工作', color: '#ea580c', unit: '0-10', values: [5, 5, 6], type: 'line' },
+      ],
+    }
+    const opt = buildChartOption(three)
+    expect(opt.legend.selected).toEqual({ 系统分: true, 健康: true, 工作: false })
+    expect(defaultLegendSelected(three.series, 'trends')).toEqual({ 系统分: true, 健康: true, 工作: false })
   })
 })
 

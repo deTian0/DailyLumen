@@ -9,41 +9,38 @@
   grid-template-columns: 14px 1fr auto;
   gap: 12px;
   align-items: start;
-  padding: 14px;
-  margin-bottom: 10px;
-  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 10px;
   background: var(--surface);
-  box-shadow: var(--shadow-out-sm);
+  border: 1px solid var(--border);
 }
 .task:last-child {
   margin-bottom: 0;
 }
 .dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   margin-top: 5px;
   border-radius: 50%;
-  background: var(--blue);
-  box-shadow: inset 1px 1px 2px #355899, inset -1px -1px 2px #7ea0ff;
+  background: var(--accent);
   flex: none;
 }
 .task-overdue .dot {
   background: var(--red);
-  box-shadow: inset 1px 1px 2px #8a2f2f, inset -1px -1px 2px #ff8c8c;
 }
 .task-done .dot {
   background: var(--green);
-  box-shadow: none;
 }
 .task .title {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 650;
   overflow-wrap: break-word;
 }
 .task .sub {
   font-size: 12px;
   color: var(--muted);
-  margin-top: 3px;
+  margin-top: 2px;
 }
 .task-body {
   min-width: 0;
@@ -52,25 +49,26 @@
   font-size: 11px;
   font-weight: 700;
   color: var(--muted);
-  padding: 6px 10px;
+  padding: 4px 9px;
   border-radius: 999px;
-  box-shadow: var(--shadow-in-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   white-space: nowrap;
 }
 .pill-red {
   color: #fff;
   background: var(--ink-red);
-  box-shadow: none;
+  border-color: var(--ink-red);
 }
 .pill-blue {
   color: #fff;
-  background: var(--ink-blue);
-  box-shadow: none;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .pill-green {
   color: #fff;
   background: var(--ink-green);
-  box-shadow: none;
+  border-color: var(--ink-green);
 }
 
 /* ---------- Week calendar strip ---------- */
@@ -78,19 +76,19 @@
   list-style: none;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
+  gap: 6px;
   margin: 0 0 14px;
   padding: 0;
 }
 .day {
   aspect-ratio: 1;
-  border-radius: 14px;
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  box-shadow: var(--shadow-out-sm);
+  gap: 2px;
+  border: 1px solid var(--border);
   background: var(--surface);
 }
 .day .wd {
@@ -100,12 +98,13 @@
 }
 .day .num {
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .day.sel {
   color: #fff;
-  background: #3a4254;
-  box-shadow: var(--shadow-in-sm);
+  background: var(--text);
+  border-color: var(--text);
 }
 .day.sel .wd,
 .day.sel .num {
@@ -123,10 +122,11 @@
 /* ---------- Load bars ---------- */
 .bars {
   display: grid;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 16px;
-  box-shadow: var(--shadow-in);
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
 }
 .bar-row {
   display: grid;
@@ -146,22 +146,21 @@
   font-size: 12px;
   color: var(--muted);
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .track {
-  height: 14px;
+  height: 10px;
   border-radius: 999px;
-  box-shadow: var(--shadow-in-sm);
+  background: rgba(26, 35, 50, 0.08);
   position: relative;
   overflow: hidden;
 }
 .fill {
   position: absolute;
-  top: 3px;
-  bottom: 3px;
-  left: 3px;
+  top: 0;
+  bottom: 0;
+  left: 0;
   border-radius: 999px;
-  background: linear-gradient(90deg, #7aa2ff, var(--blue));
-  box-shadow: 2px 2px 4px rgba(60, 80, 120, 0.2);
+  background: var(--accent);
   transition: width 0.3s;
 }
-

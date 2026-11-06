@@ -70,6 +70,7 @@
 | W15 | 前端 Vitest 单测 | ✅ | Vitest 5.1 + jsdom + Testing Library（devDep 钉版本）；5 文件 24 例覆盖 `api.js`（key/401/blob）、`route.js`、`todos.js`（待办分组）、`WriteFlow`（预览→确认→失败重试重新预览）、`Login`；`WriteFlow.jsx` 补 `try/catch` 收起旧预览防复用 token | `v1.75.0`（未打 tag） |
 | W16 | ECharts 自绘图 | ✅ | `/api/charts/{kind}.json`（复用 `fetch_*_series` / `moving_average` / `BODY_TARGETS`，R1 单源；`.json` 路由排在 `{kind}` 前防吞）+ 前端 `EChart.jsx` / `chartOption.js`，`Analytics` 改吃 JSON；旧 SVG 端点保留；echarts@5.6.0 钉版本；+6 后端 / +7 前端测试 | `v1.76.0`（未打 tag） |
 | W17 | 练练写回 | ✅ | `writes/keepstrong.py` 6 动作（set-weight/log-body/schedule/create-template/replace-template-actions/plan-command）入 `plan/confirm` 注册表（`needs=(env, ks_client)`，写回不落库、`db_changed=False`）；错误映射 5 类 + URLError；`routes_write` 加 6 条 `ks-*/plan` + `ks_client`；前端「训练」tab 加 `KeepStrongWrite` 卡（记体征体重 / 设下次重量，余 4 种留 CLI）；27 后端测试 | `v1.77.0`（未打 tag） |
+| W18 | 视觉与信息呈现重做 | ✅ | 去新拟物 → 冷静青绿/石板灰扁平轻 elev；CLI 全文 → Markdown prose；分析图默认 1–2 主系列；指标卡语义色标；不改 API/业务 | `v1.78.0`（未打 tag） |
 
 > 本表随每个里程碑完成实时更新；详细验收记录写在下方对应小节。
 
@@ -198,6 +199,16 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ---
 
+### W18 — 视觉与信息呈现重做（v1.78.0）
+
+- **范围**：只改 `web/src/styles/**` + 少量布局/呈现组件；**不改** API / 评分 / 归日 / 写操作语义；不引入大型 UI 库。
+- **色板**：冷静青绿 `#0d7c6f` + 石板灰底；白表面 + 细边框 + 轻单阴影；去掉新拟物双阴影。
+- **报告**：`lib/prose.js` + `Prose`；生活管家 / 体检 CLI 全文 → Markdown prose；周报等包进 `.prose-panel`。
+- **图表**：trends ≥3 系列默认只显示前 2 条，图例可切换。
+- **验收**：前端测试全绿；`npm run build`；全量 Python + ruff；截图 `local/screenshots/w18-visual/`。
+
+---
+
 ## 收口：最终设计复查与清单（W0–W12，v1.72.0）
 
 > 本节追加于 W12 提交后，作为 Web 生活管家面板一期收口记录；后续新里程碑另起文档，不在本节续写。
@@ -254,9 +265,11 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 2. ~~`confirm` 分派注册表 + `write_ops` 按域拆分（纯重构，无行为变化）~~ ✅ W13（v1.73.0）。
 3. ~~图表升级（ECharts 或继续自绘 SVG，需先定依赖策略）~~ ✅ W16（v1.76.0，ECharts）。
 4. ~~补前端单测（Vitest）~~ ✅ W15（v1.75.0）。
-5. 批量操作扩展：批量改期 / 批量改状态（非 complete）。
-6. 缩略图服务端缩放（需评估是否引入图像依赖，当前标准库无法做）。
-7. 练练写回前端扩到排课 / 模板 / 计划命令（需 actions JSON 编辑器，当前留 CLI）。
+5. ~~视觉与信息呈现重做（去新拟物 / prose 报告 / 图表降噪）~~ ✅ W18（v1.78.0）。
+6. 批量操作扩展：批量改期 / 批量改状态（非 complete）。
+7. 缩略图服务端缩放（需评估是否引入图像依赖，当前标准库无法做）。
+8. 练练写回前端扩到排课 / 模板 / 计划命令（需 actions JSON 编辑器，当前留 CLI）。
+9. W18 后续打磨：暗色模式、图表系列偏好记忆、doctor 结构化 JSON 视图、离线字体自托管。
 
 ### 6. 需要用户拍板的事项
 
@@ -264,7 +277,7 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - ~~练练写回是否做、做到什么范围~~ → 已做 6 动作后端 + 2 常用前端入口（W17）。
 - ~~是否需要给 serve 加最小鉴权~~ → 已加 `DAILYLUMEN_WEB_KEY`（W14）。
 - ~~前端是否引入 Vitest 测试框架~~ → 已引入（W15）。
-- 是否 push `v1.66.0`–`v1.77.0` 这批 commit 与 tag 到远端（当前全部未 push、未打 tag）。
+- 是否 push `v1.66.0`–`v1.78.0` 这批 commit 与 tag 到远端（当前全部未 push、未打 tag）。
 
 ---
 

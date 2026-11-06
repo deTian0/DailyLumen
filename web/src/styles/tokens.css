@@ -1,27 +1,42 @@
-/* DailyLumen 看板 · 新拟物设计 token（取自 docs/prototypes/web-dashboard-neu.html） */
+/* DailyLumen 看板 · 冷静青绿 / 石板灰生活工具感（W18：去新拟物） */
 :root {
-  --bg: #e8edf5;
-  --surface: #e8edf5;
-  --text: #2a3142;
-  /* 次要文字：#586379 对 --bg 5.14:1（原 #7a8499 仅 3.20:1，不达 WCAG AA） */
-  --muted: #586379;
-  /* 文字用语义色（对 --bg ≥4.5:1；白字压底同样达标）；下方亮色仅作装饰（圆点/进度条） */
-  --ink-green: #22704c;
-  --ink-red: #b33636;
-  --ink-amber: #8a5009;
-  --ink-blue: #3a63d6;
-  --blue: #4d7cff;
+  --bg: #eef2f4;
+  --sidebar-bg: #f2f6f5;
+  --surface: #ffffff;
+  --surface-2: #f5f8f7;
+  --text: #1a2332;
+  /* 次要文字：对浅底 ≥4.5:1 */
+  --muted: #5a6a78;
+  --border: #d4dce3;
+  --border-strong: #b5c2cb;
+  /* 强调色：冷静青绿（唯一主色，贯穿全站） */
+  --accent: #0d7c6f;
+  --accent-hover: #0a655a;
+  --accent-soft: #d9efe9;
+  /* 文字用语义色（对浅底 ≥4.5:1）；亮色仅作装饰 */
+  --ink-green: #1f6b4a;
+  --ink-red: #b42318;
+  --ink-amber: #9a6700;
+  --ink-blue: #0d7c6f;
+  --blue: #0d7c6f;
   --green: #2f9e6b;
-  --red: #e25555;
-  --amber: #f0a04b;
-  --shadow-out: 9px 9px 18px #c5cad6, -9px -9px 18px #ffffff;
-  --shadow-out-sm: 5px 5px 10px #c5cad6, -5px -5px 10px #ffffff;
-  --shadow-in: inset 6px 6px 12px #c5cad6, inset -6px -6px 12px #ffffff;
-  --shadow-in-sm: inset 3px 3px 7px #c5cad6, inset -3px -3px 7px #ffffff;
-  --radius: 22px;
-  --radius-sm: 14px;
-  --font: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --red: #d64545;
+  --amber: #d97706;
+  /* 轻 elev：单方向柔阴影；凹陷仅留给输入槽 */
+  --shadow: 0 1px 2px rgba(26, 35, 50, 0.05), 0 4px 14px rgba(26, 35, 50, 0.04);
+  --shadow-sm: 0 1px 2px rgba(26, 35, 50, 0.05);
+  --inset: inset 0 1px 2px rgba(26, 35, 50, 0.07);
+  /* 兼容旧类名：映射到扁平阴影，避免残留双阴影 */
+  --shadow-out: var(--shadow);
+  --shadow-out-sm: var(--shadow-sm);
+  --shadow-in: var(--inset);
+  --shadow-in-sm: var(--inset);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --font: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
   --sidebar-w: 220px;
+  --focus: 0 0 0 3px rgba(13, 124, 111, 0.35);
 }
 
 * {
@@ -38,22 +53,26 @@ body,
 body {
   font-family: var(--font);
   color: var(--text);
-  background: var(--bg);
+  background:
+    radial-gradient(1100px 520px at 8% -12%, #d7ebe6 0%, transparent 55%),
+    radial-gradient(900px 480px at 100% 0%, #e2e8ef 0%, transparent 48%),
+    var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
-  color: var(--blue);
+  color: var(--accent);
 }
 
 button {
   font-family: inherit;
 }
 
-/* 可访问性：键盘可见焦点环（新拟物底色对比度低，务必保留） */
 :focus-visible {
-  outline: 3px solid var(--blue);
+  outline: 3px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 10px;
+  border-radius: 8px;
+  box-shadow: var(--focus);
 }
 
 .visually-hidden {

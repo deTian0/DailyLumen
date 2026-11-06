@@ -102,6 +102,9 @@ export default function Analytics() {
             ))}
           </div>
         }>
+        {kind === 'trends' && (
+          <p className="chart-hint">默认只显示前两条主系列；点图例可开关其余维度。</p>
+        )}
         <ChartView kind={kind} label={CHARTS.find((c) => c.id === kind).label} />
       </Card>
     </>

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
-import { Card, ErrorBox, Loading, Stat } from '../components/Common'
+import { Card, ErrorBox, Loading, Prose, Stat } from '../components/Common'
 import { WriteFlow } from '../components/WriteFlow'
 
 // habits sync 预览：只列将写入 habit_logs 的行；personal_tracks 明示不动（R3 分区）
@@ -262,7 +262,7 @@ export default function Life({ toast, health }) {
               )}
               {tab === 'coach' && <KeepStrongWrite health={health} toast={toast} />}
               <Card title="全文" meta={`= CLI ${cur.cli || (tab === 'morning' || tab === 'evening' ? `steward --slot ${tab}` : tab)}`}>
-                <pre className="plain">{res.data.text}</pre>
+                <Prose source={res.data.text} />
               </Card>
             </>
           )}

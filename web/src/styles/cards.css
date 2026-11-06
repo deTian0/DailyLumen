@@ -1,9 +1,9 @@
-/* ---------- Stats / cards ---------- */
+/* ---------- Stats / cards（W18：细边框 + 轻阴影；语义色左侧色标） ---------- */
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 @media (max-width: 1100px) {
   .stats {
@@ -16,22 +16,37 @@
   }
 }
 .stat {
-  padding: 16px 18px;
+  padding: 14px 16px;
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: var(--shadow-out);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-left-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
   min-width: 0;
+}
+.stat.stat-tone-green {
+  border-left-color: var(--ink-green);
+}
+.stat.stat-tone-red {
+  border-left-color: var(--ink-red);
+}
+.stat.stat-tone-amber {
+  border-left-color: var(--ink-amber);
 }
 .stat .label {
   font-size: 12px;
   color: var(--muted);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  font-weight: 600;
   overflow-wrap: break-word;
 }
 .stat .value {
-  font-size: 1.45rem;
-  font-weight: 750;
-  letter-spacing: -0.02em;
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
   overflow-wrap: break-word;
 }
 .stat .value.tone-green {
@@ -46,15 +61,16 @@
 .stat .delta {
   margin-top: 6px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--muted);
+  line-height: 1.4;
 }
 
 .row {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
-  gap: 18px;
-  margin-bottom: 18px;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 @media (max-width: 1100px) {
   .row {
@@ -62,27 +78,29 @@
   }
 }
 .card {
-  padding: 18px;
+  padding: 16px 18px;
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: var(--shadow-out);
-  min-height: 220px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  min-height: 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 .card-h {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   gap: 10px;
   flex-wrap: wrap;
 }
 .card-h h2 {
   margin: 0;
   font-size: 1.05rem;
+  letter-spacing: -0.02em;
 }
 .card-h-right {
   display: flex;
@@ -95,10 +113,10 @@
 }
 .well {
   flex: 1;
-  border-radius: 16px;
+  border-radius: var(--radius-sm);
   padding: 12px;
-  box-shadow: var(--shadow-in);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   overflow: auto;
   max-height: 420px;
 }
-

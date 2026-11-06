@@ -1,4 +1,4 @@
-/* W14 登录页 */
+/* W14 / W18 登录页 */
 .login-wrap {
   min-height: 100vh;
   display: grid;
@@ -10,10 +10,16 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 22px 24px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 .login-card h1 {
   margin: 8px 0 0;
   font-size: 20px;
+  letter-spacing: -0.02em;
 }
 .login-card .muted {
   margin: 0;
@@ -30,11 +36,11 @@
   font-weight: 650;
 }
 .field input {
-  padding: 12px 14px;
-  border: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  box-shadow: var(--shadow-in-sm);
+  box-shadow: var(--inset);
   font: inherit;
   color: var(--text);
 }

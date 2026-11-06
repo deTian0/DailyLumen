@@ -21,10 +21,22 @@ function lineSeries(s) {
     lineStyle: { color: s.color, width: s.dash ? 1.6 : 1.8, type: s.dash ? 'dashed' : 'solid' },
     itemStyle: { color: s.color },
     symbol: 'circle',
-    symbolSize: 4,
+    symbolSize: 3,
     connectNulls: false,
     smooth: false,
   }
+}
+
+/** 多线默认只亮 1–2 条主系列，其余可点图例打开（降噪音） */
+export function defaultLegendSelected(series, kind) {
+  if (!series || series.length <= 2) return undefined
+  // nutrition 双轴本来就两条；body 体重+均线也常一起看
+  if (kind === 'nutrition' || kind === 'body') return undefined
+  const selected = {}
+  series.forEach((s, i) => {
+    selected[s.name] = i < 2
+  })
+  return selected
 }
 
 export function buildChartOption(data) {
@@ -49,7 +61,7 @@ export function buildChartOption(data) {
   if (kind === 'nutrition') {
     return {
       tooltip: { trigger: 'axis' },
-      legend: { show: true, top: 4 },
+      legend: { show: true, top: 4, selectedMode: true },
       grid: { ...baseGrid, right: 56 },
       xAxis: { type: 'category', data: dates, axisLabel: { formatter: shortDate } },
       yAxis: [axisLabel(series[0].values, series[0].unit), axisLabel(series[1].values, series[1].unit)],
@@ -58,9 +70,16 @@ export function buildChartOption(data) {
   }
 
   // trends / body：单轴多线
+  const legendSelected = defaultLegendSelected(series, kind)
   const opt = {
     tooltip: { trigger: 'axis' },
-    legend: { show: series.length > 1, top: 4, data: series.map((s) => s.name) },
+    legend: {
+      show: series.length > 1,
+      top: 4,
+      data: series.map((s) => s.name),
+      selectedMode: true,
+      ...(legendSelected ? { selected: legendSelected } : {}),
+    },
     grid: baseGrid,
     xAxis: { type: 'category', data: dates, axisLabel: { formatter: shortDate } },
     yAxis: axisLabel(series[0].values, series[0].unit),

@@ -1,4 +1,4 @@
-/* DailyLumen 看板 · 布局与组件样式（新拟物） */
+/* DailyLumen 看板 · 布局与壳层（W18 扁平轻 elev） */
 
 .skip-link {
   position: absolute;
@@ -8,8 +8,9 @@
   background: var(--surface);
   color: var(--text);
   padding: 10px 16px;
-  border-radius: 0 0 10px 0;
-  box-shadow: var(--shadow-out-sm);
+  border-radius: 0 0 8px 0;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
 .skip-link:focus {
   left: 0;
@@ -31,13 +32,15 @@
     padding: 12px 16px;
     gap: 12px;
     overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
   }
   .sidebar .brand {
     padding: 0;
   }
   .nav {
     flex-direction: row;
-    gap: 6px;
+    gap: 4px;
   }
   .nav-item span.ico {
     margin: 0;
@@ -57,56 +60,66 @@
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 28px 18px;
+  padding: 24px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border);
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px 22px;
+  padding: 6px 10px 20px;
   font-weight: 700;
   font-size: 1.05rem;
+  letter-spacing: -0.02em;
 }
 .brand-mark {
   width: 34px;
   height: 34px;
-  border-radius: 12px;
-  box-shadow: var(--shadow-out-sm);
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
   display: grid;
   place-items: center;
-  color: var(--blue);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 800;
   flex: none;
+  letter-spacing: -0.04em;
 }
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 .nav-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
-  border-radius: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
   color: var(--muted);
   text-decoration: none;
   font-size: 14px;
   font-weight: 600;
-  border: 0;
+  border: 1px solid transparent;
   background: transparent;
   width: 100%;
   text-align: left;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-item:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.55);
 }
 .nav-item.active {
-  color: var(--text);
-  box-shadow: var(--shadow-out-sm);
+  color: var(--accent);
   background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-sm);
 }
 .nav-item .ico {
   width: 18px;
@@ -116,14 +129,15 @@
 }
 .sidebar-foot {
   margin-top: auto;
-  padding-top: 18px;
+  padding-top: 16px;
 }
 .env {
   font-size: 11px;
   color: var(--muted);
   padding: 10px 12px;
-  border-radius: 14px;
-  box-shadow: var(--shadow-in-sm);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -163,11 +177,13 @@
   margin: 0;
   font-size: 1.55rem;
   font-weight: 700;
+  letter-spacing: -0.03em;
 }
 .subtitle {
   margin: 4px 0 0;
   font-size: 13px;
   color: var(--muted);
+  line-height: 1.45;
 }
 .top-actions {
   display: flex;
@@ -180,10 +196,11 @@
   align-items: center;
   gap: 8px;
   min-width: min(260px, 70vw);
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-radius: 999px;
-  box-shadow: var(--shadow-in);
+  border: 1px solid var(--border);
   background: var(--surface);
+  box-shadow: var(--inset);
 }
 .search input {
   border: 0;
@@ -199,11 +216,14 @@
   cursor: pointer;
   font-weight: 700;
   color: #fff;
-  background: linear-gradient(180deg, #6b93ff, var(--blue));
-  padding: 14px 18px;
-  border-radius: 16px;
-  box-shadow: 6px 6px 14px #b7c0d4, -4px -4px 10px #ffffff, inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: var(--accent);
+  padding: 11px 16px;
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
   font-size: 14px;
+}
+.btn-primary:hover {
+  background: var(--accent-hover);
 }
 .btn-primary:active {
   filter: brightness(0.96);
@@ -213,22 +233,26 @@
   cursor: not-allowed;
 }
 .btn-ghost {
-  border: 0;
+  border: 1px solid var(--border);
   cursor: pointer;
   font: inherit;
   font-weight: 650;
   font-size: 13px;
   color: var(--text);
   background: var(--surface);
-  padding: 10px 16px;
-  border-radius: 14px;
-  box-shadow: var(--shadow-out-sm);
+  padding: 8px 14px;
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
 }
+.btn-ghost:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
 .btn-ghost:active {
-  box-shadow: var(--shadow-in-sm);
+  box-shadow: var(--inset);
 }
 
 /* ---------- 管家步骤清单（steward evening） ---------- */
@@ -238,29 +262,30 @@
   margin: 0 0 18px;
   padding: 0;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 .steps > li {
   counter-increment: step;
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: 28px 1fr;
   gap: 12px;
-  padding: 14px;
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: var(--shadow-out-sm);
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
 }
 .steps > li::before {
   content: counter(step);
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  color: var(--text);
-  box-shadow: var(--shadow-in-sm);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
 }
 .steps .title {
   font-size: 14px;
@@ -274,6 +299,6 @@
 }
 .steps code {
   font-size: 12px;
+  font-family: var(--font-mono);
   overflow-wrap: anywhere;
 }
-

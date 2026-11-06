@@ -1,6 +1,6 @@
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
-import { Card, ErrorBox, Loading, Stat } from '../components/Common'
+import { Card, ErrorBox, Loading, Prose, Stat } from '../components/Common'
 
 export default function Doctor() {
   const doc = useAsync((signal) => api.doctor({ signal }), [])
@@ -40,12 +40,12 @@ export default function Doctor() {
       <Card title="体检报告">
         {doc.error ? <ErrorBox error={doc.error} onRetry={doc.reload} />
           : !doc.data ? <Loading label="正在体检…" />
-          : <pre className="plain">{doc.data.text}</pre>}
+          : <Prose source={doc.data.text} />}
       </Card>
       <Card title="熔断判定">
         {fuse.error ? <ErrorBox error={fuse.error} onRetry={fuse.reload} />
           : !fuse.data ? <Loading />
-          : <pre className="plain">{fuse.data.text}</pre>}
+          : <Prose source={fuse.data.text} />}
       </Card>
     </>
   )

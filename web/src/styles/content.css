@@ -1,31 +1,35 @@
 /* ---------- Tabs / toolbar ---------- */
 .tabs {
   display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 6px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
 }
 .tab {
-  border: 0;
+  border: 1px solid var(--border);
   cursor: pointer;
   font: inherit;
   font-weight: 650;
   font-size: 13px;
-  padding: 10px 16px;
+  padding: 8px 14px;
   border-radius: 999px;
   background: var(--surface);
   color: var(--muted);
-  box-shadow: var(--shadow-out-sm);
+}
+.tab:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 .tab.active {
-  color: var(--text);
-  box-shadow: var(--shadow-in-sm);
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .toolbar {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
 }
 .toolbar label {
@@ -38,39 +42,40 @@
 }
 .toolbar select {
   font: inherit;
-  padding: 10px 14px;
-  border-radius: 12px;
-  border: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: var(--shadow-in-sm);
+  box-shadow: var(--inset);
   color: var(--text);
 }
 
 .seg {
   display: flex;
-  gap: 6px;
+  gap: 4px;
 }
 .seg-btn {
-  border: 0;
+  border: 1px solid var(--border);
   cursor: pointer;
   font: inherit;
   font-size: 12px;
   font-weight: 650;
-  padding: 8px 12px;
-  border-radius: 12px;
+  padding: 6px 11px;
+  border-radius: 8px;
   background: var(--surface);
   color: var(--muted);
-  box-shadow: var(--shadow-out-sm);
 }
 .seg-btn.active {
-  color: var(--text);
-  box-shadow: var(--shadow-in-sm);
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 /* ---------- Charts ---------- */
 .chart-well {
-  border-radius: 16px;
-  box-shadow: var(--shadow-in);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   padding: 12px;
   overflow: auto;
 }
@@ -79,76 +84,115 @@
   width: 100%;
   height: auto;
 }
+.chart-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
 
-/* ---------- Markdown render ---------- */
+/* ---------- Markdown / prose（报告类正文，禁止等宽灰墙） ---------- */
+.prose-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  padding: 16px 18px;
+  max-height: 70vh;
+  overflow: auto;
+}
 .md {
-  font-size: 14px;
+  font-size: 14.5px;
   line-height: 1.7;
+  color: var(--text);
   overflow-wrap: break-word;
 }
 .md h1,
 .md h2,
 .md h3,
 .md h4 {
-  margin: 1.1em 0 0.5em;
-  line-height: 1.35;
+  margin: 1.15em 0 0.45em;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.md h1 {
+  font-size: 1.28rem;
+}
+.md h2 {
+  font-size: 1.1rem;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--border);
+}
+.md h3 {
+  font-size: 1rem;
 }
 .md h1:first-child,
-.md h2:first-child {
+.md h2:first-child,
+.md h3:first-child {
   margin-top: 0;
 }
 .md p {
-  margin: 0.6em 0;
+  margin: 0.55em 0;
 }
 .md ul,
 .md ol {
-  margin: 0.5em 0;
-  padding-left: 1.4em;
+  margin: 0.45em 0;
+  padding-left: 1.35em;
 }
 .md li {
-  margin: 0.25em 0;
+  margin: 0.2em 0;
 }
 .md blockquote {
-  margin: 0.8em 0;
-  padding: 2px 14px;
-  border-left: 3px solid var(--blue);
+  margin: 0.75em 0;
+  padding: 6px 14px;
+  border-left: 3px solid var(--accent);
   color: var(--muted);
-  box-shadow: var(--shadow-in-sm);
-  border-radius: 0 10px 10px 0;
+  background: rgba(13, 124, 111, 0.05);
+  border-radius: 0 8px 8px 0;
 }
 .md code {
-  background: rgba(122, 132, 153, 0.15);
+  font-family: var(--font-mono);
+  background: rgba(26, 35, 50, 0.06);
   padding: 1px 6px;
-  border-radius: 6px;
-  font-size: 0.9em;
+  border-radius: 5px;
+  font-size: 0.88em;
 }
 .md pre {
-  background: rgba(122, 132, 153, 0.12);
+  font-family: var(--font-mono);
+  background: rgba(26, 35, 50, 0.05);
+  border: 1px solid var(--border);
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: auto;
-  font-size: 0.85em;
+  font-size: 0.84em;
+  line-height: 1.55;
 }
 .md hr {
   border: 0;
-  border-top: 1px solid rgba(122, 132, 153, 0.3);
-  margin: 1.2em 0;
+  border-top: 1px solid var(--border);
+  margin: 1.1em 0;
 }
+.md strong {
+  font-weight: 700;
+}
+
+/* 真正需要等宽的内容（diff / 原始 CLI 对照）才用 .plain */
 .plain {
   white-space: pre-wrap;
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.6;
   margin: 0;
   max-height: 60vh;
   overflow: auto;
+  color: var(--text);
 }
 
 .md-table {
   overflow-x: auto;
-  margin: 0.8em 0;
-  border-radius: 12px;
-  box-shadow: var(--shadow-in-sm);
+  margin: 0.75em 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 .md-table table {
   border-collapse: collapse;
@@ -157,18 +201,23 @@
 }
 .md-table th,
 .md-table td {
-  padding: 8px 12px;
+  padding: 7px 10px;
   text-align: left;
   white-space: nowrap;
-  border-bottom: 1px solid rgba(122, 132, 153, 0.2);
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
 }
 .md-table thead th {
   color: var(--muted);
   font-weight: 700;
   font-size: 12px;
+  background: var(--surface-2);
 }
 .md-table tbody tr:last-child td {
   border-bottom: 0;
+}
+.md-table tbody tr:hover td {
+  background: rgba(13, 124, 111, 0.04);
 }
 
 /* ---------- 系统状态 kv ---------- */
@@ -176,23 +225,25 @@
   margin: 0;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 .kv > div {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-in-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
 }
 .kv dt {
   font-size: 12px;
   color: var(--muted);
   font-weight: 650;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .kv dd {
   margin: 0;
   font-size: 14px;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 .row-full {
   grid-template-columns: 1fr;
@@ -226,21 +277,23 @@
 }
 .diff {
   white-space: pre-wrap;
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.55;
   max-height: 50vh;
   overflow: auto;
   margin: 8px 0;
   padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(122, 132, 153, 0.12);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(26, 35, 50, 0.04);
 }
 .write-flow {
   margin: 14px 0;
   padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px dashed rgba(88, 99, 121, 0.45);
+  border-radius: 10px;
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-2);
 }
 .write-head {
   display: flex;
@@ -254,41 +307,41 @@
 
 /* W17 练练写回内联表单 */
 .inline-form { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 4px; align-items: end; }
-.inline-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted, #6b7280); }
+.inline-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .inline-form input, .inline-form select {
-  padding: 6px 10px; border-radius: 10px; border: 1px solid rgba(122,132,153,.35);
-  background: transparent; font: inherit; min-width: 12ch;
+  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); font: inherit; min-width: 12ch;
 }
 
 /* W10 任务内联写操作 */
 .btn-sm { padding: 4px 10px; font-size: 12px; }
 .task-confirm { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.task-confirm code { font-size: 11px; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-confirm code { font-size: 11px; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
 .new-task { margin-top: 12px; display: grid; gap: 8px; }
 .new-task-row { display: flex; gap: 8px; }
-.new-task-row input { flex: 1; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(122,132,153,.35); background: transparent; font: inherit; }
+.new-task-row input {
+  flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); font: inherit; box-shadow: var(--inset);
+}
 .check { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 13px; }
 
-/* W11 通用：屏幕阅读器可读、视觉隐藏 */
 .visually-hidden {
   position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
-.hint-warn { color: #b26a00; }
+.hint-warn { color: var(--ink-amber); }
 .chips { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .chips li {
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px;
-  font-size: 12px; border: 1px solid rgba(122,132,153,.35);
+  font-size: 12px; border: 1px solid var(--border); background: var(--surface);
 }
 .chip-x { border: 0; background: transparent; cursor: pointer; font: inherit; padding: 0 2px; color: inherit; }
 .chip-x:focus-visible { outline: 2px solid currentColor; border-radius: 4px; }
 
-/* W11 读图日流程 */
 .vision-pick { border: 0; padding: 0; margin: 0 0 10px; min-width: 0; }
 .vision-pick:disabled { opacity: .55; }
 .vision-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.vision-row select { padding: 4px 8px; border-radius: 8px; font: inherit; }
+.vision-row select { padding: 4px 8px; border-radius: 8px; font: inherit; border: 1px solid var(--border); }
 .file-btn { position: relative; cursor: pointer; }
 .file-btn:focus-within { outline: 2px solid currentColor; outline-offset: 2px; }
 .inbox-pick { margin-top: 10px; display: grid; gap: 2px; }
-

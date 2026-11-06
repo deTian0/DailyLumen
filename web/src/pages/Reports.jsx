@@ -68,7 +68,9 @@ function ReportBody({ rep, toast, mdPath }) {
             <DownloadButton path={mdPath} filename={rep.data.filename} toast={toast} />
           </div>
         }>
-        <Markdown source={rep.data.markdown} />
+        <div className="prose-panel">
+          <Markdown source={rep.data.markdown} />
+        </div>
       </Card>
     </div>
   )
@@ -200,7 +202,9 @@ function CtxView({ toast, health }) {
       <ReviewSteps ready={doctor.data?.result?.day_ready} />
       <Card title={`复盘上下文 · ${ctx.data.date}`} meta="当日事实 / 近 7 日 / 规则关注点"
         actions={<CopyButton text={ctx.data.markdown} toast={toast} />}>
-        <Markdown source={ctx.data.markdown} />
+        <div className="prose-panel">
+          <Markdown source={ctx.data.markdown} />
+        </div>
       </Card>
       <AiPreview date={ctx.data.date} toast={toast} />
       <Card title="读图写入数据块" meta="截图 → 预览字段 → 写 md（不写库）→ 定稿 → 入库">

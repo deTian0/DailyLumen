@@ -1,16 +1,17 @@
 /* ---------- Banners / toast / states ---------- */
 .banner {
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  border-radius: 14px;
-  box-shadow: var(--shadow-in-sm);
+  margin-bottom: 14px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   color: var(--text);
   font-size: 13px;
 }
 .banner-warn {
   color: #7a4b16;
-  box-shadow: var(--shadow-in-sm);
-  background: linear-gradient(0deg, rgba(240, 160, 75, 0.14), rgba(240, 160, 75, 0.14));
+  border-color: rgba(217, 119, 6, 0.35);
+  background: rgba(240, 160, 75, 0.12);
 }
 
 .toast {
@@ -20,11 +21,12 @@
   z-index: 20;
   max-width: min(380px, 80vw);
   padding: 12px 16px;
-  border-radius: 14px;
+  border-radius: 10px;
   font-size: 13px;
   font-weight: 650;
   background: var(--surface);
-  box-shadow: var(--shadow-out);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s, transform 0.2s;
@@ -56,8 +58,8 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 3px solid rgba(122, 132, 153, 0.25);
-  border-top-color: var(--blue);
+  border: 3px solid rgba(90, 106, 120, 0.22);
+  border-top-color: var(--accent);
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin {
@@ -65,4 +67,3 @@
     transform: rotate(360deg);
   }
 }
-

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, downloadFile, errText } from '../lib/api'
+import { Markdown } from '../lib/markdown'
+import { toProseSource } from '../lib/prose'
 
 // W14：<img> 不能带请求头 → 先带 key 取 blob 再显示；卸载 / 换图时 revoke
 export function AuthImage({ path, alt = '', className, onLoad, onError, style }) {
@@ -123,10 +125,19 @@ export function Card({ title, meta, children, className = '', actions }) {
 
 export function Stat({ label, value, sub, tone }) {
   return (
-    <article className="stat">
+    <article className={`stat ${tone ? `stat-tone-${tone}` : ''}`}>
       <div className="label">{label}</div>
       <div className={`value ${tone ? `tone-${tone}` : ''}`}>{value}</div>
       {sub && <div className="delta">{sub}</div>}
     </article>
+  )
+}
+
+/** 报告 / CLI 全文：结构化 prose，不用等宽灰墙 */
+export function Prose({ source, className = '' }) {
+  return (
+    <div className={`prose-panel ${className}`.trim()}>
+      <Markdown source={toProseSource(source)} />
+    </div>
   )
 }
