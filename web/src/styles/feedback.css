@@ -1,0 +1,68 @@
+/* ---------- Banners / toast / states ---------- */
+.banner {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  box-shadow: var(--shadow-in-sm);
+  color: var(--text);
+  font-size: 13px;
+}
+.banner-warn {
+  color: #7a4b16;
+  box-shadow: var(--shadow-in-sm);
+  background: linear-gradient(0deg, rgba(240, 160, 75, 0.14), rgba(240, 160, 75, 0.14));
+}
+
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 20;
+  max-width: min(380px, 80vw);
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 13px;
+  font-weight: 650;
+  background: var(--surface);
+  box-shadow: var(--shadow-out);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  transform: translateY(8px);
+}
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  padding: 28px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  flex-direction: column;
+  text-align: center;
+}
+.state-error {
+  color: var(--ink-red);
+}
+.state-empty {
+  color: var(--muted);
+}
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid rgba(122, 132, 153, 0.25);
+  border-top-color: var(--blue);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

@@ -1,0 +1,279 @@
+/* DailyLumen 看板 · 布局与组件样式（新拟物） */
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  z-index: 100;
+  background: var(--surface);
+  color: var(--text);
+  padding: 10px 16px;
+  border-radius: 0 0 10px 0;
+  box-shadow: var(--shadow-out-sm);
+}
+.skip-link:focus {
+  left: 0;
+}
+
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: 100vh;
+}
+@media (max-width: 900px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    position: static;
+    flex-direction: row;
+    align-items: center;
+    padding: 12px 16px;
+    gap: 12px;
+    overflow-x: auto;
+  }
+  .sidebar .brand {
+    padding: 0;
+  }
+  .nav {
+    flex-direction: row;
+    gap: 6px;
+  }
+  .nav-item span.ico {
+    margin: 0;
+  }
+  .sidebar-foot {
+    margin-top: 0;
+    margin-left: auto;
+    padding-top: 0;
+  }
+  .env-sub {
+    display: none;
+  }
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 28px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 22px;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-out-sm);
+  display: grid;
+  place-items: center;
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 800;
+  flex: none;
+}
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  border: 0;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.nav-item.active {
+  color: var(--text);
+  box-shadow: var(--shadow-out-sm);
+  background: var(--surface);
+}
+.nav-item .ico {
+  width: 18px;
+  text-align: center;
+  opacity: 0.85;
+  flex: none;
+}
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: 18px;
+}
+.env {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-radius: 14px;
+  box-shadow: var(--shadow-in-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.env-ok {
+  color: var(--ink-green);
+  font-weight: 700;
+}
+.env-bad {
+  color: var(--ink-red);
+  font-weight: 700;
+}
+.env-sub {
+  color: var(--muted);
+}
+
+/* ---------- Main ---------- */
+.main {
+  padding: 28px 32px 48px;
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .main {
+    padding: 18px 16px 36px;
+  }
+}
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.topbar h1 {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 700;
+}
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: min(260px, 70vw);
+  padding: 12px 16px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-in);
+  background: var(--surface);
+}
+.search input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  width: 100%;
+  font: inherit;
+  color: var(--text);
+}
+
+.btn-primary {
+  border: 0;
+  cursor: pointer;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(180deg, #6b93ff, var(--blue));
+  padding: 14px 18px;
+  border-radius: 16px;
+  box-shadow: 6px 6px 14px #b7c0d4, -4px -4px 10px #ffffff, inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  font-size: 14px;
+}
+.btn-primary:active {
+  filter: brightness(0.96);
+}
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.btn-ghost {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  padding: 10px 16px;
+  border-radius: 14px;
+  box-shadow: var(--shadow-out-sm);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+.btn-ghost:active {
+  box-shadow: var(--shadow-in-sm);
+}
+
+/* ---------- 管家步骤清单（steward evening） ---------- */
+.steps {
+  list-style: none;
+  counter-reset: step;
+  margin: 0 0 18px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.steps > li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-out-sm);
+}
+.steps > li::before {
+  content: counter(step);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  box-shadow: var(--shadow-in-sm);
+}
+.steps .title {
+  font-size: 14px;
+  font-weight: 700;
+}
+.steps .sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+.steps code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+

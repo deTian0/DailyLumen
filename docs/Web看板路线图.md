@@ -65,6 +65,7 @@
 | W10 | P2 写操作第二批（FR-J1 ClickUp 建任务/改状态 + FR-K1 ingest 单文件） | ✅ | `write_ops` 扩 `task_create` / `task_status` / `ingest`（list 白名单、INPUT_DIR 防穿越、写库前备份、写后回读）+ 今日页内联完成/新建、定稿→入库串联；FR-I2 读图日流程 / 练练写回顺延 | `v1.70.0` |
 | W11 | 读图日流程（FR-I2）+ 本周节奏快照空态 | ✅ | `write_ops` 扩 `vision`（上传 ≤6 张 / 单张 ≤8MB / magic 嗅探 PNG·JPEG·WebP、临时目录 finally 清理、mode 门禁先于 I/O、later_wins 冲突预览）/ `inbox_archive`（防穿越、移到 `已处理/日期/`）/ `clickup_pull`（`collect` 纯拉取、写前备份、整天替换、回读条数）；复盘页读图卡 → 写 md → ingest、今日页快照空态按钮；练练写回 / 自绘图顺延 | `v1.71.0` |
 | W12 | 「好用」导向 UI / 交互打磨 | ✅ | 今日待办分组（逾期默认折叠）+ 批量完成（单 token 一批 ≤20、逐条 CLI、逐条回读）；快照预览明列替换日期 before→after 与本周投影；读图缩略图（收件箱受限端点防穿越）；复盘四步进度条（doctor `day_ready` 单源）+ 今日页导流条；非 deepseek / 只读门禁收成一行；写按钮带动作名；「只读」文案按 health 动态；窄屏 ≤768px 适配 | `v1.72.0` |
+| W13 | 写操作框架重构（为练练写回铺路） | ✅ | `write_ops` 拆为 `api/writes/{base,habits,review_md,clickup,ingest,vision}`，门面保留原导出；`confirm` 分派由 if/elif 改为 `@register(action, needs=...)` 注册表（`plan_out` 拒发未登记动作的 token）；`Today.jsx` 拆出 `components/today/*` + `lib/todos.js`；`app.css` 按区段拆 6 个文件（产物哈希不变）；行为不变 | `v1.73.0` |
 
 > 本表随每个里程碑完成实时更新；详细验收记录写在下方对应小节。
 
