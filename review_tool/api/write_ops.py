@@ -9,6 +9,7 @@
 - ``writes/clickup``    建任务 / 改状态 / 批量 / clickup-pull 快照
 - ``writes/ingest``     ingest 单文件（路径白名单、写前备份、写后回读）
 - ``writes/vision``     读图 → 数据块、收件箱归档 / 缩略图
+- ``writes/keepstrong`` 练练写回（W17：设重量 / 记体征 / 排课 / 模板 / 计划命令；写回不落库）
 
 ``confirm`` 分派走 ``writes.base`` 的注册表（``@register(action, needs=...)``）。
 """
@@ -30,6 +31,14 @@ from .writes.clickup import (
 )
 from .writes.habits import plan_habits_sync
 from .writes.ingest import plan_ingest
+from .writes.keepstrong import (
+    plan_ks_create_template,
+    plan_ks_log_body,
+    plan_ks_plan_command,
+    plan_ks_replace_template_actions,
+    plan_ks_schedule,
+    plan_ks_set_weight,
+)
 from .writes.review_md import plan_ai_draft, plan_finalize
 from .writes.vision import (
     MAX_IMAGE_BYTES,
@@ -43,6 +52,8 @@ from .writes.vision import (
 __all__ = [
     "MAX_BATCH", "MAX_IMAGES", "MAX_IMAGE_BYTES", "TOKEN_TTL_S", "TokenStore", "confirm",
     "inbox_image", "list_inbox", "plan_ai_draft", "plan_clickup_pull", "plan_finalize",
-    "plan_habits_sync", "plan_inbox_archive", "plan_ingest", "plan_task_batch",
-    "plan_task_create", "plan_task_status", "plan_vision", "registered_actions",
+    "plan_habits_sync", "plan_inbox_archive", "plan_ingest", "plan_ks_create_template",
+    "plan_ks_log_body", "plan_ks_plan_command", "plan_ks_replace_template_actions",
+    "plan_ks_schedule", "plan_ks_set_weight", "plan_task_batch", "plan_task_create",
+    "plan_task_status", "plan_vision", "registered_actions",
 ]

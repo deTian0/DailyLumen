@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.76.0**（Web 看板 W16：ECharts 自绘图）（历史：v1.75.0 Web 看板 W15：前端 Vitest 单测；v1.74.0 Web 看板 W14：serve 最小鉴权；v1.73.0 Web 看板 W13：写操作注册表 + 模块拆分；v1.72.0 Web 看板 W12：待办分组 / 批量完成 / 复盘进度条 / 门禁折叠 / 窄屏；v1.71.0 读图日流程 + 本周节奏快照空态；v1.70.0 ClickUp 建任务/改状态 + ingest 入口；v1.69.0 习惯同步 / AI 草稿写入 / 定稿；v1.68.0 AI 预览；v1.67.0 报表增强；v1.66.0 生活管家；v1.65.0 前端 P0 页面；v1.64.0 报告与分析 API；v1.63.0 ClickUp 今日 API；v1.62.0 只读编排与对拍；v1.61.0 serve 壳；v1.60.1 lint 基线清零；v1.60.0 集成能力 I1–I7；schema **v11**）｜测试数以全量跑为准
+> 当前版本 **1.77.0**（Web 看板 W17：练练写回）（历史：v1.76.0 Web 看板 W16：ECharts 自绘图；v1.75.0 Web 看板 W15：前端 Vitest 单测；v1.74.0 Web 看板 W14：serve 最小鉴权；v1.73.0 Web 看板 W13：写操作注册表 + 模块拆分；v1.72.0 Web 看板 W12：待办分组 / 批量完成 / 复盘进度条 / 门禁折叠 / 窄屏；v1.71.0 读图日流程 + 本周节奏快照空态；v1.70.0 ClickUp 建任务/改状态 + ingest 入口；v1.69.0 习惯同步 / AI 草稿写入 / 定稿；v1.68.0 AI 预览；v1.67.0 报表增强；v1.66.0 生活管家；v1.65.0 前端 P0 页面；v1.64.0 报告与分析 API；v1.63.0 ClickUp 今日 API；v1.62.0 只读编排与对拍；v1.61.0 serve 壳；v1.60.1 lint 基线清零；v1.60.0 集成能力 I1–I7；schema **v11**）｜测试数以全量跑为准
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜**无 WorkBuddy 安装**见 [`docs/独立部署.md`](docs/独立部署.md)｜包级速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -20,6 +20,7 @@ uv run python -m review_tool serve            # → http://127.0.0.1:8765/ ，�
 - 前端构建产物 `web/dist` **已入库**，不需要 node 也能直接用；改了 `web/src` 才需要 `cd web; npm ci; npm run build` 重新构建。
 - 前端单测（W15，Vitest + jsdom + Testing Library，版本钉在 `web/package-lock.json`）：`cd web; npm ci; npm test`（= `vitest run`，一次性跑完退出；开发时可 `npx vitest` 监听模式）。测试文件与源码同目录 `*.test.js(x)`，覆盖 `lib/api.js`（带 key / 401）、`lib/route.js`、`lib/todos.js`（待办分组）、`lib/chartOption.js`（W16 ECharts option）、`WriteFlow`（预览 → 确认 → 失败重试会重新预览）、登录页；全部 mock `fetch`，不连真服务。
 - 分析页图表（W16）：前端用 **ECharts** 吃 `/api/charts/{kind}.json`（与 CLI `chart` 的 SVG **同源**——复用 `reports.chart.fetch_*_series` / `core.body.moving_average` / `config.BODY_TARGETS`，R1 单源），替代一期嵌 SVG；旧 SVG 端点 `/api/charts/{kind}` 保留供 CLI 与外部嵌入。
+- 练练写回（W17）：生活管家「训练」tab 下可记体征体重 / 设下次重量，复用 `plan/confirm` 两段式（写回**不落库、不作系统状态**，仅用户明确要求时）；排课 / 模板 / 计划命令需 actions JSON，仍走 CLI `python -m review_tool keepstrong --help`。
 - 页面：今日看板（待办 / 已办 / 收工灯 / 本周节奏 / 负荷）、复盘与报告（周报 / 月报 / 昨日上下文，可下载 .md）、生活管家（一日三步 / 晨间简报 / 夜间复盘指引 / 本周做成 / 连续天数 / 体征 / 训练 / 营养 / 习惯 / 学习 / 承诺兑现 / 跨维关联）、分析（stats + 图表）、体检（doctor / fuse / 集成失败）。
 - 🔑 **最小鉴权（W14）**：所有 `/api/*` 需请求头带密钥（`Authorization: Bearer <key>` 或 `X-DailyLumen-Key`）；`/api/ping` 是不含信息的存活探针。密钥默认只存浏览器 sessionStorage（关标签页即失效），登录页勾选「记住」才存 localStorage；任何 401 自动回登录页。仍默认只绑 `127.0.0.1` 且只读；写接口需 `--enable-write`。HTTP 明文传输，别把 `--host` 改成局域网地址。
 - 逻辑与 CLI 同源（`week` / `month` / `stats` / `doctor` / `clickup`），详见 `docs/Web看板PRD.md`、`docs/Web看板路线图.md`。

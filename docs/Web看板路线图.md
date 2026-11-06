@@ -69,6 +69,7 @@
 | W14 | serve 最小鉴权 | ✅ | `DAILYLUMEN_WEB_KEY`（`local/.env`，未配置拒绝启动）+ `api/auth.py`（Bearer / `X-DailyLumen-Key`，`compare_digest`，`/api/ping` 免 key）+ 前端登录页（默认 sessionStorage、401 回登录页、blob 取图/下载） | `v1.74.0`（未打 tag） |
 | W15 | 前端 Vitest 单测 | ✅ | Vitest 5.1 + jsdom + Testing Library（devDep 钉版本）；5 文件 24 例覆盖 `api.js`（key/401/blob）、`route.js`、`todos.js`（待办分组）、`WriteFlow`（预览→确认→失败重试重新预览）、`Login`；`WriteFlow.jsx` 补 `try/catch` 收起旧预览防复用 token | `v1.75.0`（未打 tag） |
 | W16 | ECharts 自绘图 | ✅ | `/api/charts/{kind}.json`（复用 `fetch_*_series` / `moving_average` / `BODY_TARGETS`，R1 单源；`.json` 路由排在 `{kind}` 前防吞）+ 前端 `EChart.jsx` / `chartOption.js`，`Analytics` 改吃 JSON；旧 SVG 端点保留；echarts@5.6.0 钉版本；+6 后端 / +7 前端测试 | `v1.76.0`（未打 tag） |
+| W17 | 练练写回 | ✅ | `writes/keepstrong.py` 6 动作（set-weight/log-body/schedule/create-template/replace-template-actions/plan-command）入 `plan/confirm` 注册表（`needs=(env, ks_client)`，写回不落库、`db_changed=False`）；错误映射 5 类 + URLError；`routes_write` 加 6 条 `ks-*/plan` + `ks_client`；前端「训练」tab 加 `KeepStrongWrite` 卡（记体征体重 / 设下次重量，余 4 种留 CLI）；27 后端测试 | `v1.77.0`（未打 tag） |
 
 > 本表随每个里程碑完成实时更新；详细验收记录写在下方对应小节。
 
@@ -184,6 +185,16 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **对拍**：`tests/api/test_reports_api.py` +6 例（JSON == `chart_series`、trends 值 == `fetch_series` 列、body 含 ma7 + 目标带、nutrition 双轴、未知 404、`.json` 不被吞）；`web/src/lib/chartOption.test.js` 7 例。前端共 6 文件 31 例。
 - **权衡**：bundle 283 KB → 1.31 MB（gzip 88 → 427 KB），换 tooltip / 缩放 / 图例切换；可接受。
 - **验收**：`cd web; npm test` → 6 文件 31 例全绿；`npm run build` 通过；全量 Python 1214 通过 / 2 跳过；ruff 全绿。
+
+---
+
+### W17 — 练练写回（v1.77.0）
+
+- **后端**：`api/writes/keepstrong.py` 6 动作入 W13 注册表（`@register(..., needs=("env", "ks_client"))`）：`ks_set_weight` / `ks_log_body` / `ks_schedule` / `ks_create_template` / `ks_replace_template_actions` / `ks_plan_command`。`plan_*` 只校验 + 出预览（零网络写），`_apply_*` 才调 `Client` 写方法（`user_confirmed=True`）。**写回不落库**：apply 返回 `db_changed=False`，不碰 `db_path` / `backup_dir`。错误映射：`CredError`→503 `credentials_missing`、`ApiKeyExpired`→401 `upstream_auth`、`SkillUpdateRequired`→426 `skill_update_required`、`RateLimited`→429 `rate_limited`、`KeepStrongError`→502 `writeback_failed`、`URLError`→504 `upstream_unreachable`。校验：`weight=0` 拒绝（空串=沿用历史）；id 走 `ID_RE`；`metric` ∈ {weight,fat,bodyRound}；`command` ∈ {delay,cancel_rest,add_alternative,add_temporary_workout}。中文 URL 编码由 `integrations.keepstrong.encode_query` 负责（已有测试覆盖）。
+- **路由**：`routes_write.py` 加 6 条 `POST /api/write/ks-*/plan` + `ks_client` 注入 confirm；`build_router(..., ks_client=None)`（生产 `None` 时 apply 自建 `Client`）。门禁复用 W14 鉴权 + `--enable-write`。
+- **前端**：`pages/Life.jsx`「训练」tab 下加 `KeepStrongWrite` 卡（`KsPreview` 列 preview 的 key/value，明示「写回不落库」）：记体征体重（metric/value/day/unit）+ 设下次重量（actionId/weight，空串=沿用历史）。排课 / 模板 / 计划命令需 actions JSON，留 CLI 并在卡里指明。`styles/content.css` 加 `.inline-form`。
+- **测试**：`tests/api/test_write_w17.py` 27 例——6 动作 plan→confirm（预览不触网、confirm 才 POST、库字节不变）、校验（422）、错误映射（5 异常 + URLError）、路由（plan→confirm / 重放 409 / 422 / 503 / 401）。全用 `_FakeKS` 假 client，零网络。
+- **验收**：`tests.api.test_write_w17` 27 例全绿；全量 Python 1241 通过 / 2 跳过；前端 6 文件 31 例；`npm run build` 通过；ruff 全绿。
 
 ---
 

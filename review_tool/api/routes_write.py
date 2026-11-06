@@ -3,7 +3,9 @@
 两段式确认流：
 1. ``POST /api/write/<动作>/plan`` → 预览 + 一次性 token + 等价 CLI（不写任何东西）
    动作：habits-sync / ai-draft / finalize（W9）· task-create / task-status / ingest（W10）·
-   vision / inbox-archive / clickup-pull（W11）；``GET /api/write/inbox`` 只读列收件箱图片
+   vision / inbox-archive / clickup-pull（W11）· ks-set-weight / ks-log-body / ks-schedule /
+   ks-create-template / ks-replace-template-actions / ks-plan-command（W17，练练写回不落库）；
+   ``GET /api/write/inbox`` 只读列收件箱图片
 2. ``POST /api/write/confirm``（JSON ``{"token": ...}``）→ 执行预览过的内容，写后回读校验
 
 全部是 POST：受 ``app.host_origin_guard`` 的 Host / Origin 校验；confirm 要求 JSON 体，
@@ -81,6 +83,45 @@ class TaskBatchIn(BaseModel):
     status: str = "complete"
 
 
+# W17：练练写回（写回不落库）
+class KsSetWeightIn(BaseModel):
+    action_id: str
+    weight: str | float | int | None = None
+    weight_unit: str | None = None
+    template_id: str | None = None
+    right_weight: str | float | int | None = None
+
+
+class KsLogBodyIn(BaseModel):
+    metric: str
+    value: str | float | int
+    day: str | None = None
+    unit: str | None = None
+
+
+class KsScheduleIn(BaseModel):
+    day: str
+    name: str
+    actions: list[dict[str, Any]]
+
+
+class KsCreateTemplateIn(BaseModel):
+    name: str
+    actions: list[dict[str, Any]]
+    template_id: str | None = None
+
+
+class KsReplaceTemplateActionsIn(BaseModel):
+    template_id: str
+    actions: list[dict[str, Any]]
+
+
+class KsPlanCommandIn(BaseModel):
+    running_plan_id: str
+    command: str
+    extra: dict[str, Any] | None = None
+
+
 class ConfirmOut(BaseModel):
     action: str
     date: str
@@ -91,7 +132,7 @@ class ConfirmOut(BaseModel):
 def build_router(*, db_path: str | None = None, fetch=None, env=None, client=None,
                  mode: str | None = None, backup_dir: str | None = None,
                  tokens: wo.TokenStore | None = None, cu_client=None,
-                 pull_fetch=None) -> APIRouter:
+                 pull_fetch=None, ks_client=None) -> APIRouter:
     # pull_fetch(list_id, key) -> tasks：clickup-pull 用（与 habits 的 fetch(path, key) 签名不同）
     router = APIRouter(prefix="/api/write", tags=["write"])
     store = tokens or wo.TokenStore()
@@ -153,9 +194,40 @@ def build_router(*, db_path: str | None = None, fetch=None, env=None, client=Non
     def plan_pull(body: ClickupPullIn):
         return wo.plan_clickup_pull(store, days=body.days, env=env, fetch=pull_fetch, db_path=db_path)
 
+    # W17：练练写回（写回不落库；预览零网络写，确认才 POST）
+    @router.post("/ks-set-weight/plan", response_model=PlanOut)
+    def plan_ks_weight(body: KsSetWeightIn):
+        return wo.plan_ks_set_weight(store, body.action_id, body.weight,
+                                     weight_unit=body.weight_unit,
+                                     template_id=body.template_id,
+                                     right_weight=body.right_weight, env=env)
+
+    @router.post("/ks-log-body/plan", response_model=PlanOut)
+    def plan_ks_log(body: KsLogBodyIn):
+        return wo.plan_ks_log_body(store, body.metric, body.value, day=body.day,
+                                   unit=body.unit, env=env)
+
+    @router.post("/ks-schedule/plan", response_model=PlanOut)
+    def plan_ks_schedule(body: KsScheduleIn):
+        return wo.plan_ks_schedule(store, body.day, body.name, body.actions, env=env)
+
+    @router.post("/ks-create-template/plan", response_model=PlanOut)
+    def plan_ks_tpl(body: KsCreateTemplateIn):
+        return wo.plan_ks_create_template(store, body.name, body.actions,
+                                         template_id=body.template_id, env=env)
+
+    @router.post("/ks-replace-template-actions/plan", response_model=PlanOut)
+    def plan_ks_tpl_replace(body: KsReplaceTemplateActionsIn):
+        return wo.plan_ks_replace_template_actions(store, body.template_id, body.actions, env=env)
+
+    @router.post("/ks-plan-command/plan", response_model=PlanOut)
+    def plan_ks_cmd(body: KsPlanCommandIn):
+        return wo.plan_ks_plan_command(store, body.running_plan_id, body.command,
+                                       extra=body.extra, env=env)
+
     @router.post("/confirm", response_model=ConfirmOut)
     def post_confirm(body: ConfirmIn):
         return wo.confirm(store, body.token, db_path=db_path, backup_dir=backup_dir,
-                          env=env, cu_client=cu_client)
+                          env=env, cu_client=cu_client, ks_client=ks_client)
 
     return router
