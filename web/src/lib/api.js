@@ -75,6 +75,8 @@ export const api = {
   writeConfirm: (token, o) => json('/api/write/confirm', { ...o, method: 'POST', body: { token } }),
   // W11：收件箱待处理截图清单（只读；写接口未挂载时 404）
   inbox: (o) => json('/api/write/inbox', o),
+  // W12：收件箱缩略图（服务端只认收件箱顶层文件名，防穿越）
+  inboxImageUrl: (name) => `/api/write/inbox/image${qs({ name })}`,
   chartUrl: (kind) => `/api/charts/${kind}`,
   weekMdUrl: (year, week) => `/api/reports/week.md${qs({ year, week })}`,
   monthMdUrl: (month) => `/api/reports/month.md${qs({ month })}`,

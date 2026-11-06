@@ -23,7 +23,7 @@ export function ErrorBox({ error, onRetry }) {
 }
 
 // 复制全文：优先 Clipboard API，失败（非安全上下文等）回退到 textarea + execCommand
-export function CopyButton({ text, toast, label = '复制全文' }) {
+export function CopyButton({ text, toast, label = '复制全文', aria }) {
   async function copy() {
     try {
       if (navigator.clipboard && window.isSecureContext) {
@@ -46,7 +46,7 @@ export function CopyButton({ text, toast, label = '复制全文' }) {
     }
   }
   return (
-    <button type="button" className="btn-ghost" onClick={copy} disabled={!text}>
+    <button type="button" className="btn-ghost" onClick={copy} disabled={!text} aria-label={aria}>
       {label}
     </button>
   )

@@ -188,9 +188,11 @@ class TestClickupPull(_W11Fixture):
         day = datetime.date.today().isoformat()
         calls = []
         db0 = _sha(self.db)
-        plan = wo.plan_clickup_pull(self.tokens, days=7, env=ENV, fetch=_pull_fetch(calls, day))
+        plan = wo.plan_clickup_pull(self.tokens, days=7, env=ENV, fetch=_pull_fetch(calls, day),
+                                    db_path=self.db)
         self.assertEqual(plan["preview"]["closed"], 1)
-        self.assertEqual(plan["preview"]["per_day"], [{"date": day, "count": 1}])
+        # W12：per_day 追加 before（库内现值），用于「替换前 → 后」对照
+        self.assertEqual(plan["preview"]["per_day"], [{"date": day, "count": 1, "before": 0}])
         self.assertEqual(_sha(self.db), db0)  # 预览不写库
         n = len(calls)
         out = wo.confirm(self.tokens, plan["token"], db_path=self.db, backup_dir=self.bak)

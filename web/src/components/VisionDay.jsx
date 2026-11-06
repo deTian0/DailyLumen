@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
-import { WriteFlow } from './WriteFlow'
+import { GateLine, WriteFlow, gateReason } from './WriteFlow'
 
 const MAX_IMAGES = 6
 const MAX_MB = 8
@@ -95,6 +95,9 @@ export function VisionDay({ date, health, toast, ai, onWritten }) {
 
   const togglePick = (n) => setPicked((s) => (s.includes(n) ? s.filter((x) => x !== n) : [...s, n]))
   const disabled = !!gate || health?.readonly !== false
+  // W12 门禁折叠：只读 / 非 deepseek 时整卡收成一行（不占大块禁用区）
+  const hardGate = gateReason(health, gate)
+  if (health && hardGate) return <GateLine title="读图日流程" reason={hardGate} />
 
   return (
     <>
@@ -118,6 +121,7 @@ export function VisionDay({ date, health, toast, ai, onWritten }) {
           <ul className="chips" aria-label="已上传">
             {uploads.map((u, i) => (
               <li key={i}>
+                <img className="thumb" src={u.data} alt="" />
                 {u.name}
                 <button type="button" className="chip-x" aria-label={`移除 ${u.name}`}
                   onClick={() => setUploads((s) => s.filter((_, j) => j !== i))}>×</button>
@@ -131,6 +135,7 @@ export function VisionDay({ date, health, toast, ai, onWritten }) {
             {inbox.data.items.map((it) => (
               <label key={it.name} className="check">
                 <input type="checkbox" checked={picked.includes(it.name)} onChange={() => togglePick(it.name)} />
+                <img className="thumb" src={api.inboxImageUrl(it.name)} alt="" loading="lazy" />
                 {it.name} <span className="muted">· {Math.round(it.size / 1024)} KB · {it.mtime.slice(5)}</span>
               </label>
             ))}

@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { api, errText, todayStr } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
-import { Card, Empty, ErrorBox, Loading, Stat } from '../components/Common'
+import { Card, CopyButton, Empty, ErrorBox, Loading, Stat } from '../components/Common'
 import { WriteFlow } from '../components/WriteFlow'
+import { ReviewSteps } from '../components/ReviewSteps'
 
 const LIGHT = {
   green: { text: '绿灯', tone: 'green', hint: '可以收工' },
@@ -137,7 +138,7 @@ function NewTask({ writable, toast, onChanged }) {
   )
 }
 
-function Task({ t, kind, writable, toast, onChanged }) {
+function Task({ t, kind, writable, toast, onChanged, selectable, selected, onSelect }) {
   const pill =
     kind === 'overdue'
       ? { text: `逾期 ${t.due?.slice(5) || ''}`, cls: 'pill-red' }
@@ -148,7 +149,10 @@ function Task({ t, kind, writable, toast, onChanged }) {
           : { text: t.due ? `due ${t.due.slice(5)}` : '无截止', cls: '' }
   return (
     <li className={`task task-${kind}`}>
-      <span className="dot" aria-hidden="true" />
+      {selectable ? (
+        <input type="checkbox" className="task-sel" checked={selected} onChange={onSelect}
+          aria-label={`加入批量完成：${t.name}`} />
+      ) : <span className="dot" aria-hidden="true" />}
       <div className="task-body">
         <div className="title">{t.name}</div>
         <div className="sub">{t.list}</div>
@@ -156,6 +160,168 @@ function Task({ t, kind, writable, toast, onChanged }) {
       <span className={`pill ${pill.cls}`}>{pill.text}</span>
       {kind !== 'done' && <TaskDone t={t} writable={writable} toast={toast} onChanged={onChanged} />}
     </li>
+  )
+}
+
+// W12：今日待办分组（逾期 / 今日到期·进行中 / 无截止）；分组只按 ClickUp 已给的 kind + due 字段，
+// 不在前端另做归日（归日口径单源在后端 clickup_queries）。逾期默认折叠并显示条数。
+function groupTodos(lists) {
+  return [
+    { id: 'overdue', label: '逾期', items: lists.overdue.map((t) => [t, 'overdue']), open: false },
+    {
+      id: 'due', label: '今日到期 · 进行中',
+      items: [...lists.in_progress.map((t) => [t, 'in_progress']),
+        ...lists.open.filter((t) => t.due).map((t) => [t, 'open'])],
+      open: true,
+    },
+    { id: 'nodue', label: '无截止', items: lists.open.filter((t) => !t.due).map((t) => [t, 'open']), open: true },
+  ].filter((g) => g.items.length)
+}
+
+// 批量完成：一次预览 + 一次性 token 对应一批（≤20 条），回显逐条等价 CLI；结果逐条以回读为准
+function BatchBar({ selected, clear, toast, onChanged }) {
+  const [plan, setPlan] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  const [res, setRes] = useState(null)
+  if (!selected.length && !plan && !res) return null
+  async function preview() {
+    setBusy(true)
+    setErr(null)
+    setRes(null)
+    try {
+      setPlan(await api.writePlanBody('task-batch', {
+        items: selected.map((t) => ({ task_id: t.id, name: t.name })), status: 'complete',
+      }))
+    } catch (e) {
+      setErr(e)
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function confirm() {
+    setBusy(true)
+    try {
+      const r = await api.writeConfirm(plan.token)
+      setPlan(null)
+      setRes(r.result)
+      toast?.(`批量完成 ${r.result.written} 条${r.result.failed.length ? `，${r.result.failed.length} 条失败` : ''}（以回读为准）`)
+      clear()
+      onChanged?.()
+    } catch (e) {
+      setErr(e)
+      setPlan(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="batch-bar" role="region" aria-label="批量完成">
+      {!plan ? (
+        <div className="batch-row">
+          <span>已选 {selected.length} 条</span>
+          <button type="button" className="btn-ghost btn-sm" onClick={preview} disabled={busy || !selected.length}
+            aria-label={`预览：批量完成 ${selected.length} 条任务`}>
+            {busy ? '预览中…' : '① 预览批量完成'}
+          </button>
+          <button type="button" className="btn-ghost btn-sm" onClick={clear} disabled={busy}
+            aria-label="清空批量选择">清空</button>
+        </div>
+      ) : (
+        <>
+          <p className="muted">将把 {plan.preview.count} 条任务改为 <code>{plan.preview.status}</code>（逐条写后回读）：</p>
+          <ul className="batch-list">
+            {plan.preview.items.map((x, i) => (
+              <li key={x.task_id}><span>{x.name || x.task_id}</span> <code className="cli">{plan.preview.clis[i]}</code></li>
+            ))}
+          </ul>
+          <div className="batch-row">
+            <button type="button" className="btn-primary btn-sm" onClick={confirm} disabled={busy}
+              aria-label={`确认：批量完成 ${plan.preview.count} 条任务`}>
+              {busy ? '写入中…' : `② 确认完成 ${plan.preview.count} 条`}
+            </button>
+            <button type="button" className="btn-ghost btn-sm" onClick={() => setPlan(null)} disabled={busy}
+              aria-label="取消：批量完成">取消</button>
+            <CopyButton text={plan.cli} toast={toast} label="复制 CLI" aria="复制 CLI：批量完成" />
+          </div>
+        </>
+      )}
+      {res?.failed?.length > 0 && (
+        <div className="hint hint-warn" role="alert">
+          {res.failed.length} 条未完成（可重新勾选重试）：
+          <ul>{res.failed.map((f) => <li key={f.task_id}>{f.name || f.task_id}：{f.error}</li>)}</ul>
+        </div>
+      )}
+      {err && <ErrorBox error={err} onRetry={selected.length ? preview : undefined} />}
+    </div>
+  )
+}
+
+function TodoGroups({ lists, writable, toast, onChanged, query }) {
+  const [sel, setSel] = useState({}) // id -> task
+  const groups = groupTodos(lists)
+  const toggle = (t) => setSel((s) => {
+    const n = { ...s }
+    if (n[t.id]) delete n[t.id]
+    else if (Object.keys(n).length < 20) n[t.id] = t
+    return n
+  })
+  const selected = Object.values(sel)
+  return (
+    <>
+      {groups.map((g) => (
+        // 搜索时全部展开，避免命中项藏在折叠组里
+        <details key={g.id} className={`task-group tg-${g.id}`} open={g.open || !!query}>
+          <summary>
+            <span className="tg-name">{g.label}</span>
+            <span className={`pill ${g.id === 'overdue' ? 'pill-red' : ''}`}>{g.items.length}</span>
+          </summary>
+          <ul className="task-list" aria-label={`${g.label}任务`}>
+            {g.items.map(([t, k]) => (
+              <Task key={t.id} t={t} kind={k} writable={writable} toast={toast} onChanged={onChanged}
+                selectable={writable} selected={!!sel[t.id]} onSelect={() => toggle(t)} />
+            ))}
+          </ul>
+        </details>
+      ))}
+      {writable && <BatchBar selected={selected} clear={() => setSel({})} toast={toast} onChanged={onChanged} />}
+    </>
+  )
+}
+
+// W12：快照预览 —— 明确列出将被整天替换的日期（库内现值 → 新值），以及本周节奏替换后的样子。
+// 投影数字由后端 plan_clickup_pull 给出（before/after），前端不另算归日。
+function PullPreview(p) {
+  return (
+    <>
+      <p className="muted">
+        拉取 {p.fetched} 条 · 已完成 {p.closed} 条 → 写入 <code>{p.target_table}</code>（{p.strategy}）
+      </p>
+      {p.per_day.length ? (
+        <>
+          <p className="muted"><strong>将被替换的 {p.per_day.length} 天</strong>（现有 → 替换后）：</p>
+          <ul className="chips" aria-label="将被替换的日期">
+            {p.per_day.map((x) => (
+              <li key={x.date}>{x.date.slice(5)} · {x.before} → <strong>{x.count}</strong></li>
+            ))}
+          </ul>
+        </>
+      ) : <p className="muted">窗口内没有已完成任务，无需写入。</p>}
+      {p.week?.length > 0 && (
+        <>
+          <p className="muted"><strong>本周节奏将变为</strong>（未出现在预览中的日期保持不变）：</p>
+          <ol className="week week-sm" aria-label="替换后的本周每日完成数">
+            {p.week.map((d, i) => (
+              <li key={d.date} className={`day ${d.replaced ? 'sel' : ''}`}
+                aria-label={`星期${WD[i]} ${d.date}：${d.before} → ${d.after}${d.replaced ? '（替换）' : '（不变）'}`}>
+                <span className="wd">{WD[i]}</span>
+                <span className="num">{d.after}</span>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+    </>
   )
 }
 
@@ -299,8 +465,18 @@ export default function Today({ toast, health }) {
         />
       </section>
 
+      {ready && ready.light !== 'green' && (
+        <section className="card review-strip" aria-label="昨日复盘进度">
+          <div className="card-h">
+            <h2>昨日复盘还差几步</h2>
+            <a className="btn-ghost btn-sm" href="#/reports?tab=ctx">去复盘 →</a>
+          </div>
+          <ReviewSteps ready={ready} />
+        </section>
+      )}
+
       <div className="row">
-        <Card title="今日待办" meta="逾期 → 进行中 → 今日到期">
+        <Card title="今日待办" meta="逾期（默认折叠）· 今日到期 · 无截止">
           <div className="well">
             {today.loading && !data ? (
               <Loading label="正在拉取 ClickUp…" />
@@ -309,11 +485,8 @@ export default function Today({ toast, health }) {
             ) : todoCount === 0 ? (
               <Empty>{query ? '没有匹配的任务' : '今天没有待办，轻松一点'}</Empty>
             ) : (
-              <ul className="task-list" aria-label="待办任务">
-                {['overdue', 'in_progress', 'open'].flatMap((k) => lists[k].map((t) => (
-                  <Task key={t.id} t={t} kind={k} writable={writable} toast={toast} onChanged={afterWrite} />
-                )))}
-              </ul>
+              <TodoGroups lists={lists} writable={writable} toast={toast} onChanged={afterWrite}
+                query={query} />
             )}
           </div>
           <NewTask writable={writable} toast={toast} onChanged={afterWrite} />
@@ -364,22 +537,12 @@ export default function Today({ toast, health }) {
               </p>
               <WriteFlow action="clickup-pull" body={{ days: 14 }} health={health} toast={toast}
                 title="拉取完成快照（clickup-pull）"
+                name="拉取完成快照"
                 desc="拉近 14 天已完成任务，按天预览条数；确认后整天替换 clickup_done（写库前自动备份，写后回读）。"
                 confirmLabel="确认写入快照"
                 canConfirm={(p) => p.closed > 0}
                 onDone={() => weekDone.reload()}
-                renderPreview={(p) => (
-                  <>
-                    <p className="muted">
-                      拉取 {p.fetched} 条 · 已完成 {p.closed} 条 · 覆盖 {p.dates} 天 → 写入 <code>{p.target_table}</code>（{p.strategy}）
-                    </p>
-                    {p.per_day.length ? (
-                      <ul className="chips" aria-label="按天条数">
-                        {p.per_day.map((x) => <li key={x.date}>{x.date.slice(5)} · {x.count}</li>)}
-                      </ul>
-                    ) : <p className="muted">窗口内没有已完成任务，无需写入。</p>}
-                  </>
-                )} />
+                renderPreview={PullPreview} />
             </>
           ) : (
             <p className="hint">本周合计完成 {weekDone.data?.total ?? '—'} 项（来自已入库的 ClickUp 完成快照，今日数据以上方实时为准）。</p>

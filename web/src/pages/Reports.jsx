@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
+import { hashQuery } from '../lib/route'
 import { Markdown } from '../lib/markdown'
 import { Card, CopyButton, Empty, ErrorBox, Loading, Stat } from '../components/Common'
 import { WriteFlow } from '../components/WriteFlow'
 import { VisionDay } from '../components/VisionDay'
+import { ReviewSteps } from '../components/ReviewSteps'
 
 const TABS = [
   { id: 'week', label: '周报' },
@@ -187,12 +189,15 @@ function IngestPreview(p) {
 function CtxView({ toast, health }) {
   const ctx = useAsync((signal) => api.aiContext(undefined, { signal }), [])
   const ai = useAsync((signal) => api.aiStatus({ signal }), [])
+  // W12 复盘四步进度：取 doctor.day_ready（后端单源）；写操作后随 ingestKick 刷新
   const [ingestKick, setIngestKick] = useState(0)
+  const doctor = useAsync((signal) => api.doctor({ signal }), [ingestKick])
   const [allowDraft, setAllowDraft] = useState(false)
   if (ctx.error) return <ErrorBox error={ctx.error} onRetry={ctx.reload} />
   if (!ctx.data) return <Loading />
   return (
     <>
+      <ReviewSteps ready={doctor.data?.result?.day_ready} />
       <Card title={`复盘上下文 · ${ctx.data.date}`} meta="当日事实 / 近 7 日 / 规则关注点"
         actions={<CopyButton text={ctx.data.markdown} toast={toast} />}>
         <Markdown source={ctx.data.markdown} />
@@ -247,7 +252,11 @@ function CtxView({ toast, health }) {
 }
 
 export default function Reports({ toast, health }) {
-  const [tab, setTab] = useState('week')
+  // 支持从今日页「去复盘 →」直达（#/reports?tab=ctx）
+  const [tab, setTab] = useState(() => {
+    const t = hashQuery('tab')
+    return TABS.some((x) => x.id === t) ? t : 'week'
+  })
   // tablist 键盘：左右方向键切换（WAI-ARIA Tabs 模式）
   function onKey(e) {
     const i = TABS.findIndex((t) => t.id === tab)
@@ -266,7 +275,10 @@ export default function Reports({ toast, health }) {
       <header className="topbar">
         <div>
           <h1>复盘与报告</h1>
-          <p className="subtitle">与 CLI week / month / ai-context 同源，数字现算，只读</p>
+          <p className="subtitle">
+            与 CLI week / month / ai-context 同源，数字现算 ·{' '}
+            {health?.readonly === false ? '写已开启：读图 / 草稿 / 定稿 / 入库均需预览后确认' : '只读'}
+          </p>
         </div>
       </header>
       <div className="tabs" role="tablist" aria-label="报告类型" onKeyDown={onKey}>

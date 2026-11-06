@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from . import write_ops as wo
@@ -70,6 +71,16 @@ class ClickupPullIn(BaseModel):
     days: int = 14
 
 
+class BatchItemIn(BaseModel):
+    task_id: str
+    name: str | None = None
+
+
+class TaskBatchIn(BaseModel):
+    items: list[BatchItemIn]
+    status: str = "complete"
+
+
 class ConfirmOut(BaseModel):
     action: str
     date: str
@@ -106,6 +117,11 @@ def build_router(*, db_path: str | None = None, fetch=None, env=None, client=Non
     def plan_task_status(body: TaskStatusIn):
         return wo.plan_task_status(store, body.task_id, body.status, name=body.name, env=env)
 
+    # W12：批量改状态（一次预览 + 一个 token 对应一批）
+    @router.post("/task-batch/plan", response_model=PlanOut)
+    def plan_task_batch(body: TaskBatchIn):
+        return wo.plan_task_batch(store, [i.model_dump() for i in body.items], body.status, env=env)
+
     @router.post("/ingest/plan", response_model=PlanOut)
     def plan_ingest(body: IngestIn):
         return wo.plan_ingest(store, path=body.path, day=body.date,
@@ -115,6 +131,13 @@ def build_router(*, db_path: str | None = None, fetch=None, env=None, client=Non
     @router.get("/inbox")
     def get_inbox():
         return wo.list_inbox()
+
+    # W12：收件箱缩略图（只读；_inbox_file 只收文件名 + realpath 限定收件箱顶层 + magic 嗅探）
+    @router.get("/inbox/image")
+    def get_inbox_image(name: str = Query(...)):
+        path, media = wo.inbox_image(name)
+        return FileResponse(path, media_type=media, headers={"Cache-Control": "no-store",
+                                                             "X-Content-Type-Options": "nosniff"})
 
     @router.post("/vision/plan", response_model=PlanOut)
     def plan_vision(body: VisionIn):
@@ -128,7 +151,7 @@ def build_router(*, db_path: str | None = None, fetch=None, env=None, client=Non
 
     @router.post("/clickup-pull/plan", response_model=PlanOut)
     def plan_pull(body: ClickupPullIn):
-        return wo.plan_clickup_pull(store, days=body.days, env=env, fetch=pull_fetch)
+        return wo.plan_clickup_pull(store, days=body.days, env=env, fetch=pull_fetch, db_path=db_path)
 
     @router.post("/confirm", response_model=ConfirmOut)
     def post_confirm(body: ConfirmIn):

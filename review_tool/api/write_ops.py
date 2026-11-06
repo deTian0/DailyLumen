@@ -272,6 +272,55 @@ def _apply_task(p: dict[str, Any], *, env=None, cu_client=None) -> dict[str, Any
     return {"written": True, "message": msg, "readback": True}
 
 
+# W12：批量改状态 —— 一次预览 + 一次性 token 对应一批；逐条复用 run_status（各自写后回读）
+MAX_BATCH = 20
+
+
+def plan_task_batch(tokens: TokenStore, items: list[dict[str, Any]], status: str = "complete", *,
+                    env=None) -> dict[str, Any]:
+    from .clickup_queries import _creds
+
+    status = _clean_text(status, field="状态", limit=40)
+    if not items or len(items) > MAX_BATCH:
+        raise QueryError(422, "invalid_param", f"一次批量 1..{MAX_BATCH} 条")
+    seen: set[str] = set()
+    picked: list[dict[str, str]] = []
+    for it in items:
+        tid = str((it or {}).get("task_id") or "").strip()
+        if not _TASK_ID_RE.match(tid):
+            raise QueryError(422, "invalid_task", "task id 不合法")
+        if tid in seen:
+            continue
+        seen.add(tid)
+        picked.append({"task_id": tid, "name": str(it.get("name") or "")[:200]})
+    _creds(env)
+    clis = [f"python -m review_tool clickup-task --status {x['task_id']} {_quote_arg(status)} --apply"
+            for x in picked]
+    preview = {"status": status, "count": len(picked), "items": picked, "clis": clis}
+    return _plan_out(tokens, "task_batch", {"date": _today(), "items": picked, "status": status},
+                     preview=preview, cli="\n".join(clis))
+
+
+def _apply_task_batch(p: dict[str, Any], *, env=None, cu_client=None) -> dict[str, Any]:
+    """逐条执行；单条失败不阻断其余条，结果里逐条回报（以回读为准）。"""
+    from ..pipeline.clickup_task import run_status
+    from .clickup_queries import _creds
+
+    key, _team = _creds(env)
+    ok: list[str] = []
+    failed: list[dict[str, str]] = []
+    for it in p["items"]:
+        try:
+            rc, msg = run_status(it["task_id"], p["status"], apply=True, key=key, client=cu_client)
+        except (urllib.error.URLError, TimeoutError):
+            rc, msg = 1, "ClickUp 网络不可达或超时"
+        if rc == 0:
+            ok.append(it["task_id"])
+        else:
+            failed.append({"task_id": it["task_id"], "name": it["name"], "error": msg})
+    return {"written": len(ok), "ok": ok, "failed": failed, "readback": True}
+
+
 # ---------------------------------------------------------------------------
 # ingest 单文件（FR-K1）：路径限定在 INPUT_DIR 内；写库前备份；写后回读
 # ---------------------------------------------------------------------------
@@ -423,6 +472,17 @@ def _inbox_file(name: str) -> str:
     return p
 
 
+_MEDIA = {".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp"}
+
+
+def inbox_image(name: str) -> tuple[str, str]:
+    """W12 缩略图：复用 ``_inbox_file`` 的防穿越 + 大小 + magic 校验；media type 按文件头定。"""
+    p = _inbox_file(name)
+    with open(p, "rb") as f:
+        ext = _sniff_ext(f.read(16))
+    return p, _MEDIA[ext or ".png"]
+
+
 def list_inbox() -> dict[str, Any]:
     """收件箱顶层图片清单（只读；``已处理/`` 不列）。"""
     from ..config import INBOX_DIR
@@ -561,8 +621,31 @@ def _apply_inbox_archive(p: dict[str, Any]) -> dict[str, Any]:
 # ClickUp 完成快照（clickup-pull）：预览 → 确认；写库前备份，写后回读
 # ---------------------------------------------------------------------------
 
-def plan_clickup_pull(tokens: TokenStore, *, days: int = 14, env=None, fetch=None
-                      ) -> dict[str, Any]:
+def _week_of(day: str) -> list[str]:
+    d = datetime.date.fromisoformat(day)
+    mon = d - datetime.timedelta(days=d.weekday())
+    return [(mon + datetime.timedelta(days=i)).isoformat() for i in range(7)]
+
+
+def _clickup_counts(db_path: str | None, dates: list[str]) -> dict[str, int]:
+    """库内现有 clickup_done 每日条数（只读；库缺失视为全 0）。"""
+    from ..storage.db import load_clickup_done
+    from .queries import readonly
+
+    if not dates:
+        return {}
+    out: dict[str, int] = {}
+    try:
+        with readonly(db_path) as conn:
+            for r in load_clickup_done(conn, dates=dates):  # storage 层单一出入口
+                out[r["date"]] = out.get(r["date"], 0) + 1
+    except QueryError:
+        return {}
+    return out
+
+
+def plan_clickup_pull(tokens: TokenStore, *, days: int = 14, env=None, fetch=None,
+                      db_path: str | None = None) -> dict[str, Any]:
     from ..pipeline.clickup_pull import DEFAULT_LISTS, _list_ids, collect
     from .clickup_queries import _creds
 
@@ -576,9 +659,16 @@ def plan_clickup_pull(tokens: TokenStore, *, days: int = 14, env=None, fetch=Non
         raise QueryError(502, "upstream_error", f"ClickUp 返回 HTTP {getattr(e, 'code', '?')}") from e
     except (urllib.error.URLError, TimeoutError) as e:
         raise QueryError(504, "upstream_unreachable", "ClickUp 网络不可达或超时") from e
-    per_day = [{"date": d, "count": len(by_date[d])} for d in sorted(by_date, reverse=True)]
+    before = _clickup_counts(db_path, sorted(set(by_date) | set(_week_of(_today()))))
+    per_day = [{"date": d, "count": len(by_date[d]), "before": before.get(d, 0)}
+               for d in sorted(by_date, reverse=True)]
+    # W12：本周节奏「替换后」投影 —— 预览中出现的日期取新条数，其余日期保持库内现值
+    week = [{"date": d, "before": before.get(d, 0),
+             "after": len(by_date[d]) if d in by_date else before.get(d, 0),
+             "replaced": d in by_date} for d in _week_of(_today())]
     preview = {"days": int(days), "fetched": stats["fetched"], "closed": stats["closed"],
                "dates": stats["dates"], "range": stats["range"], "per_day": per_day,
+               "replace_dates": sorted(by_date), "week": week,
                "target_table": "clickup_done", "strategy": "按整天替换（仅预览中出现的日期）"}
     return _plan_out(tokens, "clickup_pull", {"date": _today(), "by_date": by_date},
                      preview=preview, cli=f"python -m review_tool clickup-pull --days {int(days)}")
@@ -625,6 +715,8 @@ def confirm(tokens: TokenStore, token: str, *, db_path: str | None = None,
             out = _apply_finalize(p)
         elif p["action"] in ("task_create", "task_status"):
             out = _apply_task(p, env=env, cu_client=cu_client)
+        elif p["action"] == "task_batch":
+            out = _apply_task_batch(p, env=env, cu_client=cu_client)
         elif p["action"] == "ingest":
             out = _apply_ingest(p, db_path=db_path, backup_dir=backup_dir)
         elif p["action"] == "vision":

@@ -163,7 +163,7 @@ export default function Life({ toast, health }) {
       <header className="topbar">
         <div>
           <h1>生活管家</h1>
-          <p className="subtitle">健康 / 训练 / 营养 / 习惯 / 学习 / 承诺（与 CLI 同名命令同源，只读；不计入四维评分）</p>
+          <p className="subtitle">健康 / 训练 / 营养 / 习惯 / 学习 / 承诺（与 CLI 同名命令同源；{health?.readonly === false ? '写已开启：习惯可预览后同步' : '只读'}；不计入四维评分）</p>
         </div>
       </header>
       <div className="tabs" role="tablist" aria-label="管家领域">
@@ -181,7 +181,7 @@ export default function Life({ toast, health }) {
             <>
               {tab === 'tutor' && res.data.queue_rebuilt === false && (
                 <div className="banner" role="note">
-                  看板只读，不重建复习队列；如需刷新队列请在命令行执行 <code>python -m review_tool tutor</code>。
+                  看板不重建复习队列；如需刷新队列请在命令行执行 <code>python -m review_tool tutor</code>。
                 </div>
               )}
               {res.data.data && <Highlights id={tab} d={res.data.data} />}

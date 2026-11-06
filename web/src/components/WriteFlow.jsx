@@ -1,20 +1,44 @@
 // W9 写操作确认流：① 预览（plan，不写任何东西）→ ② 确认（confirm，执行预览过的内容）
-// 只在 serve --enable-write 时可用；只读启动时按钮禁用并说明原因。
+// 只在 serve --enable-write 时可用；只读启动 / 门禁不满足时整卡折叠成一行说明（W12）。
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { CopyButton, ErrorBox } from './Common'
 
+export const READONLY_NOTE = '看板以只读启动；如需写入请用 serve --enable-write 重启。'
+
+// W12 门禁折叠：一行说明，可展开看原因与切换方法（不占大块禁用区）
+export function GateLine({ title, reason }) {
+  return (
+    <details className="gate-line">
+      <summary>
+        <strong>{title}</strong>
+        <span className="muted"> · 暂不可用（点开看原因）</span>
+      </summary>
+      <p className="hint">{reason}</p>
+    </details>
+  )
+}
+
+// 统一门禁原因：只读优先，其次前置门禁（如 mode≠deepseek）
+export function gateReason(health, blockedReason) {
+  if (!health || health.readonly !== false) return READONLY_NOTE
+  return blockedReason || null
+}
+
 // canConfirm(preview)：预览判定为无改动时返回 false → 不给确认按钮（避免无意义写入）
-// blockedReason：前置门禁原因（如 mode≠deepseek），非空时预览按钮禁用并展示原因
+// blockedReason：前置门禁原因（如 mode≠deepseek），非空时整卡折叠为 GateLine
 // onDone(result)：确认成功后的回调（如定稿后串到 ingest 预览）
+// name：按钮可访问名里的动作名（默认 title），如「预览：同步习惯」
 export function WriteFlow({ action, params, health, toast, title, desc, renderPreview, confirmLabel = '确认写入',
-  canConfirm, blockedReason, onDone, body, autoPreview }) {
+  canConfirm, blockedReason, onDone, body, autoPreview, name, previewLabel = '预览' }) {
   const [plan, setPlan] = useState(null)
   const [res, setRes] = useState(null)
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
-  const writable = health && health.readonly === false && !blockedReason
+  const gate = gateReason(health, blockedReason)
+  const writable = !!health && !gate
   const confirmable = plan && (!canConfirm || canConfirm(plan.preview))
+  const act = name || title
 
   async function step(fn) {
     setBusy(true)
@@ -43,45 +67,47 @@ export function WriteFlow({ action, params, health, toast, title, desc, renderPr
     toast?.('已写入，回读校验通过')
     onDone?.(r)
   })
-  const note = !health || health.readonly !== false
-    ? '看板以只读启动；如需写入请用 serve --enable-write 重启。'
-    : blockedReason || desc
+
+  if (health && gate) return <GateLine title={title} reason={gate} />
 
   return (
     <section className="write-flow" aria-label={title}>
       <div className="write-head">
         <div>
           <strong>{title}</strong>
-          <p className="muted">{note}</p>
+          <p className="muted">{desc}</p>
         </div>
-        <button type="button" className="btn-ghost" onClick={preview} disabled={!writable || busy}>
-          {busy && !plan ? '预览中…' : plan ? '重新预览' : '① 预览'}
+        <button type="button" className="btn-ghost" onClick={preview} disabled={!writable || busy}
+          aria-label={`${plan ? '重新' : ''}${previewLabel}：${act}`}>
+          {busy && !plan ? '预览中…' : plan ? '重新预览' : `① ${previewLabel}`}
         </button>
       </div>
       {/* token 单次有效：确认失败后重试一律重新预览（拿新 token），不复用旧 token */}
       {err && <ErrorBox error={err} onRetry={writable ? preview : undefined} />}
       {plan && (
-        <div className="write-plan" role="region" aria-label="写入预览">
+        <div className="write-plan" role="region" aria-label={`写入预览：${act}`}>
           {renderPreview(plan.preview)}
           <p className="hint">
-            等价 CLI：<code>{plan.cli}</code> · 确认有效期 {Math.round(plan.expires_in / 60)} 分钟，仅可使用一次
+            等价 CLI：<code className="cli">{plan.cli}</code> · 确认有效期 {Math.round(plan.expires_in / 60)} 分钟，仅可使用一次
           </p>
           <div className="card-actions">
             {confirmable && (
-              <button type="button" className="btn-primary" onClick={confirm} disabled={busy}>
+              <button type="button" className="btn-primary" onClick={confirm} disabled={busy}
+                aria-label={`${confirmLabel}：${act}`}>
                 {busy ? '写入中…' : `② ${confirmLabel}`}
               </button>
             )}
-            <button type="button" className="btn-ghost" onClick={() => setPlan(null)} disabled={busy}>
+            <button type="button" className="btn-ghost" onClick={() => setPlan(null)} disabled={busy}
+              aria-label={`${confirmable ? '取消' : '关闭'}：${act}`}>
               {confirmable ? '取消' : '关闭'}
             </button>
-            <CopyButton text={plan.cli} toast={toast} label="复制 CLI" />
+            <CopyButton text={plan.cli} toast={toast} label="复制 CLI" aria={`复制 CLI：${act}`} />
           </div>
         </div>
       )}
       {res && (
         <div className="banner" role="status">
-          已完成（{res.cli}）
+          已完成（{res.cli.split('\n')[0]}{res.cli.includes('\n') ? ' 等' : ''}）
           {res.result?.backup && <> · 库已先备份：{res.result.backup}</>}
           {res.result?.next && <> · 下一步：{res.result.next}</>}
         </div>

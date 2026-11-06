@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from './lib/api'
 import { useAsync } from './lib/useAsync'
+import { hashPage } from './lib/route'
 import Today from './pages/Today.jsx'
 import Reports from './pages/Reports.jsx'
 import Analytics from './pages/Analytics.jsx'
@@ -16,8 +17,9 @@ const NAV = [
 ]
 
 // 轻量 hash 路由：无第三方依赖，刷新/收藏/前进后退都可用
+// W12：允许 #/reports?tab=ctx 这类查询串（页内 tab 自己读 hashQuery）
 const readHash = () => {
-  const id = window.location.hash.replace(/^#\/?/, '')
+  const id = hashPage()
   return NAV.some((n) => n.id === id) ? id : 'today'
 }
 
@@ -70,7 +72,7 @@ export default function App() {
               <span className="env-bad">服务未连接</span>
             ) : h ? (
               <>
-                <span className="env-ok">● 本机 · 只读{h.readonly ? '' : '（写已开启）'}</span>
+                <span className="env-ok">● 本机 · {h.readonly ? '只读' : '写已开启（预览后确认）'}</span>
                 <span className="env-sub">v{h.version} · 无鉴权，仅限本机</span>
               </>
             ) : (
