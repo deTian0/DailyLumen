@@ -95,6 +95,41 @@ def correlate(conn, min_samples: int | None = None) -> dict[str, Any]:
     return _pack(data, m.render(data))
 
 
+def week_done(conn, year: int | None = None, week: int | None = None) -> dict[str, Any]:
+    """= ``week-done [ISO周]``（W7 / FR-F5）：ClickUp 完成 + 复盘三件事。
+
+    周解析走 ``resolve_week``（PRE-06），并把解析出的 ISO 年显式传给 collect，
+    避免 CLI「默认今年」在跨年时取错窗口。
+    """
+    from ..reports import week_done as m
+
+    y, wk = resolve_week(conn, year, week)
+    data = m.collect(conn, iso_week=wk, year=y)
+    return _pack(data, m.render(data), year=y, week=wk)
+
+
+def streaks(conn, as_of: str | None = None) -> dict[str, Any]:
+    """正向连续（复盘入库 / 训练达标 / 打卡），= 周月报 streak 段同源。"""
+    from ..reports.streak import render_streaks, summarize_streaks
+
+    data = summarize_streaks(conn, as_of=_check_date(as_of) if as_of else None)
+    return _pack(data, render_streaks(data))
+
+
+def day_help(day: str | None = None, mode: str | None = None) -> dict[str, Any]:
+    """= ``day-help [DATE] [--mode M]``：一日三步 + 可复制命令（纯函数，不读库）。"""
+    from datetime import date as _d
+
+    from ..config import get_llm_mode
+    from ..core.day_help import render_day_help
+
+    day = _check_date(day) if day else _d.today().isoformat()
+    mode = mode or get_llm_mode()
+    if mode not in ("workbuddy", "deepseek"):
+        raise QueryError(422, "invalid_mode", "mode 须为 workbuddy|deepseek")
+    return {"date": day, "mode": mode, "text": render_day_help(day, mode)}
+
+
 def steward(conn, slot: str, *, as_of: str | None = None,
             year: int | None = None, week: int | None = None) -> dict[str, Any]:
     """= ``steward --slot morning|evening|week``。

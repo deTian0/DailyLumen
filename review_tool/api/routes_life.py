@@ -25,6 +25,17 @@ class TutorOut(DomainOut):
     queue_rebuilt: bool
 
 
+class WeekDoneOut(DomainOut):
+    year: int
+    week: int
+
+
+class DayHelpOut(BaseModel):
+    date: str
+    mode: str
+    text: str
+
+
 def build_router(*, db_path: str | None = None) -> APIRouter:
     router = APIRouter(prefix="/api", tags=["life"])
     D = Query(default=None, description="YYYY-MM-DD，省略为库内最新")
@@ -63,6 +74,20 @@ def build_router(*, db_path: str | None = None) -> APIRouter:
     def get_correlate(min_samples: int | None = Query(default=None)):
         with readonly(db_path) as conn:
             return lq.correlate(conn, min_samples)
+
+    @router.get("/week-done", response_model=WeekDoneOut)
+    def get_week_done(year: int | None = Query(default=None), week: int | None = Query(default=None)):
+        with readonly(db_path) as conn:
+            return lq.week_done(conn, year, week)
+
+    @router.get("/streaks", response_model=DomainOut)
+    def get_streaks(date: str | None = D):
+        with readonly(db_path) as conn:
+            return lq.streaks(conn, date)
+
+    @router.get("/day-help", response_model=DayHelpOut)
+    def get_day_help(date: str | None = D, mode: str | None = Query(default=None)):
+        return lq.day_help(date, mode)
 
     @router.get("/steward/{slot}", response_model=DomainOut)
     def get_steward(slot: str, date: str | None = D,

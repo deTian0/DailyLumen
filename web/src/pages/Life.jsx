@@ -7,6 +7,10 @@ import { Card, ErrorBox, Loading, Stat } from '../components/Common'
 const TABS = [
   { id: 'morning', label: '晨间简报', load: (s) => api.steward('morning', {}, { signal: s }) },
   { id: 'evening', label: '夜间复盘指引', load: (s) => api.steward('evening', {}, { signal: s }) },
+  { id: 'day-help', label: '一日三步', cli: 'day-help', load: (s) => api.life('day-help', {}, { signal: s }) },
+  { id: 'week-done', label: '本周做成', cli: 'week-done', load: (s) => api.life('week-done', {}, { signal: s }) },
+  { id: 'streaks', label: '连续天数', cli: 'week（streak 段）', load: (s) => api.life('streaks', {}, { signal: s }) },
+  { id: 'steward-week', label: '周管家', cli: 'steward --slot week', load: (s) => api.steward('week', {}, { signal: s }) },
   { id: 'body', label: '体征', load: (s) => api.life('body', {}, { signal: s }) },
   { id: 'coach', label: '训练', load: (s) => api.life('coach', {}, { signal: s }) },
   { id: 'nutrition', label: '营养', load: (s) => api.life('nutrition', {}, { signal: s }) },
@@ -109,6 +113,23 @@ function Highlights({ id, d }) {
       </section>
     )
   }
+  if (id === 'week-done') {
+    return (
+      <section className="stats" aria-label="本周做成摘要">
+        <Stat label="ClickUp 完成" value={n(d.clickup_total)} sub={`${d.start} ~ ${d.end}`}
+          tone={d.clickup_total ? 'green' : undefined} />
+        <Stat label="复盘三件事" value={n(d.three_total)} sub={`${(d.three_things || []).length} 天有记录`} />
+      </section>
+    )
+  }
+  if (id === 'streaks') {
+    return (
+      <section className="stats" aria-label="连续天数摘要">
+        <Stat label="复盘入库" value={n(d.review?.current, ' 天')} sub={d.review?.as_of ? `截至 ${d.review.as_of}` : undefined} tone="green" />
+        <Stat label="训练达标" value={n(d.training?.current, ' 个训练日')} />
+      </section>
+    )
+  }
   return null
 }
 
@@ -142,8 +163,8 @@ export default function Life() {
                   看板只读，不重建复习队列；如需刷新队列请在命令行执行 <code>python -m review_tool tutor</code>。
                 </div>
               )}
-              <Highlights id={tab} d={res.data.data} />
-              <Card title="全文" meta={`= CLI ${tab === 'morning' || tab === 'evening' ? `steward --slot ${tab}` : tab}`}>
+              {res.data.data && <Highlights id={tab} d={res.data.data} />}
+              <Card title="全文" meta={`= CLI ${cur.cli || (tab === 'morning' || tab === 'evening' ? `steward --slot ${tab}` : tab)}`}>
                 <pre className="plain">{res.data.text}</pre>
               </Card>
             </>
