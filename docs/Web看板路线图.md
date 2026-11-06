@@ -316,3 +316,105 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 ### 4. 截图
 
 `local/screenshots/w14-w17/`：`w14-login.png`（登录页）、`w16-echarts-trends.png`（四维趋势 ECharts）、`w17-keepstrong-form.png`（练练写回表单）、`w17-keepstrong-preview.png`（记体征预览，零网络）。
+
+---
+
+## 后续待办（W18 之后）
+
+> 追加于 2026-11-06。当前版本 v1.78.0（`d38e303`），W1–W18 已推送到远端 `main`（不推 tag）。
+> 下面每项独立做：一项一个 commit，**不打 tag**，push 前等用户验收；写操作一律只用 mock / 临时库测试。
+> 优先级建议：**P0** B1 → **P1** B2、B3、B4、B9 → **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12–B14。
+
+### B1（P0）分析页四维趋势图断线
+
+- **目标**：分析页 trends 图的四维线完整画到最新日期，和 CLI `chart` 一致。
+- **现象**：线到大约 09-15 就断了。库里 `daily_reviews` 有 93 天（2026-07-16 ~ 2026-11-04），2026-11-06 用只读连接核对过：`health/work/learn/life_score` 在 09-15 之后**没有缺值**（各 50 行，空值 0），最新一天是 11-04。所以问题**不在数据源**，要往 API 和前端查。
+- **涉及**：`review_tool/api/queries.py::chart_series`（trends 分支）、`review_tool/reports/chart.py::fetch_series`、`GET /api/charts/{kind}.json`（`routes_reports.py`）、`web/src/lib/chartOption.js`（`connectNulls: false`、category 日期轴、`defaultLegendSelected` 默认只开前 2 条）、`web/src/components/EChart.jsx`。
+- **排查顺序**：① 直接 GET `/api/charts/trends.json`，看 `dates` 长度和末尾日期、各系列 `values` 里 null 的位置；② 和 `python -m review_tool chart --stdout` 的 SVG 对拍；③ 前端检查 `buildChartOption` 的输出（null 断点、dataZoom / 截断、系列和日期是否对齐、W18 图例默认选中有没有影响）。
+- **验收**：先补一条能复现的失败测试（后端对拍或 `chartOption.test.js`），修完后转绿；浏览器截图里四维线画到 11-04；全量 Python + 前端测试 + ruff 全绿。
+- **风险 / 注意**：R1 单源，不许在前端另算序列；不动评分 / 历史分。
+
+### B2（P1）字体本地化
+
+- **目标**：页面**零外网请求**。现在 `web/index.html` 第 8–10 行从 Google Fonts 加载 IBM Plex Sans / IBM Plex Mono / Noto Sans SC。
+- **涉及**：`web/index.html`、`web/src/styles/**`（`font-family` 栈）、可能新增 `web/public/fonts/`。
+- **方案**：二选一，由用户拍板。A：自托管 woff2 子集（注意许可证 OFL，Noto SC 体积大，要做子集）；B：直接用系统字体栈（`system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif`），零体积。
+- **验收**：DevTools Network 里没有任何非 `127.0.0.1` 请求；`test_web_dist` 补一条断言：dist 中不含 `fonts.googleapis.com` / `fonts.gstatic.com`；`npm run build` 通过。
+- **风险**：中文字体自托管会让 dist 明显变大；改字体栈要截图复核 W18 视觉。
+
+### B3（P1）ECharts 按需引入
+
+- **目标**：bundle 从约 1.31 MB（gzip 427 KB）瘦身。
+- **涉及**：`web/src/components/EChart.jsx`（现在是 `import * as echarts from 'echarts'`），改成 `echarts/core` + 按需注册 `LineChart` / `BarChart`、`GridComponent` / `TooltipComponent` / `LegendComponent` / `MarkAreaComponent` / `MarkLineComponent` / `DataZoomComponent`（如果用到），再加 `SVGRenderer`。
+- **验收**：build 产物体积在 commit 信息里写明前后对比；`chartOption.test.js` 和四类图浏览器截图都正常；漏注册组件时 ECharts 会在控制台告警，要确认控制台干净。
+- **风险**：漏注册组件会**静默**少画东西（比如目标带 markArea），四个 kind 都要逐个目视。
+
+### B4（P1）练练写回剩余 4 个动作上面板
+
+- **目标**：把 `ks_schedule` / `ks_create_template` / `ks_replace_template_actions` / `ks_plan_command` 接到前端，沿用 `WriteFlow` 的预览→确认流程。
+- **涉及**：`web/src/pages/Life.jsx` 的 `KeepStrongWrite` 卡、新增 actions JSON 编辑 / 校验组件（`components/`）、`web/src/lib/api.js`。后端 `api/writes/keepstrong.py` 和路由已在 W17 就绪，原则上不改。
+- **验收**：JSON 编辑器做前端校验（语法错误 / 必填字段）再加后端 422 回显；Vitest 用 mock fetch 覆盖 plan→confirm、422、401 `upstream_auth`；**只用 mock，不连真练练**。
+- **风险**：外部副作用不可回滚，前端文案要明示「写回不落库、不可撤销」；`command` 只能取那 4 个值；中文参数的 URL 编码由后端负责，前端不要重复编码。
+
+### B5（P2）图表系列开关偏好记忆
+
+- **目标**：图例开关按 kind 记到 localStorage，刷新后保持。
+- **涉及**：`web/src/lib/chartOption.js::defaultLegendSelected`、`EChart.jsx`（监听 `legendselectchanged`）。
+- **验收**：Vitest：有偏好时覆盖默认（前 2 条），没有偏好或系列变了时回退默认；损坏的 JSON 不报错。
+- **风险**：key 要带版本号或 kind，系列改名后旧偏好要能自动失效。
+
+### B6（P2）体检页结构化视图
+
+- **目标**：体检页基于 doctor 的**结构化结果**渲染（分项状态 / 计数 / 建议），不再显示 prose 全文。
+- **涉及**：`review_tool/api/queries.py`（doctor 相关）、`reports` 层的 doctor 实现（看能否直接暴露结构化结果；没有的话在 api 层包装，**不在 api 层另算口径**）、`web/src/pages/` 下的体检页。
+- **验收**：对拍测试：结构化结果和 CLI `doctor` 的结论逐项一致；前端渲染分项状态；保留「查看原文」折叠。
+- **风险**：R1 单源。要是 doctor 只产 prose，先在 reports 层抽出结构化函数，CLI 改为基于它格式化，行为不变。
+
+### B7（P2）周报表格 ASCII 条改 CSS 进度条
+
+- **目标**：周报里的 ASCII 条（如 `████░░`）在 Web 端渲染成 CSS 进度条。
+- **涉及**：`web/src/lib/prose.js` / `Prose` 组件、`web/src/styles/**`。CLI 输出保持不变。
+- **验收**：prose 单测：识别出 ASCII 条后转成带 `role="progressbar"`、`aria-valuenow` 的元素；不认识的格式按原样显示。
+- **风险**：解析只在前端做，**不改后端报告文本**（CLI 和 md 还在用）。
+
+### B8（P2）写操作真机验收清单
+
+- **目标**：整理一份写操作真机验收清单，用户本人按清单逐项手动点（agent 不执行真实确认）。
+- **涉及**：新文档或本文附节；对应写动作的副作用如下：
+
+| 动作 | 写远端 | 写库 `local/reviews.db` | 写 md |
+| --- | --- | --- | --- |
+| ClickUp 完成（单条 / 批量） | ✅ ClickUp | — | — |
+| ClickUp 新建 / 改状态 | ✅ ClickUp | — | — |
+| habits sync | 读 ClickUp | ✅ `habit_logs` | — |
+| AI 草稿写入 | — | — | ✅ 复盘 md |
+| 定稿 | — | 视串联 ingest 而定 | ✅ 复盘 md |
+| ingest 单文件 | — | ✅ | — |
+| clickup-pull 快照 | 读 ClickUp | ✅ `clickup_done` | — |
+| 读图日流程（写 md → ingest → 归档） | — | ✅ | ✅ + 移动收件箱文件 |
+| 练练写回 6 动作 | ✅ 练练 | ❌ 不落库 | — |
+
+- **验收**：每项写明前置条件（`--enable-write`、已备份库）、操作步骤、预期结果、回滚方式（ClickUp 手动改回 / 用备份恢复库 / git 还原 md）。
+- **风险**：上表「写库 / 写 md」列以实现为准，整理时要逐项对照 `api/writes/*.py` 核实后再定稿。
+
+### B9（运维提示）练练 API Key 已过期
+
+- 练练接口返回 401 `apiKeyExpired`。需要在练练 App 里重新生成 Key，写进 `local/.env` 的 `KEEPSTRONG_API_KEY`（只追加 / 替换这一行，写完回读校验）。
+- 只是提醒，**不读、不打印 `.env` 的值**。B4 的测试走 mock，不受影响。
+
+### B10（待拍板）版本 tag 补打
+
+- v1.73.0–v1.78.0 本地没打 tag。另外，**本地已有的 v1.60.1、v1.61.0–v1.72.0 共 13 个 tag 没推到远端**（远端 tag 最新只到 v1.60.0）。
+- 等后续优化稳定后，由用户决定：统一补打并推，还是只打里程碑版本。在那之前 push 一律不带 `--tags`，也不开 `push.followTags`。
+
+### B11（可选）暗色模式
+
+- **目标**：`prefers-color-scheme` 加手动切换，色板走 CSS 变量。
+- **涉及**：`web/src/styles/**`、ECharts 主题（`chartOption.js` 里的颜色）。
+- **验收**：两套主题截图；对比度人工检查（完整 WCAG 要靠辅助技术和人工评审）。
+
+### B12–B14（补充，依据见各条）
+
+- **B12 批量操作扩展**（批量改期 / 批量改状态，非 complete）：依据是本文「收口 §5 第 6 条」，目前未做。
+- **B13 缩略图服务端缩放**：依据是「收口 §5 第 7 条」和「§4 已知问题」（每次读原图）；标准库做不了，要先拍板要不要引图像依赖。
+- **B14 收口文档状态更新**：「收口 §6」最后一条（是否 push）和「二期收口 §3」最后一条（未 push）已经过时。commit 已在 2026-11-06 推送，tag 问题看 B10。只追加说明，不改写原文。
