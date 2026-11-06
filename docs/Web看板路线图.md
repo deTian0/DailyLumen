@@ -250,17 +250,56 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ### 5. 建议后续里程碑
 
-1. 练练写回（POST，仅用户明确要求时；复用 `plan/confirm` 框架，不落库）。
-2. `confirm` 分派注册表 + `write_ops` 按域拆分（纯重构，无行为变化）。
-3. 图表升级（ECharts 或继续自绘 SVG，需先定依赖策略）。
-4. 批量操作扩展：批量改期 / 批量改状态（非 complete）。
-5. 前端组件拆分 + CSS 分文件；补前端单测（Vitest）。
+1. ~~练练写回（POST，仅用户明确要求时；复用 `plan/confirm` 框架，不落库）~~ ✅ W17（v1.77.0）。
+2. ~~`confirm` 分派注册表 + `write_ops` 按域拆分（纯重构，无行为变化）~~ ✅ W13（v1.73.0）。
+3. ~~图表升级（ECharts 或继续自绘 SVG，需先定依赖策略）~~ ✅ W16（v1.76.0，ECharts）。
+4. ~~补前端单测（Vitest）~~ ✅ W15（v1.75.0）。
+5. 批量操作扩展：批量改期 / 批量改状态（非 complete）。
 6. 缩略图服务端缩放（需评估是否引入图像依赖，当前标准库无法做）。
+7. 练练写回前端扩到排课 / 模板 / 计划命令（需 actions JSON 编辑器，当前留 CLI）。
 
 ### 6. 需要用户拍板的事项
 
-- 是否引入 ECharts（新增前端依赖）还是保持零依赖自绘。
-- 练练写回是否做、做到什么范围（只建训练计划 / 也改记录）。
-- 是否需要给 serve 加最小鉴权（如启动时生成的本机 token），以便将来非回环访问。
-- 前端是否引入 Vitest 测试框架。
-- 是否 push `v1.66.0`–`v1.72.0` 这批 commit 与 tag 到远端（当前全部未 push）。
+- ~~是否引入 ECharts（新增前端依赖）还是保持零依赖自绘~~ → 已定 ECharts（W16）。
+- ~~练练写回是否做、做到什么范围~~ → 已做 6 动作后端 + 2 常用前端入口（W17）。
+- ~~是否需要给 serve 加最小鉴权~~ → 已加 `DAILYLUMEN_WEB_KEY`（W14）。
+- ~~前端是否引入 Vitest 测试框架~~ → 已引入（W15）。
+- 是否 push `v1.66.0`–`v1.77.0` 这批 commit 与 tag 到远端（当前全部未 push、未打 tag）。
+
+---
+
+## 二期收口：W14–W17（v1.74.0–v1.77.0）
+
+> 本节追加于 W17 提交后，作为 Web 生活管家面板二期收口记录。
+
+### 1. 完成情况
+
+| 里程碑 | 内容 | commit | 测试增量 |
+| --- | --- | --- | --- |
+| W14 | serve 最小鉴权（`DAILYLUMEN_WEB_KEY` + Bearer/X-DailyLumen-Key + 登录页） | `89fbdc3` | +17 后端 |
+| W15 | 前端 Vitest 单测（api/route/todos/WriteFlow/Login） | `6f70a8e` | +24 前端 |
+| W16 | ECharts 自绘图（`/api/charts/{kind}.json` 同源 + 前端 EChart/chartOption） | `c089493` | +6 后端 / +7 前端 |
+| W17 | 练练写回（6 动作入 plan/confirm 注册表，写回不落库） | `ed0dec2` | +27 后端 |
+
+全量 Python 1241 通过 / 2 跳过；前端 6 文件 31 例；ruff 全绿；`npm run build` 通过。**未打 tag、未 push**（按约定）。
+
+### 2. 红线复核
+
+- **R1 单源**：W16 `chart_series` 复用 `reports.chart.fetch_*_series` / `core.body.moving_average` / `config.BODY_TARGETS`，对拍测试锁住 JSON == SVG 源；W17 复用 `integrations.keepstrong.Client` 写方法，不另算口径。
+- **R2 不破**：W17 写回不落库（`db_changed=False`），`exercise_min` 仍是健康分唯一运动输入，未触碰。
+- **R3 分区**：W17 不碰 `habit_logs` / `personal_tracks`。
+- **四层架构**：W16/W17 新代码全在 `api/`（queries / writes）与 `web/`，架构守卫全绿。
+- **依赖收敛**：W16 新增 `echarts@5.6.0`（前端运行时依赖，钉版本）；W17 零新增 Python 依赖。
+- **写盘安全**：W17 apply 不写库、不写 md，无回读需求；token 一次性（重放 409 已测）。
+
+### 3. 已知问题 / 风险
+
+- W16 bundle 283 KB → 1.31 MB（gzip 427 KB），ECharts 是首个前端运行时依赖；后续若要瘦身可改按需引入 echarts 模块。
+- W17 前端只开「记体征体重 / 设下次重量」两个入口；排课 / 模板 / 计划命令需 actions JSON，仍走 CLI（卡里已指明）。
+- W17 写回是外部副作用，无回读校验（练练 API 不提供读回端点）；以 `verify_*_response` 比对返回体为准，失败如实报 502。
+- W14 鉴权仅本机回环 + 单 key；非回环访问需用户自行评估（README 已告警）。
+- 全部 commit 未 push、未打 tag，待用户拍板。
+
+### 4. 截图
+
+`local/screenshots/w14-w17/`：`w14-login.png`（登录页）、`w16-echarts-trends.png`（四维趋势 ECharts）、`w17-keepstrong-form.png`（练练写回表单）、`w17-keepstrong-preview.png`（记体征预览，零网络）。
