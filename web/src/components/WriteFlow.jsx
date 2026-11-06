@@ -61,7 +61,14 @@ export function WriteFlow({ action, params, health, toast, title, desc, renderPr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPreview])
   const confirm = () => step(async () => {
-    const r = await api.writeConfirm(plan.token)
+    let r
+    try {
+      r = await api.writeConfirm(plan.token)
+    } catch (e) {
+      // 服务端取 token 即作废：失败后不留旧预览（防止拿用过的 token 再点确认）
+      setPlan(null)
+      throw e
+    }
     setPlan(null)
     setRes(r)
     toast?.('已写入，回读校验通过')

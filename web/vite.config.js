@@ -13,4 +13,11 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
   },
+  // W15：npm test（vitest run）；jsdom 模拟浏览器，测试文件与源码同目录 *.test.js(x)
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.js'],
+    include: ['src/**/*.test.{js,jsx}'],
+    restoreMocks: true,
+  },
 })

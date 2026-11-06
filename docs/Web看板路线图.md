@@ -67,6 +67,7 @@
 | W12 | 「好用」导向 UI / 交互打磨 | ✅ | 今日待办分组（逾期默认折叠）+ 批量完成（单 token 一批 ≤20、逐条 CLI、逐条回读）；快照预览明列替换日期 before→after 与本周投影；读图缩略图（收件箱受限端点防穿越）；复盘四步进度条（doctor `day_ready` 单源）+ 今日页导流条；非 deepseek / 只读门禁收成一行；写按钮带动作名；「只读」文案按 health 动态；窄屏 ≤768px 适配 | `v1.72.0` |
 | W13 | 写操作框架重构（为练练写回铺路） | ✅ | `write_ops` 拆为 `api/writes/{base,habits,review_md,clickup,ingest,vision}`，门面保留原导出；`confirm` 分派由 if/elif 改为 `@register(action, needs=...)` 注册表（`plan_out` 拒发未登记动作的 token）；`Today.jsx` 拆出 `components/today/*` + `lib/todos.js`；`app.css` 按区段拆 6 个文件（产物哈希不变）；行为不变 | `v1.73.0` |
 | W14 | serve 最小鉴权 | ✅ | `DAILYLUMEN_WEB_KEY`（`local/.env`，未配置拒绝启动）+ `api/auth.py`（Bearer / `X-DailyLumen-Key`，`compare_digest`，`/api/ping` 免 key）+ 前端登录页（默认 sessionStorage、401 回登录页、blob 取图/下载） | `v1.74.0`（未打 tag） |
+| W15 | 前端 Vitest 单测 | ✅ | Vitest 5.1 + jsdom + Testing Library（devDep 钉版本）；5 文件 24 例覆盖 `api.js`（key/401/blob）、`route.js`、`todos.js`（待办分组）、`WriteFlow`（预览→确认→失败重试重新预览）、`Login`；`WriteFlow.jsx` 补 `try/catch` 收起旧预览防复用 token | `v1.75.0`（未打 tag） |
 
 > 本表随每个里程碑完成实时更新；详细验收记录写在下方对应小节。
 
@@ -158,6 +159,20 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **后端**：`api/auth.py`（`extract_key` / `key_matches` / `requires_key`）；`create_app(web_key=...)` 中间件在 Host / Origin 守卫之后校验 `/api/*`，`/api/ping` 免 key 且只回 `{"ok":true}`；静态 dist 免 key；不接受查询串里的 key。`serve` 未配置 key → rc=2 + 提示。`create_app(web_key=None)` 仅供单元测试。
 - **前端**：`pages/Login.jsx`（先 `/api/health` 校验再保存）；存储权衡——默认 **sessionStorage**（关标签页即失效，降低共用电脑 / 长期驻留风险），勾选「记住」才进 localStorage（换来免重复输入；两者对同源 XSS 同样暴露，本项目无第三方脚本、仅回环访问，风险可接受）。401 → 清 key、回登录页并提示「已失效」；侧栏「退出登录」。`<img>` / `.md` 下载改为带 key 取 blob（`AuthImage` / `DownloadButton`）。
 - **验收**：`tests/api/test_auth.py` 17 例（无 key / 错 key / 对 key / 两种头 / 查询串不收 / 探针 / 静态免 key / 守卫顺序 / 未配置 key 拒绝启动 / key 不进控制台）；`test_web_dist` 断言本机 key 值不在 bundle。
+
+---
+
+### W15 — 前端 Vitest 单测（v1.75.0）
+
+- **框架**：Vitest 5.1.0 + jsdom 31.0.0 + @testing-library/react 16.3.3（devDependencies，版本钉 `web/package-lock.json`）；`npm test` = `vitest run`；`vite.config.js` 加 `test` 段（jsdom、`src/test/setup.js` 每例后清 sessionStorage/localStorage/hash + 卸载组件、`restoreMocks`）。测试与源码同目录 `*.test.js(x)`，全部 mock `fetch`，不连真服务。
+- **覆盖**（5 文件 24 例）：
+  - `lib/api.test.js`：`authKey` 存储分流（sessionStorage / remember→localStorage）；请求带 `Authorization: Bearer` 且 key 不进 URL；POST JSON 体；401 清 key + 派发 `UNAUTHORIZED_EVENT` + 抛 `ApiError`、非 401 保留服务端错误体不清 key、网络失败 → `network`；`verifyKey` 不写存储不派发事件；`blobUrl` 带 key 取二进制。
+  - `lib/route.test.js`：`hashPage` / `hashQuery` 解析。
+  - `lib/todos.test.js`：`groupTodos` 逾期默认折叠 / 进行中排在有截止 open 前 / kind 标签随行 / 空分组不渲染；`weekDays` 周一开头 7 天含跨月。
+  - `components/WriteFlow.test.jsx`：预览后显示等价 CLI、确认用预览 token；**确认失败旧预览收起、重试重新预览拿新 token**；`canConfirm=false` 不给确认按钮；带 body 走 JSON plan；只读折叠不发请求；门禁原因优先。
+  - `pages/Login.test.jsx`：错 key 不保存、对 key 默认 sessionStorage、记住进 localStorage、空输入不发请求、`expired` 失效提示。
+- **行为微调**：`WriteFlow.jsx` 的 `confirm` 包 `try/catch`——`api.writeConfirm` 抛错时 `setPlan(null)` 收起旧预览（服务端取 token 即作废，防止拿用过的 token 再点确认）；正常路径无变化，由新测试固定。
+- **验收**：`cd web; npm test` → 5 文件 24 例全绿；`npm run build` 通过重建 `web/dist`；全量 Python 1208 通过 / 2 跳过；ruff 全绿。
 
 ---
 
