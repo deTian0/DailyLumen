@@ -212,6 +212,28 @@ def _parse(argv: list[str]) -> dict[str, Any]:
     }
 
 
+def write_ai_section(path: str, section: str) -> bool:
+    """把草稿 ``section`` 写进 md「七、AI」并打待人审标记；写后回读校验。
+
+    CLI ``llm-review --write`` 与 Web 草稿写入共用（PRE-08：Web 不另写 open(..., "w")）。
+    返回是否有变更（无变更不写盘）。
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"找不到复盘 md：{path}")
+    with open(path, encoding="utf-8") as f:
+        original = f.read()
+    updated = stamp_llm_pending(apply_ai_section(original, section))
+    if updated.replace("\r\n", "\n") == original.replace("\r\n", "\n"):
+        return False
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(updated)
+    with open(path, encoding="utf-8") as f:
+        got = f.read()
+    if got.replace("\r\n", "\n") != updated.replace("\r\n", "\n"):
+        raise OSError(f"写盘回读不一致: {path}")
+    return True
+
+
 def run_llm_review(
     day: str,
     *,
@@ -316,19 +338,8 @@ def run_llm_review(
         _log(False, error_kind="file", error_summary=f"找不到复盘 md：{path}")
         raise FileNotFoundError(f"找不到复盘 md：{path}")
 
-    with open(path, encoding="utf-8") as f:
-        original = f.read()
-    updated = stamp_llm_pending(apply_ai_section(original, section))
-    result["changed"] = updated.replace("\r\n", "\n") != original.replace(
-        "\r\n", "\n"
-    )
+    result["changed"] = write_ai_section(path, section)
     if result["changed"]:
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write(updated)
-        with open(path, encoding="utf-8") as f:
-            got = f.read()
-        if got.replace("\r\n", "\n") != updated.replace("\r\n", "\n"):
-            raise OSError(f"写盘回读不一致: {path}")
         result["written"] = True
         result["pending_review"] = True
 

@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { Markdown } from '../lib/markdown'
 import { Card, CopyButton, Empty, ErrorBox, Loading, Stat } from '../components/Common'
+import { WriteFlow } from '../components/WriteFlow'
 
 const TABS = [
   { id: 'week', label: '周报' },
@@ -161,7 +162,7 @@ function AiPreview({ date, toast }) {
   )
 }
 
-function CtxView({ toast }) {
+function CtxView({ toast, health }) {
   const ctx = useAsync((signal) => api.aiContext(undefined, { signal }), [])
   if (ctx.error) return <ErrorBox error={ctx.error} onRetry={ctx.reload} />
   if (!ctx.data) return <Loading />
@@ -172,11 +173,37 @@ function CtxView({ toast }) {
         <Markdown source={ctx.data.markdown} />
       </Card>
       <AiPreview date={ctx.data.date} toast={toast} />
+      <Card title="写入与定稿" meta="只写复盘 md，不写库；入库另跑 ingest">
+        <WriteFlow action="ai-draft" params={{ date: ctx.data.date }} health={health} toast={toast}
+          title="写入「七-A AI 草稿」"
+          desc="重新生成一次草稿并预览差异；确认后写入 md，带「草稿 / 待人审」标记（ingest 默认跳过）。"
+          confirmLabel="确认写入草稿"
+          renderPreview={(p) => (
+            <>
+              <Markdown source={p.section} />
+              {p.diff_text && (
+                <details>
+                  <summary>与 md 现有「七、AI」的差异</summary>
+                  <pre className="diff">{p.diff_text}</pre>
+                </details>
+              )}
+            </>
+          )} />
+        <WriteFlow action="finalize" params={{ date: ctx.data.date }} health={health} toast={toast}
+          title="定稿（llm-finalize）"
+          desc="把七-A 草稿提升为七-B 定稿并清除待人审标记；写前展示数据块 + 七、AI 并排对比。"
+          confirmLabel="确认定稿"
+          renderPreview={(p) => (
+            p.changed
+              ? <pre className="diff">{p.side_by_side}</pre>
+              : <p className="muted">md 无需改动（可能已定稿或尚无草稿）。</p>
+          )} />
+      </Card>
     </>
   )
 }
 
-export default function Reports({ toast }) {
+export default function Reports({ toast, health }) {
   const [tab, setTab] = useState('week')
   // tablist 键盘：左右方向键切换（WAI-ARIA Tabs 模式）
   function onKey(e) {
@@ -211,7 +238,7 @@ export default function Reports({ toast }) {
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
         {tab === 'week' && <WeekView toast={toast} />}
         {tab === 'month' && <MonthView toast={toast} />}
-        {tab === 'ctx' && <CtxView toast={toast} />}
+        {tab === 'ctx' && <CtxView toast={toast} health={health} />}
       </div>
     </>
   )

@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
         dist_dir=args.dist,
         write_enabled=args.enable_write,
         allowed_hosts=frozenset(allowed),
-        extra_routers=default_routers(),
+        extra_routers=default_routers(write_enabled=args.enable_write),
     )
     print(f"DailyLumen 看板：http://{args.host}:{args.port}/  （Ctrl+C 退出；无鉴权）")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")

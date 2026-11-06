@@ -61,7 +61,7 @@
 | W6 | 健康与学习督导查询 | ✅ | `life_queries` / `routes_life` + 生活管家页，12 用例 | `v1.66.0` |
 | W7 | 报表增强 | ✅ | `week-done` / `streaks` / `day-help` + 3 个 tab，6 用例 | `v1.67.0` |
 | W8 | AI 预览 + mode 门禁 | ✅ | `ai_queries` / `routes_ai` + 报告页 AI 预览卡，门禁 409 | `v1.68.0` |
-| W9 | P2 写操作第一批 | 未开始 | — | — |
+| W9 | P2 写操作第一批 | ✅ | `write_ops` / `routes_write`（--enable-write 才挂载、一次性 token、写前备份、回读校验）+ `WriteFlow` | `v1.69.0` |
 | W10 | P2 写操作第二批 | 未开始 | — | — |
 | W11 | 前端自绘图（可选） | 未开始 | — | — |
 

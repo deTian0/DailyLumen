@@ -7,10 +7,14 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', signal } = {}) {
+async function request(path, { method = 'GET', signal, body } = {}) {
   let res
+  const headers = { Accept: 'application/json' }
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
   try {
-    res = await fetch(path, { method, signal, headers: { Accept: 'application/json' } })
+    res = await fetch(path, {
+      method, signal, headers, body: body === undefined ? undefined : JSON.stringify(body),
+    })
   } catch (e) {
     if (e.name === 'AbortError') throw e
     throw new ApiError(0, 'network', '无法连接本机服务，请确认 serve 正在运行')
@@ -62,6 +66,10 @@ export const api = {
   aiStatus: (o) => json('/api/ai/status', o),
   aiReviewPreview: (date, o) =>
     json(`/api/ai/review-preview${qs({ date })}`, { ...o, method: 'POST' }),
+  // W9 写操作两段式：plan（预览 + 一次性 token）→ confirm（执行预览过的内容）
+  writePlan: (action, params, o) =>
+    json(`/api/write/${action}/plan${qs(params)}`, { ...o, method: 'POST' }),
+  writeConfirm: (token, o) => json('/api/write/confirm', { ...o, method: 'POST', body: { token } }),
   chartUrl: (kind) => `/api/charts/${kind}`,
   weekMdUrl: (year, week) => `/api/reports/week.md${qs({ year, week })}`,
   monthMdUrl: (month) => `/api/reports/month.md${qs({ month })}`,

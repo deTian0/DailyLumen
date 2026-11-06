@@ -837,3 +837,35 @@
   cursor: not-allowed;
   box-shadow: none;
 }
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+.diff {
+  white-space: pre-wrap;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  max-height: 50vh;
+  overflow: auto;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(122, 132, 153, 0.12);
+}
+.write-flow {
+  margin: 14px 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px dashed rgba(88, 99, 121, 0.45);
+}
+.write-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.write-plan {
+  margin-top: 12px;
+}

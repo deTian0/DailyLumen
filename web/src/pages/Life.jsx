@@ -2,6 +2,27 @@ import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { Card, ErrorBox, Loading, Stat } from '../components/Common'
+import { WriteFlow } from '../components/WriteFlow'
+
+// habits sync 预览：只列将写入 habit_logs 的行；personal_tracks 明示不动（R3 分区）
+function HabitsPreview(p) {
+  return (
+    <>
+      <p className="muted">
+        {p.date} · 拉取 {p.fetched} 条 → 写入 <code>{p.target_table}</code>（{p.rows.length} 行）；
+        不动 <code>{(p.untouched || []).join(', ')}</code>（补剂 / 护肤勾选另算）。
+      </p>
+      <ul className="task-list" aria-label="将写入的习惯">
+        {p.rows.map((r) => (
+          <li key={r.habit_key} className="task">
+            <div className="task-body"><div className="title">{r.item}</div><div className="sub">{r.habit_key}</div></div>
+            <span className={`pill ${r.done ? 'pill-green' : ''}`}>{r.done ? '完成' : '未完成'}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
 
 // 健康 / 学习 / 督导（W6）：数字全部来自后端 collect（与 CLI 同源），前端只挑字段展示
 const TABS = [
@@ -133,7 +154,7 @@ function Highlights({ id, d }) {
   return null
 }
 
-export default function Life() {
+export default function Life({ toast, health }) {
   const [tab, setTab] = useState('morning')
   const cur = TABS.find((t) => t.id === tab)
   const res = useAsync((signal) => cur.load(signal), [tab])
@@ -164,6 +185,13 @@ export default function Life() {
                 </div>
               )}
               {res.data.data && <Highlights id={tab} d={res.data.data} />}
+              {tab === 'habits' && (
+                <Card title="同步 ClickUp 习惯" meta="写 habit_logs · 与 personal_tracks 分区">
+                  <WriteFlow action="habits-sync" params={{}} health={health} toast={toast}
+                    title="今日习惯同步" desc="从 ClickUp「习惯与打卡」拉今日完成态，预览后确认写入（写前自动备份库）。"
+                    renderPreview={HabitsPreview} confirmLabel="确认同步" />
+                </Card>
+              )}
               <Card title="全文" meta={`= CLI ${cur.cli || (tab === 'morning' || tab === 'evening' ? `steward --slot ${tab}` : tab)}`}>
                 <pre className="plain">{res.data.text}</pre>
               </Card>
