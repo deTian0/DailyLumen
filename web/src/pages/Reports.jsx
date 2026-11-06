@@ -162,8 +162,32 @@ function AiPreview({ date, toast }) {
   )
 }
 
+const FIELD_NAME = {
+  health_score: '健康', work_score: '工作', learn_score: '学习', life_score: '生活',
+  diet_kcal: '热量 kcal', sleep_h: '睡眠 h', exercise_min: '运动 min',
+}
+
+function IngestPreview(p) {
+  return (
+    <>
+      <p className="muted">
+        {p.rel} · 日期 {p.date}
+        {p.pending && (p.allow_ai_draft ? ' · 含待人审标记（已勾选强制入库）' : ' · 含待人审标记，ingest 会跳过：请先定稿')}
+      </p>
+      <dl className="kv">
+        {Object.entries(p.fields || {}).map(([k, v]) => (
+          <div key={k}><dt>{FIELD_NAME[k] || k}</dt><dd>{v ?? '—'}</dd></div>
+        ))}
+      </dl>
+    </>
+  )
+}
+
 function CtxView({ toast, health }) {
   const ctx = useAsync((signal) => api.aiContext(undefined, { signal }), [])
+  const ai = useAsync((signal) => api.aiStatus({ signal }), [])
+  const [ingestKick, setIngestKick] = useState(0)
+  const [allowDraft, setAllowDraft] = useState(false)
   if (ctx.error) return <ErrorBox error={ctx.error} onRetry={ctx.reload} />
   if (!ctx.data) return <Loading />
   return (
@@ -178,6 +202,7 @@ function CtxView({ toast, health }) {
           title="写入「七-A AI 草稿」"
           desc="重新生成一次草稿并预览差异；确认后写入 md，带「草稿 / 待人审」标记（ingest 默认跳过）。"
           confirmLabel="确认写入草稿"
+          blockedReason={ai.data && !ai.data.allowed ? ai.data.reason : undefined}
           renderPreview={(p) => (
             <>
               <Markdown source={p.section} />
@@ -193,11 +218,24 @@ function CtxView({ toast, health }) {
           title="定稿（llm-finalize）"
           desc="把七-A 草稿提升为七-B 定稿并清除待人审标记；写前展示数据块 + 七、AI 并排对比。"
           confirmLabel="确认定稿"
+          canConfirm={(p) => p.changed}
+          onDone={() => setIngestKick((k) => k + 1)}
           renderPreview={(p) => (
             p.changed
               ? <pre className="diff">{p.side_by_side}</pre>
-              : <p className="muted">md 无需改动（可能已定稿或尚无草稿）。</p>
+              : <p className="muted">md 无需改动（可能已定稿或尚无草稿），无需确认；可直接在下方入库。</p>
           )} />
+        <WriteFlow action="ingest" body={{ date: ctx.data.date, allow_ai_draft: allowDraft }}
+          health={health} toast={toast} autoPreview={ingestKick}
+          title="入库（ingest）"
+          desc="把该日复盘 md 解析入库（仅限 local/每日复盘/ 内，一次一个文件）；写库前自动备份，写后回读。"
+          confirmLabel="确认入库"
+          canConfirm={(p) => !p.will_skip}
+          renderPreview={IngestPreview} />
+        <label className="check">
+          <input type="checkbox" checked={allowDraft} onChange={(e) => setAllowDraft(e.target.checked)} />
+          允许入库仍含待人审标记的 md（= <code>--allow-ai-draft</code>，一般不建议）
+        </label>
       </Card>
     </>
   )

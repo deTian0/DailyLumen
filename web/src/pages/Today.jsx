@@ -22,7 +22,121 @@ function weekDays(day) {
   })
 }
 
-function Task({ t, kind }) {
+// W10 / FR-J1：任务内联「完成」——预览（一次性 token + 等价 CLI）→ 确认 → 以回读结果为准
+function TaskDone({ t, writable, toast, onChanged }) {
+  const [plan, setPlan] = useState(null)
+  const [state, setState] = useState('idle') // idle | planning | writing | done | error
+  const [err, setErr] = useState(null)
+  if (!writable) return null
+  async function preview() {
+    setState('planning')
+    setErr(null)
+    try {
+      setPlan(await api.writePlanBody('task-status', { task_id: t.id, status: 'complete', name: t.name }))
+      setState('idle')
+    } catch (e) {
+      setErr(e)
+      setState('error')
+    }
+  }
+  async function confirm() {
+    setState('writing') // 乐观：先置灰「写入中」，最终以回读为准
+    try {
+      await api.writeConfirm(plan.token)
+      setState('done')
+      setPlan(null)
+      toast?.(`已完成「${t.name}」（ClickUp 回读通过）`)
+      onChanged?.()
+    } catch (e) {
+      setErr(e)
+      setPlan(null)
+      setState('error')
+    }
+  }
+  if (state === 'done') return <span className="pill pill-green">✓ 已完成</span>
+  if (plan) {
+    return (
+      <span className="task-confirm" role="group" aria-label={`确认完成 ${t.name}`}>
+        <code title={plan.cli}>{plan.cli.replace('python -m review_tool ', '')}</code>
+        <button type="button" className="btn-primary btn-sm" onClick={confirm} disabled={state === 'writing'}>
+          {state === 'writing' ? '写入中…' : '确认完成'}
+        </button>
+        <button type="button" className="btn-ghost btn-sm" onClick={() => setPlan(null)} disabled={state === 'writing'}>取消</button>
+      </span>
+    )
+  }
+  return (
+    <>
+      {state === 'error' && <span className="pill pill-red" role="alert" title={errText(err)}>失败</span>}
+      <button type="button" className="btn-ghost btn-sm" onClick={preview} disabled={state === 'planning'}
+        aria-label={`${state === 'error' ? '重试' : '标记完成'}：${t.name}`}>
+        {state === 'planning' ? '…' : state === 'error' ? '重试' : '✓ 完成'}
+      </button>
+    </>
+  )
+}
+
+// 新建任务：输入即预览（Enter）→ 确认；默认落「日常事务」list
+function NewTask({ writable, toast, onChanged }) {
+  const [name, setName] = useState('')
+  const [plan, setPlan] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+  if (!writable) {
+    return <p className="hint">看板以只读启动：新建 / 完成任务需 <code>serve --enable-write</code>。</p>
+  }
+  async function preview(e) {
+    e.preventDefault()
+    if (!name.trim()) return
+    setBusy(true)
+    setErr(null)
+    try {
+      setPlan(await api.writePlanBody('task-create', { name: name.trim() }))
+    } catch (x) {
+      setErr(x)
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function confirm() {
+    setBusy(true)
+    try {
+      await api.writeConfirm(plan.token)
+      toast?.(`已新建「${plan.preview.name}」（ClickUp 回读通过）`)
+      setPlan(null)
+      setName('')
+      onChanged?.()
+    } catch (x) {
+      setErr(x)
+      setPlan(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="new-task">
+      <form onSubmit={preview} className="new-task-row">
+        <label className="visually-hidden" htmlFor="new-task-name">新建任务名</label>
+        <input id="new-task-name" value={name} maxLength={200} disabled={busy || !!plan}
+          onChange={(e) => setName(e.target.value)} placeholder="＋ 新建任务，回车预览" />
+        {!plan && <button type="submit" className="btn-ghost btn-sm" disabled={busy || !name.trim()}>预览</button>}
+      </form>
+      {plan && (
+        <div className="task-confirm" role="group" aria-label="确认新建任务">
+          <span>{plan.preview.list} ←「{plan.preview.name}」</span>
+          <code>{plan.cli.replace('python -m review_tool ', '')}</code>
+          <button type="button" className="btn-primary btn-sm" onClick={confirm} disabled={busy}>
+            {busy ? '写入中…' : '确认新建'}
+          </button>
+          <button type="button" className="btn-ghost btn-sm" onClick={() => setPlan(null)} disabled={busy}>取消</button>
+        </div>
+      )}
+      {err && <ErrorBox error={err} />}
+    </div>
+  )
+}
+
+function Task({ t, kind, writable, toast, onChanged }) {
   const pill =
     kind === 'overdue'
       ? { text: `逾期 ${t.due?.slice(5) || ''}`, cls: 'pill-red' }
@@ -39,6 +153,7 @@ function Task({ t, kind }) {
         <div className="sub">{t.list}</div>
       </div>
       <span className={`pill ${pill.cls}`}>{pill.text}</span>
+      {kind !== 'done' && <TaskDone t={t} writable={writable} toast={toast} onChanged={onChanged} />}
     </li>
   )
 }
@@ -93,6 +208,16 @@ export default function Today({ toast, health }) {
   const weekDone = useAsync((signal) => api.done(days[0], days[6], { signal }), [days])
 
   const data = override || today.data
+  const writable = health && health.readonly === false
+
+  // 写后以 ClickUp 实时回读为准：静默刷新今日列表（失败不打断，已有 toast）
+  async function afterWrite() {
+    try {
+      setOverride(await api.refreshToday())
+    } catch {
+      /* 刷新失败保留当前列表；用户可点「刷新今日」 */
+    }
+  }
 
   async function refresh() {
     setRefreshing(true)
@@ -184,12 +309,13 @@ export default function Today({ toast, health }) {
               <Empty>{query ? '没有匹配的任务' : '今天没有待办，轻松一点'}</Empty>
             ) : (
               <ul className="task-list" aria-label="待办任务">
-                {lists.overdue.map((t) => <Task key={t.id} t={t} kind="overdue" />)}
-                {lists.in_progress.map((t) => <Task key={t.id} t={t} kind="in_progress" />)}
-                {lists.open.map((t) => <Task key={t.id} t={t} kind="open" />)}
+                {['overdue', 'in_progress', 'open'].flatMap((k) => lists[k].map((t) => (
+                  <Task key={t.id} t={t} kind={k} writable={writable} toast={toast} onChanged={afterWrite} />
+                )))}
               </ul>
             )}
           </div>
+          <NewTask writable={writable} toast={toast} onChanged={afterWrite} />
         </Card>
 
         <Card title="今日已办" meta="date_closed 归日 · 含次日早上回拨">

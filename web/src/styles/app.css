@@ -869,3 +869,12 @@
 .write-plan {
   margin-top: 12px;
 }
+
+/* W10 任务内联写操作 */
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.task-confirm { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.task-confirm code { font-size: 11px; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.new-task { margin-top: 12px; display: grid; gap: 8px; }
+.new-task-row { display: flex; gap: 8px; }
+.new-task-row input { flex: 1; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(122,132,153,.35); background: transparent; font: inherit; }
+.check { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 13px; }

@@ -69,6 +69,9 @@ export const api = {
   // W9 写操作两段式：plan（预览 + 一次性 token）→ confirm（执行预览过的内容）
   writePlan: (action, params, o) =>
     json(`/api/write/${action}/plan${qs(params)}`, { ...o, method: 'POST' }),
+  // W10：带 JSON 体的 plan（建任务 / 改状态 / ingest）
+  writePlanBody: (action, body, o) =>
+    json(`/api/write/${action}/plan`, { ...o, method: 'POST', body }),
   writeConfirm: (token, o) => json('/api/write/confirm', { ...o, method: 'POST', body: { token } }),
   chartUrl: (kind) => `/api/charts/${kind}`,
   weekMdUrl: (year, week) => `/api/reports/week.md${qs({ year, week })}`,

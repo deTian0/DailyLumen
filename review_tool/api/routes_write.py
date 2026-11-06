@@ -30,6 +30,23 @@ class ConfirmIn(BaseModel):
     token: str
 
 
+class TaskCreateIn(BaseModel):
+    name: str
+    list_id: str | None = None
+
+
+class TaskStatusIn(BaseModel):
+    task_id: str
+    status: str
+    name: str | None = None
+
+
+class IngestIn(BaseModel):
+    path: str | None = None
+    date: str | None = None
+    allow_ai_draft: bool = False
+
+
 class ConfirmOut(BaseModel):
     action: str
     date: str
@@ -39,7 +56,7 @@ class ConfirmOut(BaseModel):
 
 def build_router(*, db_path: str | None = None, fetch=None, env=None, client=None,
                  mode: str | None = None, backup_dir: str | None = None,
-                 tokens: wo.TokenStore | None = None) -> APIRouter:
+                 tokens: wo.TokenStore | None = None, cu_client=None) -> APIRouter:
     router = APIRouter(prefix="/api/write", tags=["write"])
     store = tokens or wo.TokenStore()
 
@@ -56,8 +73,22 @@ def build_router(*, db_path: str | None = None, fetch=None, env=None, client=Non
     def plan_final(date: str = Query(...)):
         return wo.plan_finalize(store, date)
 
+    @router.post("/task-create/plan", response_model=PlanOut)
+    def plan_task_create(body: TaskCreateIn):
+        return wo.plan_task_create(store, body.name, body.list_id, env=env)
+
+    @router.post("/task-status/plan", response_model=PlanOut)
+    def plan_task_status(body: TaskStatusIn):
+        return wo.plan_task_status(store, body.task_id, body.status, name=body.name, env=env)
+
+    @router.post("/ingest/plan", response_model=PlanOut)
+    def plan_ingest(body: IngestIn):
+        return wo.plan_ingest(store, path=body.path, day=body.date,
+                              allow_ai_draft=body.allow_ai_draft)
+
     @router.post("/confirm", response_model=ConfirmOut)
     def post_confirm(body: ConfirmIn):
-        return wo.confirm(store, body.token, db_path=db_path, backup_dir=backup_dir)
+        return wo.confirm(store, body.token, db_path=db_path, backup_dir=backup_dir,
+                          env=env, cu_client=cu_client)
 
     return router
