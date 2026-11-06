@@ -88,6 +88,8 @@ _ENV_TO_FIELD: dict[str, str] = {
     "INTEGRATION_CLICKUP_ENABLED": "integration_clickup_enabled",
     "INTEGRATION_KEEPSTRONG_ENABLED": "integration_keepstrong_enabled",
     "INTEGRATION_DEEPSEEK_ENABLED": "integration_deepseek_enabled",
+    # —— W14 Web 看板最小鉴权（凭据，只放 local/.env）——
+    "DAILYLUMEN_WEB_KEY": "web_key",
 }
 _FIELD_TO_ENV = {v: k for k, v in _ENV_TO_FIELD.items()}
 
@@ -173,6 +175,13 @@ class Settings(BaseSettings):
     integration_clickup_enabled: bool = True
     integration_keepstrong_enabled: bool = True
     integration_deepseek_enabled: bool = True
+
+    # —— W14 Web 看板最小鉴权：serve 必需；凭据，永不进日志 / 响应 / 前端 bundle ——
+    web_key: str = Field(
+        default="",
+        repr=False,
+        validation_alias=AliasChoices("DAILYLUMEN_WEB_KEY", "web_key"),
+    )
 
     @field_validator(
         "keepstrong_base_url",

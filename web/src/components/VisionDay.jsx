@@ -4,6 +4,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
+import { AuthImage } from './Common'
 import { GateLine, WriteFlow, gateReason } from './WriteFlow'
 
 const MAX_IMAGES = 6
@@ -135,7 +136,7 @@ export function VisionDay({ date, health, toast, ai, onWritten }) {
             {inbox.data.items.map((it) => (
               <label key={it.name} className="check">
                 <input type="checkbox" checked={picked.includes(it.name)} onChange={() => togglePick(it.name)} />
-                <img className="thumb" src={api.inboxImageUrl(it.name)} alt="" loading="lazy" />
+                <AuthImage className="thumb" path={api.inboxImagePath(it.name)} />
                 {it.name} <span className="muted">· {Math.round(it.size / 1024)} KB · {it.mtime.slice(5)}</span>
               </label>
             ))}

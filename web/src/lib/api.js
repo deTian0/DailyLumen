@@ -1,4 +1,6 @@
-// API 封装：统一错误体 {error:{code,message}}；不在前端存任何凭据。
+// API 封装：统一错误体 {error:{code,message}}。
+// W14：访问密钥由用户在登录页输入，只存浏览器存储（默认 sessionStorage，勾选「记住」才进
+// localStorage），每次请求放 Authorization 头；绝不进 bundle、URL 查询串或日志。
 export class ApiError extends Error {
   constructor(status, code, message) {
     super(message)
@@ -7,9 +9,39 @@ export class ApiError extends Error {
   }
 }
 
+const KEY_NAME = 'dailylumen.webKey'
+export const UNAUTHORIZED_EVENT = 'dailylumen:unauthorized'
+
+const store = (kind) => {
+  try {
+    return kind === 'local' ? window.localStorage : window.sessionStorage
+  } catch {
+    return null
+  }
+}
+
+export const authKey = {
+  get() {
+    return store('session')?.getItem(KEY_NAME) || store('local')?.getItem(KEY_NAME) || ''
+  },
+  set(key, remember = false) {
+    authKey.clear()
+    store(remember ? 'local' : 'session')?.setItem(KEY_NAME, key)
+  },
+  clear() {
+    store('session')?.removeItem(KEY_NAME)
+    store('local')?.removeItem(KEY_NAME)
+  },
+  remembered() {
+    return !!store('local')?.getItem(KEY_NAME)
+  },
+}
+
+const authHeaders = (key) => (key ? { Authorization: `Bearer ${key}` } : {})
+
 async function request(path, { method = 'GET', signal, body } = {}) {
   let res
-  const headers = { Accept: 'application/json' }
+  const headers = { Accept: 'application/json', ...authHeaders(authKey.get()) }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   try {
     res = await fetch(path, {
@@ -18,6 +50,12 @@ async function request(path, { method = 'GET', signal, body } = {}) {
   } catch (e) {
     if (e.name === 'AbortError') throw e
     throw new ApiError(0, 'network', '无法连接本机服务，请确认 serve 正在运行')
+  }
+  if (res.status === 401) {
+    // 密钥缺失 / 错误 / serve 换了 key：清掉本地存的 key，通知 App 回登录页
+    authKey.clear()
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    throw new ApiError(401, 'unauthorized', '访问密钥无效，请重新输入')
   }
   if (!res.ok) {
     let code = `http_${res.status}`
@@ -37,6 +75,34 @@ async function request(path, { method = 'GET', signal, body } = {}) {
 }
 
 const json = async (path, opts) => (await request(path, opts)).json()
+
+// 带鉴权取二进制 → object URL（<img> / 下载链接无法带请求头）；调用方负责 revoke
+const blobUrl = async (path, opts) => URL.createObjectURL(await (await request(path, opts)).blob())
+
+// 登录页校验：用待验证的 key 直接请求 health，不写存储、不触发 401 事件
+export async function verifyKey(key) {
+  let res
+  try {
+    res = await fetch('/api/health', { headers: { Accept: 'application/json', ...authHeaders(key) } })
+  } catch {
+    throw new ApiError(0, 'network', '无法连接本机服务，请确认 serve 正在运行')
+  }
+  if (res.status === 401) return false
+  if (!res.ok) throw new ApiError(res.status, `http_${res.status}`, `请求失败（${res.status}）`)
+  return true
+}
+
+// 下载：先带 key 取 blob，再用临时 <a download> 触发保存
+export async function downloadFile(path, filename) {
+  const url = await blobUrl(path)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename || ''
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 0)
+}
 
 const qs = (params) => {
   const p = new URLSearchParams()
@@ -75,12 +141,12 @@ export const api = {
   writeConfirm: (token, o) => json('/api/write/confirm', { ...o, method: 'POST', body: { token } }),
   // W11：收件箱待处理截图清单（只读；写接口未挂载时 404）
   inbox: (o) => json('/api/write/inbox', o),
-  // W12：收件箱缩略图（服务端只认收件箱顶层文件名，防穿越）
-  inboxImageUrl: (name) => `/api/write/inbox/image${qs({ name })}`,
-  chartUrl: (kind) => `/api/charts/${kind}`,
-  weekMdUrl: (year, week) => `/api/reports/week.md${qs({ year, week })}`,
-  monthMdUrl: (month) => `/api/reports/month.md${qs({ month })}`,
-  chartSvg: async (kind, o) => (await request(`/api/charts/${kind}`, o)).text(),
+  // W12：收件箱缩略图（服务端只认收件箱顶层文件名，防穿越）；W14 起经 blob URL 带 key
+  inboxImagePath: (name) => `/api/write/inbox/image${qs({ name })}`,
+  chartPath: (kind) => `/api/charts/${kind}`,
+  weekMdPath: (year, week) => `/api/reports/week.md${qs({ year, week })}`,
+  monthMdPath: (month) => `/api/reports/month.md${qs({ month })}`,
+  blobUrl,
 }
 
 export function todayStr(d = new Date()) {
@@ -106,6 +172,7 @@ export function errText(e) {
     stale_plan: '复盘 md 在预览后被改动，请重新预览再确认',
     token_invalid: '确认已失效或已使用，请重新预览',
     token_expired: '确认已过期（5 分钟），请重新预览',
+    unauthorized: '访问密钥无效，请重新输入',
   }
   return map[e.code] || e.message || '未知错误'
 }

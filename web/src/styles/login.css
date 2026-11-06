@@ -1,0 +1,56 @@
+/* W14 登录页 */
+.login-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.login-card {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-card h1 {
+  margin: 8px 0 0;
+  font-size: 20px;
+}
+.login-card .muted {
+  margin: 0;
+  font-size: 13px;
+}
+.login-card .banner {
+  margin: 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+}
+.field input {
+  padding: 12px 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow-in-sm);
+  font: inherit;
+  color: var(--text);
+}
+.login-err {
+  min-height: 1.2em;
+  color: var(--ink-red);
+  font-size: 13px;
+}
+.logout-btn {
+  margin-top: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}

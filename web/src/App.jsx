@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api } from './lib/api'
+import { UNAUTHORIZED_EVENT, api, authKey } from './lib/api'
 import { useAsync } from './lib/useAsync'
 import { hashPage } from './lib/route'
 import Today from './pages/Today.jsx'
@@ -7,6 +7,7 @@ import Reports from './pages/Reports.jsx'
 import Analytics from './pages/Analytics.jsx'
 import Doctor from './pages/Doctor.jsx'
 import Life from './pages/Life.jsx'
+import Login from './pages/Login.jsx'
 
 const NAV = [
   { id: 'today', label: '今日看板', ico: '⌂', Page: Today },
@@ -23,7 +24,19 @@ const readHash = () => {
   return NAV.some((n) => n.id === id) ? id : 'today'
 }
 
+// W14：无 key → 登录页；任何请求 401 → 清 key 回登录页（expired 提示）
 export default function App() {
+  const [auth, setAuth] = useState(() => (authKey.get() ? 'ok' : 'login'))
+  useEffect(() => {
+    const on401 = () => setAuth('expired')
+    window.addEventListener(UNAUTHORIZED_EVENT, on401)
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, on401)
+  }, [])
+  if (auth !== 'ok') return <Login expired={auth === 'expired'} onSuccess={() => setAuth('ok')} />
+  return <Shell onLogout={() => { authKey.clear(); setAuth('login') }} />
+}
+
+function Shell({ onLogout }) {
   const [page, setPage] = useState(readHash)
   const [toastMsg, setToastMsg] = useState('')
   const timer = useRef(null)
@@ -73,12 +86,15 @@ export default function App() {
             ) : h ? (
               <>
                 <span className="env-ok">● 本机 · {h.readonly ? '只读' : '写已开启（预览后确认）'}</span>
-                <span className="env-sub">v{h.version} · 无鉴权，仅限本机</span>
+                <span className="env-sub">v{h.version} · 已登录，仅限本机</span>
               </>
             ) : (
               <span className="env-sub">连接中…</span>
             )}
           </div>
+          <button type="button" className="logout-btn" onClick={onLogout}>
+            退出登录{authKey.remembered() ? '（并忘记密钥）' : ''}
+          </button>
         </div>
       </aside>
 

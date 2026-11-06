@@ -3,7 +3,7 @@ import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { hashQuery } from '../lib/route'
 import { Markdown } from '../lib/markdown'
-import { Card, CopyButton, Empty, ErrorBox, Loading, Stat } from '../components/Common'
+import { Card, CopyButton, DownloadButton, Empty, ErrorBox, Loading, Stat } from '../components/Common'
 import { WriteFlow } from '../components/WriteFlow'
 import { VisionDay } from '../components/VisionDay'
 import { ReviewSteps } from '../components/ReviewSteps'
@@ -51,7 +51,7 @@ function Picker({ label, items, index, onPick, fmt }) {
   )
 }
 
-function ReportBody({ rep, toast, mdUrl }) {
+function ReportBody({ rep, toast, mdPath }) {
   if (rep.error && !rep.data) return <ErrorBox error={rep.error} onRetry={rep.reload} />
   if (rep.loading && !rep.data) return <Loading label="正在生成报告…" />
   if (!rep.data) return null
@@ -65,7 +65,7 @@ function ReportBody({ rep, toast, mdUrl }) {
         actions={
           <div className="card-actions">
             <CopyButton text={rep.data.markdown} toast={toast} />
-            <a className="btn-ghost" href={mdUrl} download={rep.data.filename}>下载 .md</a>
+            <DownloadButton path={mdPath} filename={rep.data.filename} toast={toast} />
           </div>
         }>
         <Markdown source={rep.data.markdown} />
@@ -91,7 +91,7 @@ function WeekView({ toast }) {
         <Picker label="选择周" items={weeks.data} index={idx} onPick={setIdx}
           fmt={(w) => `${w.year} 第 ${w.week} 周`} />
       </div>
-      <ReportBody rep={rep} toast={toast} mdUrl={api.weekMdUrl(cur.year, cur.week)} />
+      <ReportBody rep={rep} toast={toast} mdPath={api.weekMdPath(cur.year, cur.week)} />
     </>
   )
 }
@@ -109,7 +109,7 @@ function MonthView({ toast }) {
       <div className="toolbar">
         <Picker label="选择月" items={months.data} index={idx} onPick={setIdx} fmt={fmtMonth} />
       </div>
-      <ReportBody rep={rep} toast={toast} mdUrl={api.monthMdUrl(cur)} />
+      <ReportBody rep={rep} toast={toast} mdPath={api.monthMdPath(cur)} />
     </>
   )
 }

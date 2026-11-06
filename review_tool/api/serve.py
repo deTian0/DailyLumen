@@ -1,4 +1,4 @@
-"""``python -m review_tool serve``：启动本机看板服务（默认 127.0.0.1:8765，只读，无鉴权）。"""
+"""``python -m review_tool serve``：启动本机看板服务（默认 127.0.0.1:8765，只读，需访问密钥）。"""
 from __future__ import annotations
 
 import argparse
@@ -17,7 +17,7 @@ _MISSING_HINT = (
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m review_tool serve",
-        description="启动 DailyLumen 本机看板（无鉴权；默认仅回环、只读）。",
+        description="启动 DailyLumen 本机看板（需 DAILYLUMEN_WEB_KEY；默认仅回环、只读）。",
     )
     p.add_argument("--host", default=DEFAULT_HOST, help=f"监听地址（默认 {DEFAULT_HOST}）")
     p.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"端口（默认 {DEFAULT_PORT}）")
@@ -26,23 +26,36 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def load_web_key() -> str:
+    """读 ``SETTINGS.web_key``（local/.env 或进程环境的 ``DAILYLUMEN_WEB_KEY``）。"""
+    from ..settings import SETTINGS
+
+    return (SETTINGS.web_key or "").strip()
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     try:
         import uvicorn
 
         from .app import create_app
+        from .auth import MISSING_KEY_HINT
         from .routers import default_routers
     except ImportError:
         print(_MISSING_HINT, file=sys.stderr)
+        return 2
+
+    web_key = load_web_key()
+    if not web_key:
+        print(MISSING_KEY_HINT, file=sys.stderr)
         return 2
 
     allowed = set(_LOOPBACK)
     if args.host not in _LOOPBACK:
         allowed.add(args.host.lower())
         print(
-            f"[!] 监听地址 {args.host} 不是回环地址：本服务【无鉴权】，"
-            "同网段任何人都能读取你的复盘数据。除非明确知道后果，请改回 127.0.0.1。",
+            f"[!] 监听地址 {args.host} 不是回环地址：访问密钥会以明文 HTTP 在网络上传输，"
+            "同网段可被嗅探。除非明确知道后果，请改回 127.0.0.1。",
             file=sys.stderr,
         )
     if args.enable_write:
@@ -53,7 +66,8 @@ def main(argv: list[str] | None = None) -> int:
         write_enabled=args.enable_write,
         allowed_hosts=frozenset(allowed),
         extra_routers=default_routers(write_enabled=args.enable_write),
+        web_key=web_key,
     )
-    print(f"DailyLumen 看板：http://{args.host}:{args.port}/  （Ctrl+C 退出；无鉴权）")
+    print(f"DailyLumen 看板：http://{args.host}:{args.port}/  （Ctrl+C 退出；登录页输入 DAILYLUMEN_WEB_KEY）")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
     return 0

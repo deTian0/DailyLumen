@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from ..config import BASE_DIR
+from .auth import PING_PATH, extract_key, key_matches, requires_key
 from .health import build_health
 from .queries import QueryError
 
@@ -66,6 +67,7 @@ def create_app(
     write_enabled: bool = False,
     allowed_hosts: frozenset[str] | None = None,
     extra_routers: list[Any] | None = None,
+    web_key: str | None = None,
 ) -> FastAPI:
     """构造应用。
 
@@ -75,6 +77,9 @@ def create_app(
     :param extra_routers: 业务路由（``APIRouter`` 列表），W3 起各里程碑的 ``/api/*``
         接口**必须**经此参数接入，而不是在 ``create_app`` 返回后 ``app.add_api_route``——
         后者会排在 SPA 通配路由之后，被 ``spa()`` 先截获（Starlette 按注册顺序匹配）。
+    :param web_key: W14 访问密钥；非 ``None`` 时 ``/api/*``（``/api/ping`` 除外）必须在请求头
+        带同值 key，空串等同「全部拒绝」。``None`` 仅供单元测试构造无鉴权实例——
+        ``serve`` 未配置 key 时拒绝启动，生产路径永远传非空值。
     """
     dist = os.path.abspath(dist_dir or DEFAULT_DIST_DIR)
     hosts = frozenset(h.lower() for h in (allowed_hosts or LOOPBACK_HOSTS))
@@ -92,6 +97,11 @@ def create_app(
             origin = request.headers.get("origin")
             if origin is not None and _host_of(urlsplit(origin).netloc) not in hosts:
                 return _error(403, "bad_origin", "不允许的跨站来源")
+        if web_key is not None and requires_key(request.url.path):
+            if not key_matches(extract_key(request.headers), web_key):
+                resp = _error(401, "unauthorized", "需要访问密钥：请在登录页输入 DAILYLUMEN_WEB_KEY")
+                resp.headers["WWW-Authenticate"] = "Bearer"
+                return resp
         return await call_next(request)
 
     @app.exception_handler(StarletteHTTPException)
@@ -111,6 +121,11 @@ def create_app(
     @app.exception_handler(Exception)
     async def _unhandled(_req: Request, _exc: Exception):
         return _error(500, "internal_error", "服务内部错误")
+
+    @app.get(PING_PATH)
+    def ping() -> dict[str, bool]:
+        # 免 key 的存活探针：刻意不含版本 / mode / 开关等任何信息
+        return {"ok": True}
 
     @app.get("/api/health", response_model=HealthOut)
     def health() -> dict[str, Any]:

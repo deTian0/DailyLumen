@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
-import { Card, ErrorBox, Loading, Stat } from '../components/Common'
+import { AuthImage, Card, ErrorBox, Loading, Stat } from '../components/Common'
 
 const CHARTS = [
   { id: 'trends', label: '四维趋势' },
@@ -17,7 +17,7 @@ const DIM_NAME = {
   system_score: '系统',
 }
 
-// 图表：<img> 直接嵌后端 SVG（与 CLI chart 同源）；onLoad/onError 给出加载 / 失败态
+// 图表：带 key 取后端 SVG 再嵌入（与 CLI chart 同源）；onLoad/onError 给出加载 / 失败态
 function ChartView({ kind, label }) {
   const [st, setSt] = useState({ kind, status: 'loading', n: 0 })
   const cur = st.kind === kind ? st : { kind, status: 'loading', n: 0 }
@@ -32,7 +32,7 @@ function ChartView({ kind, label }) {
             onClick={() => setSt({ kind, status: 'loading', n: cur.n + 1 })}>重试</button>
         </div>
       ) : (
-        <img key={`${kind}-${cur.n}`} src={`${api.chartUrl(kind)}?r=${cur.n}`} alt={`${label}图表`}
+        <AuthImage key={`${kind}-${cur.n}`} path={`${api.chartPath(kind)}?r=${cur.n}`} alt={`${label}图表`}
           style={cur.status === 'loading' ? { position: 'absolute', opacity: 0 } : undefined}
           onLoad={() => setSt({ kind, status: 'ok', n: cur.n })}
           onError={() => setSt({ kind, status: 'error', n: cur.n })} />

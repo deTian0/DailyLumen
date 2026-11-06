@@ -3,7 +3,7 @@
 把每天的结构化复盘沉淀进 **SQLite 单一数据源**，再用脚本做周 / 月分析、体检与导出。  
 业务逻辑基于 Python 标准库；配置层使用 **pydantic / pydantic-settings**（M46，默认读 `local/.env`）。
 
-> 当前版本 **1.73.0**（Web 看板 W13：写操作注册表 + 模块拆分）（历史：v1.72.0 Web 看板 W12：待办分组 / 批量完成 / 复盘进度条 / 门禁折叠 / 窄屏；v1.71.0 读图日流程 + 本周节奏快照空态；v1.70.0 ClickUp 建任务/改状态 + ingest 入口；v1.69.0 习惯同步 / AI 草稿写入 / 定稿；v1.68.0 AI 预览；v1.67.0 报表增强；v1.66.0 生活管家；v1.65.0 前端 P0 页面；v1.64.0 报告与分析 API；v1.63.0 ClickUp 今日 API；v1.62.0 只读编排与对拍；v1.61.0 serve 壳；v1.60.1 lint 基线清零；v1.60.0 集成能力 I1–I7；schema **v11**）｜测试数以全量跑为准
+> 当前版本 **1.74.0**（Web 看板 W14：serve 最小鉴权）（历史：v1.73.0 Web 看板 W13：写操作注册表 + 模块拆分；v1.72.0 Web 看板 W12：待办分组 / 批量完成 / 复盘进度条 / 门禁折叠 / 窄屏；v1.71.0 读图日流程 + 本周节奏快照空态；v1.70.0 ClickUp 建任务/改状态 + ingest 入口；v1.69.0 习惯同步 / AI 草稿写入 / 定稿；v1.68.0 AI 预览；v1.67.0 报表增强；v1.66.0 生活管家；v1.65.0 前端 P0 页面；v1.64.0 报告与分析 API；v1.63.0 ClickUp 今日 API；v1.62.0 只读编排与对拍；v1.61.0 serve 壳；v1.60.1 lint 基线清零；v1.60.0 集成能力 I1–I7；schema **v11**）｜测试数以全量跑为准
 > · 规则与变更历史见 [`docs/设计说明.md`](docs/设计说明.md)｜**无 WorkBuddy 安装**见 [`docs/独立部署.md`](docs/独立部署.md)｜包级速查见 [`review_tool/README.md`](review_tool/README.md)
 
 ---
@@ -12,12 +12,14 @@
 
 ```bash
 uv sync --extra web                          # 首次：装 fastapi / uvicorn（版本钉在 uv.lock）
-uv run python -m review_tool serve            # → http://127.0.0.1:8765/
+# 首次：在 local/.env 末尾加一行访问密钥（未配置时 serve 拒绝启动）
+#   DAILYLUMEN_WEB_KEY=<python -c "import secrets; print(secrets.token_urlsafe(32))" 的输出>
+uv run python -m review_tool serve            # → http://127.0.0.1:8765/ ，登录页输入同一个密钥
 ```
 
 - 前端构建产物 `web/dist` **已入库**，不需要 node 也能直接用；改了 `web/src` 才需要 `cd web; npm ci; npm run build` 重新构建。
 - 页面：今日看板（待办 / 已办 / 收工灯 / 本周节奏 / 负荷）、复盘与报告（周报 / 月报 / 昨日上下文，可下载 .md）、生活管家（一日三步 / 晨间简报 / 夜间复盘指引 / 本周做成 / 连续天数 / 体征 / 训练 / 营养 / 习惯 / 学习 / 承诺兑现 / 跨维关联）、分析（stats + 图表）、体检（doctor / fuse / 集成失败）。
-- ⚠️ **无鉴权**：默认只绑 `127.0.0.1` 且只读；写接口需 `--enable-write` 显式开启。别把 `--host` 改成局域网地址。
+- 🔑 **最小鉴权（W14）**：所有 `/api/*` 需请求头带密钥（`Authorization: Bearer <key>` 或 `X-DailyLumen-Key`）；`/api/ping` 是不含信息的存活探针。密钥默认只存浏览器 sessionStorage（关标签页即失效），登录页勾选「记住」才存 localStorage；任何 401 自动回登录页。仍默认只绑 `127.0.0.1` 且只读；写接口需 `--enable-write`。HTTP 明文传输，别把 `--host` 改成局域网地址。
 - 逻辑与 CLI 同源（`week` / `month` / `stats` / `doctor` / `clickup`），详见 `docs/Web看板PRD.md`、`docs/Web看板路线图.md`。
 
 ## 一日三步（心智模型）

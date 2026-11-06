@@ -66,6 +66,7 @@
 | W11 | 读图日流程（FR-I2）+ 本周节奏快照空态 | ✅ | `write_ops` 扩 `vision`（上传 ≤6 张 / 单张 ≤8MB / magic 嗅探 PNG·JPEG·WebP、临时目录 finally 清理、mode 门禁先于 I/O、later_wins 冲突预览）/ `inbox_archive`（防穿越、移到 `已处理/日期/`）/ `clickup_pull`（`collect` 纯拉取、写前备份、整天替换、回读条数）；复盘页读图卡 → 写 md → ingest、今日页快照空态按钮；练练写回 / 自绘图顺延 | `v1.71.0` |
 | W12 | 「好用」导向 UI / 交互打磨 | ✅ | 今日待办分组（逾期默认折叠）+ 批量完成（单 token 一批 ≤20、逐条 CLI、逐条回读）；快照预览明列替换日期 before→after 与本周投影；读图缩略图（收件箱受限端点防穿越）；复盘四步进度条（doctor `day_ready` 单源）+ 今日页导流条；非 deepseek / 只读门禁收成一行；写按钮带动作名；「只读」文案按 health 动态；窄屏 ≤768px 适配 | `v1.72.0` |
 | W13 | 写操作框架重构（为练练写回铺路） | ✅ | `write_ops` 拆为 `api/writes/{base,habits,review_md,clickup,ingest,vision}`，门面保留原导出；`confirm` 分派由 if/elif 改为 `@register(action, needs=...)` 注册表（`plan_out` 拒发未登记动作的 token）；`Today.jsx` 拆出 `components/today/*` + `lib/todos.js`；`app.css` 按区段拆 6 个文件（产物哈希不变）；行为不变 | `v1.73.0` |
+| W14 | serve 最小鉴权 | ✅ | `DAILYLUMEN_WEB_KEY`（`local/.env`，未配置拒绝启动）+ `api/auth.py`（Bearer / `X-DailyLumen-Key`，`compare_digest`，`/api/ping` 免 key）+ 前端登录页（默认 sessionStorage、401 回登录页、blob 取图/下载） | `v1.74.0`（未打 tag） |
 
 > 本表随每个里程碑完成实时更新；详细验收记录写在下方对应小节。
 
@@ -146,6 +147,17 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 **验收**：全量 1076 通过 / 2 跳过；ruff 全绿。
 
 ---
+
+---
+
+## 二期里程碑详情（W14–W17）
+
+### W14 — serve 最小鉴权（v1.74.0）
+
+- **凭据**：`DAILYLUMEN_WEB_KEY` → `settings.web_key`（`repr=False`），只放 `local/.env`；根 `.env.example` 仅占位。本机 `local/.env` 原无此行，已用 `secrets.token_urlsafe(32)` 生成并**只追加**到末尾（回读确认原有字节未变；值未打印）。
+- **后端**：`api/auth.py`（`extract_key` / `key_matches` / `requires_key`）；`create_app(web_key=...)` 中间件在 Host / Origin 守卫之后校验 `/api/*`，`/api/ping` 免 key 且只回 `{"ok":true}`；静态 dist 免 key；不接受查询串里的 key。`serve` 未配置 key → rc=2 + 提示。`create_app(web_key=None)` 仅供单元测试。
+- **前端**：`pages/Login.jsx`（先 `/api/health` 校验再保存）；存储权衡——默认 **sessionStorage**（关标签页即失效，降低共用电脑 / 长期驻留风险），勾选「记住」才进 localStorage（换来免重复输入；两者对同源 XSS 同样暴露，本项目无第三方脚本、仅回环访问，风险可接受）。401 → 清 key、回登录页并提示「已失效」；侧栏「退出登录」。`<img>` / `.md` 下载改为带 key 取 blob（`AuthImage` / `DownloadButton`）。
+- **验收**：`tests/api/test_auth.py` 17 例（无 key / 错 key / 对 key / 两种头 / 查询串不收 / 探针 / 静态免 key / 守卫顺序 / 未配置 key 拒绝启动 / key 不进控制台）；`test_web_dist` 断言本机 key 值不在 bundle。
 
 ---
 

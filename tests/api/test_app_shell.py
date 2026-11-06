@@ -179,10 +179,11 @@ class TestServeCli(unittest.TestCase):
 
         err = io.StringIO()
         with mock.patch("uvicorn.run") as run, redirect_stderr(err), \
+             mock.patch.object(serve, "load_web_key", return_value="k-test"), \
              mock.patch("sys.stdout", new_callable=io.StringIO):
             rc = serve.main(["--host", "0.0.0.0", "--port", "9000"])
         self.assertEqual(rc, 0)
-        self.assertIn("无鉴权", err.getvalue())
+        self.assertIn("不是回环地址", err.getvalue())
         app = run.call_args.args[0]
         self.assertFalse(app.state.write_enabled)
 

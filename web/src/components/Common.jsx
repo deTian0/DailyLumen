@@ -1,4 +1,54 @@
-import { errText } from '../lib/api'
+import { useEffect, useState } from 'react'
+import { api, downloadFile, errText } from '../lib/api'
+
+// W14：<img> 不能带请求头 → 先带 key 取 blob 再显示；卸载 / 换图时 revoke
+export function AuthImage({ path, alt = '', className, onLoad, onError, style }) {
+  const [src, setSrc] = useState(null)
+  useEffect(() => {
+    let url = null
+    let alive = true
+    const ctrl = new AbortController()
+    api.blobUrl(path, { signal: ctrl.signal }).then(
+      (u) => {
+        if (alive) {
+          url = u
+          setSrc(u)
+        } else URL.revokeObjectURL(u)
+      },
+      (e) => {
+        if (alive && e?.name !== 'AbortError') onError?.(e)
+      },
+    )
+    return () => {
+      alive = false
+      ctrl.abort()
+      if (url) URL.revokeObjectURL(url)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path])
+  if (!src) return null
+  return <img className={className} src={src} alt={alt} onLoad={onLoad} style={style}
+    onError={() => onError?.(new Error('image decode failed'))} />
+}
+
+export function DownloadButton({ path, filename, toast, label = '下载 .md' }) {
+  const [busy, setBusy] = useState(false)
+  async function go() {
+    setBusy(true)
+    try {
+      await downloadFile(path, filename)
+    } catch (e) {
+      toast?.(`下载失败：${errText(e)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <button type="button" className="btn-ghost" onClick={go} disabled={busy}>
+      {busy ? '下载中…' : label}
+    </button>
+  )
+}
 
 export function Loading({ label = '加载中…' }) {
   return (

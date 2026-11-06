@@ -44,6 +44,18 @@ class TestWebDist(unittest.TestCase):
                 for key in ("CLICKUP_API_KEY", "KEEPSTRONG_API_KEY", "DEEPSEEK_API_KEY"):
                     self.assertNotIn(key, text, f"{key} 不应出现在前端产物 {name}")
 
+    def test_bundle_has_no_web_key_value(self):
+        """W14：本机配置的访问密钥值绝不能被打进 bundle（登录页只认用户输入）。"""
+        from review_tool.settings import SETTINGS
+
+        web_key = (SETTINGS.web_key or "").strip()
+        if not web_key:
+            self.skipTest("本机未配置 DAILYLUMEN_WEB_KEY")
+        for root, _dirs, files in os.walk(DIST):
+            for name in files:
+                text = _read(os.path.join(root, name)) if name.endswith((".js", ".css", ".html")) else ""
+                self.assertFalse(web_key in text, f"访问密钥值出现在前端产物 {name}")
+
 
 try:
     import fastapi  # noqa: F401

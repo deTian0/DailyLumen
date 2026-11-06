@@ -257,7 +257,7 @@ agent_created: true
 - **配置分层（v1.20.0 / M16）** —— 四层不许混：
   | 层 | 放哪 | 例 |
   | --- | --- | --- |
-  | **凭据** | `local/.env`（gitignore；模板见根 `.env.example`） | `KEEPSTRONG_API_KEY` / `CLICKUP_API_KEY` |
+  | **凭据** | `local/.env`（gitignore；模板见根 `.env.example`） | `KEEPSTRONG_API_KEY` / `CLICKUP_API_KEY` / `DAILYLUMEN_WEB_KEY`（W14 看板访问密钥，serve 必需） |
 
   ⚠️ **凭据会过期，且过期表现是「静默无数据」不是报错崩掉**（2026-10-21 实测）：
   `keepstrong` 返回 `401 apiKeyExpired` → CLI 打一行提示就**正常退出**，
