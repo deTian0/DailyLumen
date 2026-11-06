@@ -13,7 +13,7 @@ from typing import Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, Query
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 
 from . import queries as q
@@ -125,6 +125,14 @@ def build_router(*, db_path: str | None = None, input_dir: str | None = None) ->
             return q.fuse(conn, month)
 
     # ---------------- 图表（首期嵌现有 SVG）----------------
+    # W16：JSON 路由必须排在 SVG 路由之前——`{kind}` 默认匹配 `[^/]+`（含点），
+    # 否则 `/charts/trends.json` 会被 `{kind}` 抢先匹配成 kind="trends.json"。
+    @router.get("/charts/{kind}.json")
+    def get_chart_json(kind: str):
+        with q.readonly(db_path) as conn:
+            data = q.chart_series(conn, kind)
+        return JSONResponse(data, headers={"Cache-Control": "no-store"})
+
     @router.get("/charts/{kind}")
     def get_chart(kind: str):
         with q.readonly(db_path) as conn:

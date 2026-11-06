@@ -68,6 +68,7 @@
 | W13 | 写操作框架重构（为练练写回铺路） | ✅ | `write_ops` 拆为 `api/writes/{base,habits,review_md,clickup,ingest,vision}`，门面保留原导出；`confirm` 分派由 if/elif 改为 `@register(action, needs=...)` 注册表（`plan_out` 拒发未登记动作的 token）；`Today.jsx` 拆出 `components/today/*` + `lib/todos.js`；`app.css` 按区段拆 6 个文件（产物哈希不变）；行为不变 | `v1.73.0` |
 | W14 | serve 最小鉴权 | ✅ | `DAILYLUMEN_WEB_KEY`（`local/.env`，未配置拒绝启动）+ `api/auth.py`（Bearer / `X-DailyLumen-Key`，`compare_digest`，`/api/ping` 免 key）+ 前端登录页（默认 sessionStorage、401 回登录页、blob 取图/下载） | `v1.74.0`（未打 tag） |
 | W15 | 前端 Vitest 单测 | ✅ | Vitest 5.1 + jsdom + Testing Library（devDep 钉版本）；5 文件 24 例覆盖 `api.js`（key/401/blob）、`route.js`、`todos.js`（待办分组）、`WriteFlow`（预览→确认→失败重试重新预览）、`Login`；`WriteFlow.jsx` 补 `try/catch` 收起旧预览防复用 token | `v1.75.0`（未打 tag） |
+| W16 | ECharts 自绘图 | ✅ | `/api/charts/{kind}.json`（复用 `fetch_*_series` / `moving_average` / `BODY_TARGETS`，R1 单源；`.json` 路由排在 `{kind}` 前防吞）+ 前端 `EChart.jsx` / `chartOption.js`，`Analytics` 改吃 JSON；旧 SVG 端点保留；echarts@5.6.0 钉版本；+6 后端 / +7 前端测试 | `v1.76.0`（未打 tag） |
 
 > 本表随每个里程碑完成实时更新；详细验收记录写在下方对应小节。
 
@@ -173,6 +174,16 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
   - `pages/Login.test.jsx`：错 key 不保存、对 key 默认 sessionStorage、记住进 localStorage、空输入不发请求、`expired` 失效提示。
 - **行为微调**：`WriteFlow.jsx` 的 `confirm` 包 `try/catch`——`api.writeConfirm` 抛错时 `setPlan(null)` 收起旧预览（服务端取 token 即作废，防止拿用过的 token 再点确认）；正常路径无变化，由新测试固定。
 - **验收**：`cd web; npm test` → 5 文件 24 例全绿；`npm run build` 通过重建 `web/dist`；全量 Python 1208 通过 / 2 跳过；ruff 全绿。
+
+---
+
+### W16 — ECharts 自绘图（v1.76.0）
+
+- **后端**：`api/queries.py` 加 `chart_series(conn, kind)`，复用 `reports.chart.fetch_*_series` + `core.body.moving_average` + `config.BODY_TARGETS`（R1 单源，不另算均线 / 目标带）。返回 `{"kind","dates","series","target"}`，序列带 `key/name/color/unit/values/type`；body 的 ma7 带 `dash`，nutrition 两条带 `yAxisIndex`。`routes_reports.py` 加 `GET /api/charts/{kind}.json`（`JSONResponse` + `no-store`）；**`.json` 路由须排在 `{kind}` 之前**（`{kind}` 默认 `[^/]+` 含点，否则吞成 `kind="trends.json"`），用测试固定。旧 SVG 端点保留。
+- **前端**：`echarts@5.6.0`（首个前端运行时依赖，版本钉死）；`components/EChart.jsx`（init / dispose / resize 包装，SVG renderer）；`lib/chartOption.js` 纯函数 `buildChartOption` 把 JSON 转 ECharts option（目标带 markArea / markLine、双 yAxis、柱 / 线分派）；`pages/Analytics.jsx` 的 `ChartView` 由嵌 SVG 改为 `useAsync` 取 JSON → `EChart`。
+- **对拍**：`tests/api/test_reports_api.py` +6 例（JSON == `chart_series`、trends 值 == `fetch_series` 列、body 含 ma7 + 目标带、nutrition 双轴、未知 404、`.json` 不被吞）；`web/src/lib/chartOption.test.js` 7 例。前端共 6 文件 31 例。
+- **权衡**：bundle 283 KB → 1.31 MB（gzip 88 → 427 KB），换 tooltip / 缩放 / 图例切换；可接受。
+- **验收**：`cd web; npm test` → 6 文件 31 例全绿；`npm run build` 通过；全量 Python 1214 通过 / 2 跳过；ruff 全绿。
 
 ---
 

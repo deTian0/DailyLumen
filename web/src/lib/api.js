@@ -144,6 +144,8 @@ export const api = {
   // W12：收件箱缩略图（服务端只认收件箱顶层文件名，防穿越）；W14 起经 blob URL 带 key
   inboxImagePath: (name) => `/api/write/inbox/image${qs({ name })}`,
   chartPath: (kind) => `/api/charts/${kind}`,
+  chartJsonPath: (kind) => `/api/charts/${kind}.json`,
+  chartJson: (kind, o) => json(`/api/charts/${kind}.json`, o),
   weekMdPath: (year, week) => `/api/reports/week.md${qs({ year, week })}`,
   monthMdPath: (month) => `/api/reports/month.md${qs({ month })}`,
   blobUrl,

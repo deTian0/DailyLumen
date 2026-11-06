@@ -200,11 +200,77 @@ class TestAnalysisRoutes(_Fixture):
         self.assertEqual(r.status_code, 404)
         self.assertEqual(r.json()["error"]["code"], "unknown_chart")
 
+    def test_chart_json_matches_series_source(self):
+        """W16：/api/charts/{kind}.json 与 SVG 同源（复用 fetch_*_series）。"""
+        for kind in q.CHART_KINDS:
+            r = self.client.get(f"/api/charts/{kind}.json")
+            self.assertEqual(r.status_code, 200, kind)
+            self.assertEqual(r.headers["content-type"], "application/json")
+            body = r.json()
+            self.assertEqual(body["kind"], kind)
+            self.assertIn("dates", body)
+            self.assertIn("series", body)
+            self.assertEqual(body, q.chart_series(self.ro(), kind))
+            # 序列值数 = 日期数
+            for s in body["series"]:
+                self.assertEqual(len(s["values"]), len(body["dates"]), (kind, s["key"]))
+
+    def test_chart_json_trends_values_match_svg_series(self):
+        """对拍：trends JSON 的每个序列值 = SVG fetch_series 的对应列（R1 单源）。"""
+        from review_tool.reports import chart
+
+        cols = [m[0] for m in chart.DEFAULT_SERIES]
+        dates, series = chart.fetch_series(self.ro(), cols)
+        body = self.client.get("/api/charts/trends.json").json()
+        self.assertEqual(body["dates"], dates)
+        for (col, label, color, unit) in chart.DEFAULT_SERIES:
+            got = next(s for s in body["series"] if s["key"] == col)
+            self.assertEqual(got["values"], series[col])
+            self.assertEqual(got["name"], label)
+            self.assertEqual(got["color"], color)
+            self.assertEqual(got["unit"], unit)
+
+    def test_chart_json_body_includes_ma7_and_target(self):
+        """body JSON 含 7 日均（复用 moving_average）与目标带（BODY_TARGETS）。"""
+        from review_tool.config import BODY_TARGETS
+        from review_tool.core.body import moving_average
+        from review_tool.reports import chart
+
+        dates, weights = chart.fetch_body_series(self.ro())
+        body = self.client.get("/api/charts/body.json").json()
+        self.assertEqual(body["dates"], dates)
+        self.assertEqual(body["series"][0]["values"], weights)
+        self.assertEqual(body["series"][1]["values"], moving_average(weights, window=7))
+        self.assertTrue(body["series"][1].get("dash"))
+        low = BODY_TARGETS.get("weight_kg_low")
+        high = BODY_TARGETS.get("weight_kg_high")
+        if low is not None and high is not None:
+            self.assertEqual(body["target"], {"low": float(low), "high": float(high)})
+        else:
+            self.assertIsNone(body["target"])
+
+    def test_chart_json_nutrition_dual_axis(self):
+        body = self.client.get("/api/charts/nutrition.json").json()
+        self.assertEqual(len(body["series"]), 2)
+        self.assertEqual(body["series"][0]["yAxisIndex"], 0)
+        self.assertEqual(body["series"][1]["yAxisIndex"], 1)
+
+    def test_chart_json_unknown_404(self):
+        r = self.client.get("/api/charts/pie.json")
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(r.json()["error"]["code"], "unknown_chart")
+
+    def test_chart_json_route_not_shadowed_by_svg_route(self):
+        """`.json` 路由须排在 `{kind}` 之前，否则会被吞成 kind='trends.json'。"""
+        r = self.client.get("/api/charts/trends.json")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["kind"], "trends")
+
     def test_readonly_routes_never_touch_db(self):
         before = _sha(self.db)
         for path in ("/api/reports/week", "/api/reports/month", "/api/reports/ai-context",
                      "/api/stats", "/api/doctor", "/api/fuse", "/api/charts/trends",
-                     "/api/reports/weeks", "/api/reports/months"):
+                     "/api/charts/trends.json", "/api/reports/weeks", "/api/reports/months"):
             self.assertEqual(self.client.get(path).status_code, 200, path)
         self.assertEqual(_sha(self.db), before)
 

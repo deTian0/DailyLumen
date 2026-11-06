@@ -203,3 +203,75 @@ def chart_svg(conn, kind: str) -> str:
     if fn is None:
         raise QueryError(404, "unknown_chart", f"未知图表类型（可选 {'/'.join(CHART_KINDS)}）")
     return fn(conn)
+
+
+def chart_series(conn, kind: str) -> dict:
+    """W16：图表的 JSON 序列（与 ``chart_svg`` 同源，复用 ``reports.chart.fetch_*_series``）。
+
+    返回 ``{"kind","dates","series","target"}``，前端 ECharts 直接消费；不另算均线 /
+    目标带（R1：均线复用 ``core.body.moving_average``、目标带复用 ``config.BODY_TARGETS``）。
+    """
+    from ..config import BODY_TARGETS
+    from ..core.body import moving_average
+    from ..reports import chart
+
+    if kind not in CHART_KINDS:
+        raise QueryError(404, "unknown_chart", f"未知图表类型（可选 {'/'.join(CHART_KINDS)}）")
+
+    if kind == "trends":
+        cols = [m[0] for m in chart.DEFAULT_SERIES]
+        dates, series = chart.fetch_series(conn, cols)
+        return {
+            "kind": kind,
+            "dates": dates,
+            "series": [
+                {"key": c, "name": label, "color": color, "unit": unit,
+                 "values": series[c], "type": "line"}
+                for (c, label, color, unit) in chart.DEFAULT_SERIES
+            ],
+            "target": None,
+        }
+
+    if kind == "body":
+        dates, weights = chart.fetch_body_series(conn)
+        ma7 = moving_average(weights, window=7)
+        low = BODY_TARGETS.get("weight_kg_low")
+        high = BODY_TARGETS.get("weight_kg_high")
+        return {
+            "kind": kind,
+            "dates": dates,
+            "series": [
+                {"key": "weight_kg", "name": "体重", "color": "#2563eb",
+                 "unit": "kg", "values": weights, "type": "line"},
+                {"key": "ma7", "name": "7日均", "color": "#ea580c",
+                 "unit": "kg", "values": ma7, "type": "line", "dash": True},
+            ],
+            "target": (None if low is None or high is None
+                       else {"low": float(low), "high": float(high)}),
+        }
+
+    if kind == "training":
+        dates, volumes = chart.fetch_training_series(conn)
+        return {
+            "kind": kind,
+            "dates": dates,
+            "series": [
+                {"key": "exercise_min", "name": "训练量", "color": "#16a34a",
+                 "unit": "分钟", "values": volumes, "type": "bar"},
+            ],
+            "target": None,
+        }
+
+    # nutrition：双轴
+    dates, kcals, weights = chart.fetch_nutrition_series(conn)
+    return {
+        "kind": kind,
+        "dates": dates,
+        "series": [
+            {"key": "diet_kcal", "name": "热量", "color": "#ea580c",
+             "unit": "kcal", "values": kcals, "type": "line", "yAxisIndex": 0},
+            {"key": "weight_kg", "name": "体重", "color": "#2563eb",
+             "unit": "kg", "values": weights, "type": "line", "yAxisIndex": 1},
+        ],
+        "target": None,
+    }

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
-import { AuthImage, Card, ErrorBox, Loading, Stat } from '../components/Common'
+import { Card, ErrorBox, Loading, Stat } from '../components/Common'
+import { EChart } from '../components/EChart'
+import { buildChartOption } from '../lib/chartOption'
 
 const CHARTS = [
   { id: 'trends', label: '四维趋势' },
@@ -17,25 +19,25 @@ const DIM_NAME = {
   system_score: '系统',
 }
 
-// 图表：带 key 取后端 SVG 再嵌入（与 CLI chart 同源）；onLoad/onError 给出加载 / 失败态
+// W16：前端自绘图（ECharts 吃 /api/charts/{kind}.json，与 SVG 同源）
 function ChartView({ kind, label }) {
   const [st, setSt] = useState({ kind, status: 'loading', n: 0 })
   const cur = st.kind === kind ? st : { kind, status: 'loading', n: 0 }
   if (cur !== st) setSt(cur)
+  const data = useAsync((signal) => api.chartJson(kind, { signal }), [kind, cur.n])
+  const option = data.data ? buildChartOption(data.data) : null
   return (
     <div className="chart-well" aria-busy={cur.status === 'loading'}>
-      {cur.status === 'loading' && <Loading label={`正在生成${label}图…`} />}
-      {cur.status === 'error' ? (
+      {data.error ? (
         <div className="state state-error" role="alert">
           <div>{label}图生成失败（可能该类数据为空或库未就绪）</div>
           <button type="button" className="btn-ghost"
             onClick={() => setSt({ kind, status: 'loading', n: cur.n + 1 })}>重试</button>
         </div>
+      ) : !option ? (
+        <Loading label={`正在生成${label}图…`} />
       ) : (
-        <AuthImage key={`${kind}-${cur.n}`} path={`${api.chartPath(kind)}?r=${cur.n}`} alt={`${label}图表`}
-          style={cur.status === 'loading' ? { position: 'absolute', opacity: 0 } : undefined}
-          onLoad={() => setSt({ kind, status: 'ok', n: cur.n })}
-          onError={() => setSt({ kind, status: 'error', n: cur.n })} />
+        <EChart option={option} ariaLabel={`${label}图表`} />
       )}
     </div>
   )
