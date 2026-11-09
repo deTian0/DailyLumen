@@ -331,12 +331,16 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06；**状态对齐 2026-11-09**（代码版本 **v1.86.0**，B5/B7/B6 已合入）。W1–W18 与 v1.79–v1.86 推远端 `main`（不推 tag）。
+> 追加于 2026-11-06；**状态对齐 2026-11-09**（代码版本 **v1.86.0**；B5–B8 均已合入，B8 纯文档不 bump）。W1–W18 与 v1.79–v1.86 推远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**；写操作一律只用 mock / 临时库测试。
-> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；**B6✅ v1.86**；B8 / B11–B13 待办；B9 运维提醒（非代码）；B10 tag 待拍板；B14 文档勘误✅。
-> 优先级建议：**P1** B9（运维换 Key）→ **P2** B8 → 待拍板 B10 → 可选 B11、B12、B13。
+> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；**B6✅ v1.86**；**B8✅ 文档**；B11–B13 待办；B9 运维提醒（非代码）；B10 tag 待拍板；B14 文档勘误✅。
+> 优先级建议：**P1** B9（运维换 Key）→ 待拍板 B10 → 可选 B11、B12、B13。
 
-### 本轮已完成（v1.86.0，2026-11-09）
+### 本轮已完成（B8 文档，2026-11-09）
+
+- **B8 写操作真机验收清单**：[`docs/Web看板写操作验收清单.md`](Web看板写操作验收清单.md)；对照 17 条 `writes` 注册表核实副作用；agent 不真机确认。
+
+### 已完成（v1.86.0，2026-11-09）
 
 - **B6 体检页结构化视图**：`summarize`（reports）+ `DoctorOut.summary`；前端卡片对齐 `is_healthy` / `render`；原文折叠保留。
 
@@ -427,26 +431,24 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **勘误**：早期计划写「只改 prose.js」**不正确**——周报是 Markdown 表格，入口是 `markdown.jsx`（prose 仅 CLI 风格全文转 md）。
 - **风险**：解析只在前端做，**不改后端报告文本**。
 
-### B8（P2）写操作真机验收清单
+### B8（P2）写操作真机验收清单 ✅（纯文档，不 bump）
 
 - **目标**：整理一份写操作真机验收清单，用户本人按清单逐项手动点（agent 不执行真实确认）。
-- **涉及**：新文档或本文附节；对应写动作的副作用如下：
+- **文档**：[`docs/Web看板写操作验收清单.md`](Web看板写操作验收清单.md)（17 动作全覆盖；对照 `api/writes` 核实）。
+- **验收**：前置 / 步骤 / 预期 / 回滚齐全；特例：`clickup_habit` 不写 `habit_logs`；练练 6 动作不落库。
+- **定稿副作用表**（与注册表一致；定稿**不**自动写库，ingest 另项）：
 
-| 动作 | 写远端 | 写库 `local/reviews.db` | 写 md |
+| 动作 | 写远端 | 写库 `local/reviews.db` | 写 md / 文件 |
 | --- | --- | --- | --- |
-| ClickUp 完成（单条 / 批量） | ✅ ClickUp | — | — |
-| ClickUp 新建 / 改状态 | ✅ ClickUp | — | — |
-| habits sync | 读 ClickUp | ✅ `habit_logs` | — |
-| AI 草稿写入 | — | — | ✅ 复盘 md |
-| 定稿 | — | 视串联 ingest 而定 | ✅ 复盘 md |
-| ingest 单文件 | — | ✅ | — |
-| clickup-pull 快照 | 读 ClickUp | ✅ `clickup_done` | — |
-| 读图日流程（写 md → ingest → 归档） | — | ✅ | ✅ + 移动收件箱文件 |
-| 练练写回 6 动作 | ✅ 练练 | ❌ 不落库 | — |
-| clickup-habit（B15） | ✅ ClickUp「练练健身」 | ❌ 不写 `habit_logs` | — |
-
-- **验收**：每项写明前置条件（`--enable-write`、已备份库）、操作步骤、预期结果、回滚方式（ClickUp 手动改回 / 用备份恢复库 / git 还原 md）。
-- **风险**：上表「写库 / 写 md」列以实现为准，整理时要逐项对照 `api/writes/*.py` 核实后再定稿。
+| task_create / task_status / task_batch | ✅ ClickUp | — | — |
+| habits_sync | 读 ClickUp | ✅ `habit_logs` | — |
+| ai_draft / finalize | — | — | ✅ 复盘 md |
+| ingest | — | ✅ | — |
+| clickup_pull | 读 ClickUp | ✅ `clickup_done` | — |
+| vision | （LLM） | — | ✅ 复盘 md |
+| inbox_archive | — | — | ✅ 移动收件箱 |
+| ks_* ×6 | ✅ 练练 | ❌ 不落库 | — |
+| clickup_habit | ✅ ClickUp | ❌ 不写 `habit_logs` | — |
 
 ### B9（运维提醒 · 非代码项）练练 API Key
 
