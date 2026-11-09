@@ -108,20 +108,24 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 | 项目孵化 | 副业想法推进 | 同上（默认不采，按需 `--list <CLICKUP_LIST_ID>`） | 只读 |
 | 2026 年度目标 | 长期方向 | 「四、明日 Top 3」的对照锚点 | 只读 |
 
-**三条受控写方向（互不干扰）**
+**四条受控写方向（互不干扰）**
 
 | 方向 | 命令 | 写什么 |
 | --- | --- | --- |
 | **库 → ClickUp**（v1.7.0） | `clickup-push` | 只勾「每日复盘总结」元任务 |
 | **ClickUp → 库**（v1.15.0 · **唯一**） | `habits --sync` / `clickup --with-habits` | 6 条习惯 → `habit_logs` 快照（幂等；不改写已有 `done`） |
 | **人手偶发写任务**（v1.60.0 / I2） | `clickup-task` | 建任务 / 改状态 / 评论；默认 dry-run，`--apply` 才写；**不写** `habit_logs`、不参与四维 |
+| **代勾习惯**（v1.83.0 / B15） | `clickup-habit` | 只勾「练练健身」（`lianlian`）；默认 dry-run；**不**写 `habit_logs` / 训练表（入库仍走 sync） |
 
 库 → ClickUp 通道：复盘已入库后，用项目命令把「习惯与打卡」里的**每日复盘总结**
 元任务标完成 —— **只写这一条**，不碰其它任务。`clickup-task` **不能替代** `clickup-push`。
+B15 代勾「练练健身」是**另一条**窄通道（习惯 Continuity），≠ 训练明细入库，也**不能**替代 `habits --sync`。
 
 ```bash
 python -m review_tool clickup-push 2026-10-12            # 默认 dry-run，只打印
 python -m review_tool clickup-push 2026-10-12 --apply    # 真写 + GET 回读
+python -m review_tool clickup-habit --habit lianlian --date 2026-11-08   # 预览代勾
+python -m review_tool clickup-habit --habit lianlian --date 2026-11-08 --apply
 python -m review_tool clickup-task --create "买菜" --list <ID>   # dry-run
 python -m review_tool clickup-task --create "买菜" --list <ID> --apply
 ```

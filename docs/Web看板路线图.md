@@ -321,11 +321,15 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06。当前版本 v1.82.0（B4 练练写回剩余 4 动作），W1–W18 已推送到远端 `main`（不推 tag）。
+> 追加于 2026-11-06。当前版本 v1.83.0（B15 代勾 ClickUp「练练健身」），W1–W18 已推送到远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**，push 前等用户验收；写操作一律只用 mock / 临时库测试。
 > 优先级建议：**P0** B1 → **P1** B9 → **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12–B14。
 
-### 本轮已完成（v1.82.0，2026-11-09）
+### 本轮已完成（v1.83.0，2026-11-09）
+
+- **B15 练练完成后受控代勾 ClickUp「练练健身」**：CLI `clickup-habit --habit lianlian`（默认 dry-run / `--apply|--yes`）；写动作 `clickup_habit` 入 plan→confirm；只写 ClickUp、**不**写 `habit_logs` / `training_*`；练练 `completed` 仅旁证；Life 习惯/训练页入口；全 mock 测。
+
+### 已完成（v1.82.0，2026-11-09）
 
 - **B4 练练写回剩余 4 动作上面板**：`ks_schedule` / `ks_create_template` / `ks_replace_template_actions` / `ks_plan_command` 接到 `KeepStrongWrite`；`ActionsJsonEditor` 前端校验；Vitest mock 覆盖 plan→confirm / 422 / 401 `upstream_auth`；`api.js` 区分看板 401 与练练 `upstream_auth`。
 
@@ -371,6 +375,13 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **目标**：把 `ks_schedule` / `ks_create_template` / `ks_replace_template_actions` / `ks_plan_command` 接到前端，沿用 `WriteFlow` 的预览→确认流程。
 - **实现**：`KeepStrongWrite.jsx`（自 `Life.jsx` 抽出）+ `ActionsJsonEditor.jsx`；`WriteFlow` 增 `canPreview`；`api.js` 401 仅 `unauthorized` 清 key；文案明示「写回不落库、不可撤销」；`command` 下拉仅 4 值；前端不重复 URL 编码。
 - **验收**：JSON 编辑器前端校验（语法 / 必填 `actionId`）+ 后端 422 回显；Vitest mock 覆盖 plan→confirm、422、401 `upstream_auth`；不连真练练；后端写路由未改。
+
+### B15（P1）练练完成后受控代勾 ClickUp「练练健身」 ✅ v1.83.0
+
+- **目标**：用户 / agent 显式触发，预览→确认后代勾 ClickUp 习惯 `lianlian`；习惯 Continuity 以 ClickUp 为主，训练事实仍以练练为准。
+- **实现**：`pipeline/clickup_habit.py` + CLI `clickup-habit`；`writes/clickup.py` 登记 `clickup_habit`；Life 习惯/训练页 `ClickupHabitWrite`；只写 ClickUp（`db_changed=False`），**不**写 `habit_logs` / `training_*` / 四维分；练练 `completed` 旁证不强制；缺任务 / 401 / 429 结构化错误。
+- **验收**：CLI/API 全 mock（dry-run / complete / 幂等 / 缺任务 / 上游错误）；Vitest mock plan→confirm；不对真 ClickUp 确认；`habit_logs` 仍走 `habits --sync`。
+- **红线**：R3 不混 `personal_tracks`；禁止静默自动勾；禁止 ClickUp 反推训练表。
 
 ### B5（P2）图表系列开关偏好记忆
 

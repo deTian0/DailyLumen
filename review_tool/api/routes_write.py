@@ -4,7 +4,8 @@
 1. ``POST /api/write/<动作>/plan`` → 预览 + 一次性 token + 等价 CLI（不写任何东西）
    动作：habits-sync / ai-draft / finalize（W9）· task-create / task-status / ingest（W10）·
    vision / inbox-archive / clickup-pull（W11）· ks-set-weight / ks-log-body / ks-schedule /
-   ks-create-template / ks-replace-template-actions / ks-plan-command（W17，练练写回不落库）；
+   ks-create-template / ks-replace-template-actions / ks-plan-command（W17，练练写回不落库）·
+   clickup-habit（B15，代勾「练练健身」习惯，不写 habit_logs）；
    ``GET /api/write/inbox`` 只读列收件箱图片
 2. ``POST /api/write/confirm``（JSON ``{"token": ...}``）→ 执行预览过的内容，写后回读校验
 
@@ -129,6 +130,11 @@ class ConfirmOut(BaseModel):
     result: dict[str, Any]
 
 
+class ClickupHabitIn(BaseModel):
+    habit: str = "lianlian"
+    date: str | None = None
+
+
 def build_router(*, db_path: str | None = None, fetch=None, env=None, client=None,
                  mode: str | None = None, backup_dir: str | None = None,
                  tokens: wo.TokenStore | None = None, cu_client=None,
@@ -193,6 +199,12 @@ def build_router(*, db_path: str | None = None, fetch=None, env=None, client=Non
     @router.post("/clickup-pull/plan", response_model=PlanOut)
     def plan_pull(body: ClickupPullIn):
         return wo.plan_clickup_pull(store, days=body.days, env=env, fetch=pull_fetch, db_path=db_path)
+
+    # B15：代勾 ClickUp「练练健身」习惯（只写 ClickUp；不写 habit_logs / 训练表）
+    @router.post("/clickup-habit/plan", response_model=PlanOut)
+    def plan_habit(body: ClickupHabitIn):
+        return wo.plan_clickup_habit(store, habit=body.habit, day=body.date,
+                                     env=env, fetch=fetch, ks_client=ks_client)
 
     # W17：练练写回（写回不落库；预览零网络写，确认才 POST）
     @router.post("/ks-set-weight/plan", response_model=PlanOut)

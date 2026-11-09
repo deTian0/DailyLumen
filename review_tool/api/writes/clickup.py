@@ -1,7 +1,9 @@
-"""ClickUp 域写操作：建任务 / 改状态（FR-J1）、批量改状态（W12）、完成快照 clickup-pull（W11）。
+"""ClickUp 域写操作：建任务 / 改状态（FR-J1）、批量改状态（W12）、完成快照 clickup-pull（W11）、
+习惯代勾 clickup-habit（B15）。
 
 建任务 / 改状态复用 ``pipeline.clickup_task``（dry-run + 写后回读）；快照复用
 ``pipeline.clickup_pull.collect``（与 CLI 同一归日口径，R1），写库前备份、写后回读。
+B15 代勾只写 ClickUp（不写 ``habit_logs`` / ``training_*``）；入库仍走 ``habits --sync``。
 """
 from __future__ import annotations
 
@@ -184,6 +186,106 @@ def plan_clickup_pull(tokens: TokenStore, *, days: int = 14, env=None, fetch=Non
                "target_table": "clickup_done", "strategy": "按整天替换（仅预览中出现的日期）"}
     return plan_out(tokens, "clickup_pull", {"date": today(), "by_date": by_date},
                     preview=preview, cli=f"python -m review_tool clickup-pull --days {int(days)}")
+
+
+# ---------------------------------------------------------------------------
+# B15：代勾 ClickUp 习惯（窄通道；默认仅 lianlian）
+# ---------------------------------------------------------------------------
+
+def plan_clickup_habit(tokens: TokenStore, habit: str = "lianlian", day: str | None = None, *,
+                       env=None, fetch=None, ks_client=None, check_keepstrong: bool = True
+                       ) -> dict[str, Any]:
+    """预览代勾：只读定位任务 + 练练旁证；不写 ClickUp / 不写库。"""
+    from ...config import HABITS_LIST_ID
+    from ...pipeline import clickup_habit as ch
+    from ..clickup_queries import _creds
+    from ..queries import _check_date
+
+    habit = (habit or "").strip() or "lianlian"
+    day = _check_date(day) if day else today()
+    if habit not in ch.ALLOWED_HABIT_KEYS:
+        raise QueryError(422, "invalid_habit",
+                         f"B15 仅允许习惯 {sorted(ch.ALLOWED_HABIT_KEYS)}")
+    key, _team = _creds(env)
+    try:
+        planned = ch.plan_habit(
+            day, habit, list_id=HABITS_LIST_ID, key=key, fetch=fetch,
+            ks_client=ks_client, env=env, check_keepstrong=check_keepstrong,
+        )
+    except ValueError as e:
+        raise QueryError(404, "habit_task_missing", str(e)) from e
+    except urllib.error.HTTPError as e:
+        code = getattr(e, "code", "?")
+        if str(code) == "429":
+            raise QueryError(429, "rate_limited", "ClickUp 限流，请稍后再试") from e
+        if str(code) in ("401", "403"):
+            raise QueryError(502, "upstream_auth", "ClickUp 凭据失效或权限不足") from e
+        raise QueryError(502, "upstream_error", f"ClickUp 返回 HTTP {code}") from e
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise QueryError(504, "upstream_unreachable", "ClickUp 网络不可达或超时") from e
+
+    preview = {
+        "date": day,
+        "habit_key": planned["habit_key"],
+        "label": planned["label"],
+        "task_id": planned["task_id"],
+        "name": planned["name"],
+        "action": planned["action"],
+        "closed": planned["closed"],
+        "keepstrong_hint": planned["keepstrong_hint"],
+        "disclaimer": planned["disclaimer"],
+        "writes": ["ClickUp 任务 complete"],
+        "does_not_write": ["habit_logs", "training_*", "training_day", "四维分"],
+        "note": "确认后只勾 ClickUp；habit_logs 请另跑 habits --sync（避免双写权威）",
+    }
+    cli = (
+        f"python -m review_tool clickup-habit --habit {habit} --date {day} --apply"
+    )
+    return plan_out(
+        tokens, "clickup_habit",
+        {"date": day, "habit_key": habit, "task_id": planned["task_id"],
+         "habit_action": planned["action"], "label": planned["label"]},
+        preview=preview, cli=cli,
+    )
+
+
+@register("clickup_habit", needs=("env", "cu_client"))
+def _apply_clickup_habit(p: dict[str, Any], *, env=None, cu_client=None) -> dict[str, Any]:
+    """确认代勾：只 PUT ClickUp；不写库（db_changed=False）。"""
+    from ...pipeline.clickup_sync import mark_complete
+    from ..clickup_queries import _creds
+
+    if p.get("habit_action") == "skip_closed":
+        return {
+            "written": False, "skipped": True, "readback": True,
+            "db_changed": False,
+            "message": f"「{p.get('label') or p.get('habit_key')}」当日已完成 —— 幂等跳过",
+        }
+    key, _team = _creds(env)
+    tid = str(p.get("task_id") or "").strip()
+    if not ID_RE.match(tid):
+        raise QueryError(422, "invalid_task", "task id 不合法")
+    try:
+        mark_complete(tid, key, client=cu_client)
+    except RuntimeError as e:
+        raise QueryError(502, "writeback_failed", str(e)) from e
+    except urllib.error.HTTPError as e:
+        code = getattr(e, "code", "?")
+        if str(code) == "429":
+            raise QueryError(429, "rate_limited", "ClickUp 限流，请稍后再试") from e
+        if str(code) in ("401", "403"):
+            raise QueryError(502, "upstream_auth", "ClickUp 凭据失效或权限不足") from e
+        raise QueryError(502, "writeback_failed", f"回写失败: HTTP {code}") from e
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise QueryError(504, "upstream_unreachable", "ClickUp 网络不可达或超时") from e
+    return {
+        "written": True, "skipped": False, "readback": True, "db_changed": False,
+        "task_id": tid,
+        "message": (
+            f"已勾 ClickUp 习惯「{p.get('label') or p.get('habit_key')}」"
+            f"（≠ 训练明细入库；habit_logs 请另 sync）"
+        ),
+    }
 
 
 @register("clickup_pull", needs=("db_path", "backup_dir"))

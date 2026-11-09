@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { Card, ErrorBox, Loading, Prose, Stat } from '../components/Common'
+import { ClickupHabitWrite } from '../components/ClickupHabitWrite'
 import { KeepStrongWrite } from '../components/KeepStrongWrite'
 import { WriteFlow } from '../components/WriteFlow'
 
@@ -185,13 +186,21 @@ export default function Life({ toast, health }) {
               )}
               {res.data.data && <Highlights id={tab} d={res.data.data} />}
               {tab === 'habits' && (
-                <Card title="同步 ClickUp 习惯" meta="写 habit_logs · 与 personal_tracks 分区">
-                  <WriteFlow action="habits-sync" params={{}} health={health} toast={toast}
-                    title="今日习惯同步" desc="从 ClickUp「习惯与打卡」拉今日完成态，预览后确认写入（写前自动备份库）。"
-                    renderPreview={HabitsPreview} confirmLabel="确认同步" />
-                </Card>
+                <>
+                  <ClickupHabitWrite health={health} toast={toast} />
+                  <Card title="同步 ClickUp 习惯" meta="写 habit_logs · 与 personal_tracks 分区">
+                    <WriteFlow action="habits-sync" params={{}} health={health} toast={toast}
+                      title="今日习惯同步" desc="从 ClickUp「习惯与打卡」拉今日完成态，预览后确认写入（写前自动备份库）。代勾练练健身请用上方卡（只写 ClickUp）。"
+                      renderPreview={HabitsPreview} confirmLabel="确认同步" />
+                  </Card>
+                </>
               )}
-              {tab === 'coach' && <KeepStrongWrite health={health} toast={toast} />}
+              {tab === 'coach' && (
+                <>
+                  <KeepStrongWrite health={health} toast={toast} />
+                  <ClickupHabitWrite health={health} toast={toast} />
+                </>
+              )}
               <Card title="全文" meta={`= CLI ${cur.cli || (tab === 'morning' || tab === 'evening' ? `steward --slot ${tab}` : tab)}`}>
                 <Prose source={res.data.text} />
               </Card>

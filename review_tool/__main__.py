@@ -63,6 +63,7 @@ from collections.abc import Callable
 from . import __version__
 from .integrations.flags import is_enabled as _integration_enabled
 from .pipeline.clickup import main as clickup_main
+from .pipeline.clickup_habit import main as clickup_habit_main
 from .pipeline.clickup_pull import main as clickup_pull_main
 from .pipeline.clickup_sync import main as clickup_push_main
 from .pipeline.clickup_task import main as clickup_task_main
@@ -180,6 +181,9 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "clickup-push": (
         clickup_push_main,
         "clickup-push [YYYY-MM-DD] [--apply] [--dry-run] [--list ID]"),
+    "clickup-habit": (
+        clickup_habit_main,
+        "clickup-habit --habit lianlian [--date D] [--apply|--yes] [--stdout]"),
     "clickup-task": (
         clickup_task_main,
         "clickup-task (--create NAME | --status ID S | --comment ID TEXT) [--list ID] [--apply]"),
@@ -249,7 +253,10 @@ def disabled_commands() -> set[str]:
     if not _new_day_enabled():
         off.add("new-day")
     if not _integration_enabled("clickup"):
-        off.update({"clickup", "clickup-push", "clickup-pull", "clickup-task"})
+        off.update({
+            "clickup", "clickup-push", "clickup-habit",
+            "clickup-pull", "clickup-task",
+        })
     if not _integration_enabled("keepstrong"):
         off.add("keepstrong")
     if not _integration_enabled("deepseek"):
