@@ -56,6 +56,17 @@ class TestWebDist(unittest.TestCase):
                 text = _read(os.path.join(root, name)) if name.endswith((".js", ".css", ".html")) else ""
                 self.assertFalse(web_key in text, f"访问密钥值出现在前端产物 {name}")
 
+    def test_bundle_has_no_google_fonts(self):
+        """B2：入库 dist 不得再引用 Google Fonts（零外网字体）。"""
+        banned = ("fonts.googleapis.com", "fonts.gstatic.com")
+        for root, _dirs, files in os.walk(DIST):
+            for name in files:
+                if not name.endswith((".js", ".css", ".html", ".svg", ".map")):
+                    continue
+                text = _read(os.path.join(root, name))
+                for needle in banned:
+                    self.assertNotIn(needle, text, f"{needle} 不应出现在前端产物 {name}")
+
 
 try:
     import fastapi  # noqa: F401

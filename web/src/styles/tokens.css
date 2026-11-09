@@ -33,8 +33,9 @@
   --shadow-in-sm: var(--inset);
   --radius: 12px;
   --radius-sm: 8px;
-  --font: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono: "IBM Plex Mono", "Cascadia Code", Consolas, monospace;
+  /* B2：系统字体栈（零外网、零自托管体积）；含中文兜底 */
+  --font: system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
   --sidebar-w: 220px;
   --focus: 0 0 0 3px rgba(13, 124, 111, 0.35);
 }

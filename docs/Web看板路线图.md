@@ -321,15 +321,19 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06。当前版本 v1.79.0（本轮 ClickUp 限流 + UI 打磨），W1–W18 已推送到远端 `main`（不推 tag）。
+> 追加于 2026-11-06。当前版本 v1.80.0（B2 系统字体栈），W1–W18 已推送到远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**，push 前等用户验收；写操作一律只用 mock / 临时库测试。
-> 优先级建议：**P0** B1 → **P1** B2、B3、B4、B9 → **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12–B14。
+> 优先级建议：**P0** B1 → **P1** B3、B4、B9 → **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12–B14。
 
-### 本轮已完成（v1.79.0，2026-11-09）
+### 本轮已完成（v1.80.0，2026-11-09）
+
+- **B2 字体本地化（方案 B）**：去掉 Google Fonts；`--font` / `--font-mono` 改系统栈；`test_web_dist` 断言 dist 无 `fonts.googleapis.com` / `fonts.gstatic.com`。
+
+### 已完成（v1.79.0，2026-11-09）
 
 - **ClickUp 429 限流**：`http_get` 有上限重试；耗尽后 API 映射 `rate_limited`，今日路由回退缓存；前端 `errText` 提示。
 - **UI 交互打磨**：toast 贴顶、步骤卡不再竖排、主区独立滚动、`aria-busy` 转圈、分析图刻度/图例可读性。
-- **明确不做**：B1 不修；不开 B2–B14。截图见 `local/screenshots/v179-ui/`（gitignore 区）。
+- **明确不做（当时）**：B1 不修；不开 B2–B14。截图见 `local/screenshots/v179-ui/`（gitignore 区）。
 
 ### B1（P0）分析页四维趋势图断线
 
@@ -340,13 +344,12 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **验收**：先补一条能复现的失败测试（后端对拍或 `chartOption.test.js`），修完后转绿；浏览器截图里四维线画到 11-04；全量 Python + 前端测试 + ruff 全绿。
 - **风险 / 注意**：R1 单源，不许在前端另算序列；不动评分 / 历史分。
 
-### B2（P1）字体本地化
+### B2（P1）字体本地化 ✅ v1.80.0
 
-- **目标**：页面**零外网请求**。现在 `web/index.html` 第 8–10 行从 Google Fonts 加载 IBM Plex Sans / IBM Plex Mono / Noto Sans SC。
-- **涉及**：`web/index.html`、`web/src/styles/**`（`font-family` 栈）、可能新增 `web/public/fonts/`。
-- **方案**：二选一，由用户拍板。A：自托管 woff2 子集（注意许可证 OFL，Noto SC 体积大，要做子集）；B：直接用系统字体栈（`system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif`），零体积。
-- **验收**：DevTools Network 里没有任何非 `127.0.0.1` 请求；`test_web_dist` 补一条断言：dist 中不含 `fonts.googleapis.com` / `fonts.gstatic.com`；`npm run build` 通过。
-- **风险**：中文字体自托管会让 dist 明显变大；改字体栈要截图复核 W18 视觉。
+- **目标**：页面**零外网请求**。原 `web/index.html` 从 Google Fonts 加载 IBM Plex Sans / IBM Plex Mono / Noto Sans SC。
+- **拍板**：方案 **B** 系统字体栈（零体积、零外网）；不做 A 自托管 woff2。
+- **实现**：`web/index.html` 去掉 Google Fonts；`tokens.css` 的 `--font` = `system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif`，`--font-mono` = `ui-monospace, "Cascadia Code", …`；`test_web_dist.test_bundle_has_no_google_fonts`；`npm run build` 后 dist 入库。
+- **验收**：dist 中不含 `fonts.googleapis.com` / `fonts.gstatic.com`；全量 Python + 前端测试 + ruff 全绿。
 
 ### B3（P1）ECharts 按需引入
 
@@ -410,7 +413,7 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ### B10（待拍板）版本 tag 补打
 
-- v1.73.0–v1.79.0 本地没打 tag。另外，**本地已有的 v1.60.1、v1.61.0–v1.72.0 共 13 个 tag 没推到远端**（远端 tag 最新只到 v1.60.0）。
+- v1.73.0–v1.80.0 本地没打 tag。另外，**本地已有的 v1.60.1、v1.61.0–v1.72.0 共 13 个 tag 没推到远端**（远端 tag 最新只到 v1.60.0）。
 - 等后续优化稳定后，由用户决定：统一补打并推，还是只打里程碑版本。在那之前 push 一律不带 `--tags`，也不开 `push.followTags`。
 
 ### B11（可选）暗色模式
