@@ -1,0 +1,15 @@
+# DailyLumen — 与 .gitattributes `eol=lf` 对齐；减少 Windows 工作区 CRLF 假脏。
+# 本文件不替代 git config；本机若仍反复脏，请自行：git config core.autocrlf false
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+
+[*.{py,md,yml,yaml,toml,json,txt,sh,ps1,css,html,js,ts,tsx}]
+end_of_line = lf
+insert_final_newline = true
+
+[*.{bat,cmd}]
+end_of_line = crlf
