@@ -87,6 +87,17 @@ class TestReconciliation(_Fixture):
             f.write("今日素材")
         self.assertEqual(self._run(today="2026-09-22")["inbox_files"], 1)
 
+    def test_inbox_archive_subdir_not_counted(self):
+        """v1.83.1：`收件箱/已处理/` 是系统归档目录，不能算待处理素材（否则告警恒真）。"""
+        inbox = os.path.join(self.md_dir, "收件箱")
+        day_dir = os.path.join(inbox, "已处理", "2026-09-21")
+        os.makedirs(day_dir, exist_ok=True)
+        with open(os.path.join(day_dir, "a.png"), "w", encoding="utf-8") as f:
+            f.write("x")
+        r = self._run(today="2026-09-22")
+        self.assertEqual(r["inbox_files"], 0)
+        self.assertEqual(r["inbox_pending"], [])
+
     def test_inbox_consumed_vs_pending(self):
         """v1.33.2：素材按「日期是否已入库」分已消化 / 待处理，留档不再算待处理。"""
         inbox = os.path.join(self.md_dir, "收件箱")

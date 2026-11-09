@@ -782,6 +782,8 @@ def diagnose(db_path: str | None = None, input_dir: str | None = None,
             [
                 f for f in os.listdir(inbox)
                 if not f.startswith((".", "_")) and f != "README.md"
+                # 只统计素材文件：`已处理/` 是系统归档目录，不是待办素材（恒真告警，v1.83.1）
+                and os.path.isfile(os.path.join(inbox, f))
             ]
             if os.path.isdir(inbox) else []
         )

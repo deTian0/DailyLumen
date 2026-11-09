@@ -33,7 +33,7 @@ _LEGACY_ENV_PATH = os.path.join(_BASE_DIR, ".env")
 
 # 练练健身（KeepStrong）内置默认 —— M17 客户端与 .env.example 共用
 DEFAULT_KEEPSTRONG_BASE_URL = "https://lianlian.gzyunke.cn"
-DEFAULT_KEEPSTRONG_SKILL_VERSION = "1.28.0"
+DEFAULT_KEEPSTRONG_SKILL_VERSION = "1.29.0"
 DEFAULT_KEEPSTRONG_AGENT_NAME = "WorkBuddy"
 DEFAULT_KEEPSTRONG_TIMEOUT_S = 30.0
 DEFAULT_KEEPSTRONG_CACHE_DIR = os.path.join(_BASE_DIR, ".workbuddy", "cache")
