@@ -73,6 +73,8 @@
 | W18 | 视觉与信息呈现重做 | ✅ | 去新拟物 → 冷静青绿/石板灰扁平轻 elev；CLI 全文 → Markdown prose；分析图默认 1–2 主系列；指标卡语义色标；不改 API/业务 | `v1.78.0`（未打 tag） |
 
 > 本表随每个里程碑完成实时更新；详细验收记录写在下方对应小节。
+>
+> **勘误（2026-11-09）**：W1–W18 的 commit 已推送到远端 `main`；W14–W18 标注的「未打 tag」仍属实（见后续待办 B10）。W18 之后已交付：v1.79 ClickUp 429+UI、v1.80 B2、v1.81 B3、v1.82 B4、v1.83 B15；另有 chore `274be6e` 增加 `.editorconfig`（钉 LF，未 bump 版本）。W17 行「余 4 种留 CLI」是当时快照；B4 / v1.82.0 已把剩余 4 动作接到面板。
 
 ---
 
@@ -269,6 +271,7 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 6. 批量操作扩展：批量改期 / 批量改状态（非 complete）。
 7. 缩略图服务端缩放（需评估是否引入图像依赖，当前标准库无法做）。
 8. 练练写回前端扩到排课 / 模板 / 计划命令（需 actions JSON 编辑器，当前留 CLI）。
+   > **勘误（2026-11-09）**：已由 **B4 / v1.82.0** 完成（`KeepStrongWrite` + `ActionsJsonEditor`）。
 9. W18 后续打磨：暗色模式、图表系列偏好记忆、doctor 结构化 JSON 视图、离线字体自托管。
 
 ### 6. 需要用户拍板的事项
@@ -278,6 +281,8 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - ~~是否需要给 serve 加最小鉴权~~ → 已加 `DAILYLUMEN_WEB_KEY`（W14）。
 - ~~前端是否引入 Vitest 测试框架~~ → 已引入（W15）。
 - 是否 push `v1.66.0`–`v1.78.0` 这批 commit 与 tag 到远端（当前全部未 push、未打 tag）。
+
+> **勘误（2026-11-09 / B14）**：上条写于收口当时。其后 W1–W18 与 v1.79–v1.83 的 commit 均已推送 `main`；**仍不推 tag**（远端 tag 最新约 `v1.60.0`，补打事宜见 B10）。本条保留原文，只追加说明。
 
 ---
 
@@ -296,6 +301,8 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 全量 Python 1241 通过 / 2 跳过；前端 6 文件 31 例；ruff 全绿；`npm run build` 通过。**未打 tag、未 push**（按约定）。
 
+> **勘误（2026-11-09 / B14）**：上句「未 push」已过时——对应 commit 其后已在 `main`；「未打 tag」仍属实（见 B10）。
+
 ### 2. 红线复核
 
 - **R1 单源**：W16 `chart_series` 复用 `reports.chart.fetch_*_series` / `core.body.moving_average` / `config.BODY_TARGETS`，对拍测试锁住 JSON == SVG 源；W17 复用 `integrations.keepstrong.Client` 写方法，不另算口径。
@@ -313,6 +320,8 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - W14 鉴权仅本机回环 + 单 key；非回环访问需用户自行评估（README 已告警）。
 - 全部 commit 未 push、未打 tag，待用户拍板。
 
+> **勘误（2026-11-09 / B14）**：上条「未 push」已过时（commit 已推 `main`）；tag 仍待拍板（B10）。原文保留。
+
 ### 4. 截图
 
 `local/screenshots/w14-w17/`：`w14-login.png`（登录页）、`w16-echarts-trends.png`（四维趋势 ECharts）、`w17-keepstrong-form.png`（练练写回表单）、`w17-keepstrong-preview.png`（记体征预览，零网络）。
@@ -321,9 +330,10 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06。当前版本 v1.83.0（B15 代勾 ClickUp「练练健身」），W1–W18 已推送到远端 `main`（不推 tag）。
+> 追加于 2026-11-06；**状态对齐 2026-11-09**（对齐起点 `274be6e` EditorConfig chore；代码版本仍 **v1.83.0**，本轮纯文档不 bump）。W1–W18 与 v1.79–v1.83 均已推远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**，push 前等用户验收；写操作一律只用 mock / 临时库测试。
-> 优先级建议：**P0** B1 → **P1** B9 → **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12–B14。
+> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；B5–B8 / B11–B13 待办；B9 运维提醒（非代码）；B10 tag 待拍板；B14 文档勘误✅（本轮）。
+> 优先级建议：**P1** B9（运维换 Key）→ **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12、B13。
 
 ### 本轮已完成（v1.83.0，2026-11-09）
 
@@ -347,14 +357,13 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **UI 交互打磨**：toast 贴顶、步骤卡不再竖排、主区独立滚动、`aria-busy` 转圈、分析图刻度/图例可读性。
 - **明确不做（当时）**：B1 不修；不开 B2–B14。截图见 `local/screenshots/v179-ui/`（gitignore 区）。
 
-### B1（P0）分析页四维趋势图断线
+### B1（关闭 / 不修）分析页四维趋势图「断线」
 
-- **目标**：分析页 trends 图的四维线完整画到最新日期，和 CLI `chart` 一致。
-- **现象**：线到大约 09-15 就断了。库里 `daily_reviews` 有 93 天（2026-07-16 ~ 2026-11-04），2026-11-06 用只读连接核对过：`health/work/learn/life_score` 在 09-15 之后**没有缺值**（各 50 行，空值 0），最新一天是 11-04。所以问题**不在数据源**，要往 API 和前端查。
-- **涉及**：`review_tool/api/queries.py::chart_series`（trends 分支）、`review_tool/reports/chart.py::fetch_series`、`GET /api/charts/{kind}.json`（`routes_reports.py`）、`web/src/lib/chartOption.js`（`connectNulls: false`、category 日期轴、`defaultLegendSelected` 默认只开前 2 条）、`web/src/components/EChart.jsx`。
-- **排查顺序**：① 直接 GET `/api/charts/trends.json`，看 `dates` 长度和末尾日期、各系列 `values` 里 null 的位置；② 和 `python -m review_tool chart --stdout` 的 SVG 对拍；③ 前端检查 `buildChartOption` 的输出（null 断点、dataZoom / 截断、系列和日期是否对齐、W18 图例默认选中有没有影响）。
-- **验收**：先补一条能复现的失败测试（后端对拍或 `chartOption.test.js`），修完后转绿；浏览器截图里四维线画到 11-04；全量 Python + 前端测试 + ruff 全绿。
-- **风险 / 注意**：R1 单源，不许在前端另算序列；不动评分 / 历史分。
+- **状态**：⛔ **关闭 / 不修**（2026-11-09 用户确认）。
+- **理由**：排查后库→API→`chartOption`→ECharts SSR 各层均可画到最新日；用户确认所见「断点」来自**数据空值**（若干日期四维分为空 + `connectNulls: false`），不是代码缺陷。W18 默认图例只开前 2 系列也可能造成「只剩两条线」的观感。
+- **当时现象备忘**：有人观感线到约 09-15 断开；只读核对 09-15 之后四维分无缺值。前段（约 07-16～08-28）确有空值断点。
+- **涉及（备查，不再改）**：`queries.chart_series` / `reports.chart.fetch_series` / `GET /api/charts/{kind}.json` / `chartOption.js` / `EChart.jsx`。
+- **若日后再议**：先目视确认是空值断点还是图例关闭，再决定是否做 B5（图例偏好）或改 `connectNulls`；R1 单源仍适用。
 
 ### B2（P1）字体本地化 ✅ v1.80.0
 
@@ -420,18 +429,23 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 | clickup-pull 快照 | 读 ClickUp | ✅ `clickup_done` | — |
 | 读图日流程（写 md → ingest → 归档） | — | ✅ | ✅ + 移动收件箱文件 |
 | 练练写回 6 动作 | ✅ 练练 | ❌ 不落库 | — |
+| clickup-habit（B15） | ✅ ClickUp「练练健身」 | ❌ 不写 `habit_logs` | — |
 
 - **验收**：每项写明前置条件（`--enable-write`、已备份库）、操作步骤、预期结果、回滚方式（ClickUp 手动改回 / 用备份恢复库 / git 还原 md）。
 - **风险**：上表「写库 / 写 md」列以实现为准，整理时要逐项对照 `api/writes/*.py` 核实后再定稿。
 
-### B9（运维提示）练练 API Key 已过期
+### B9（运维提醒 · 非代码项）练练 API Key
 
-- 练练接口返回 401 `apiKeyExpired`。需要在练练 App 里重新生成 Key，写进 `local/.env` 的 `KEEPSTRONG_API_KEY`（只追加 / 替换这一行，写完回读校验）。
-- 只是提醒，**不读、不打印 `.env` 的值**。B4 的测试走 mock，不受影响。
+- **性质**：运维提醒，**不是**代码里程碑；不改仓库、不 bump 版本。
+- **现象（曾观测）**：练练接口返回 401 `apiKeyExpired` → CLI/面板可能静默无训练数据并走离线兜底。
+- **处置**：在练练 App 重新生成 Key → 写入 `local/.env` 的 `KEEPSTRONG_API_KEY`（只改这一行，写完回读校验键名存在即可）。
+- **约束**：只提醒，**不读、不打印 `.env` 的值**。B4 / B15 等测试走 mock，不依赖真 Key。
+- **现状（2026-11-09）**：是否已换新 Key **以本机 `local/.env` 为准**（文档不跟踪密钥内容）；换完后用 `keepstrong --date <D> --stdout` 自检，不应再出现 `apiKeyExpired`。
 
 ### B10（待拍板）版本 tag 补打
 
-- v1.73.0–v1.80.0 本地没打 tag。另外，**本地已有的 v1.60.1、v1.61.0–v1.72.0 共 13 个 tag 没推到远端**（远端 tag 最新只到 v1.60.0）。
+- **代码已推、tag 未齐**：v1.73.0–v1.83.0（含 EditorConfig chore，版本仍停在 1.83.0）本地多半未打或未推 tag。
+- **另**：本地曾有的 v1.60.1、v1.61.0–v1.72.0 等 tag **多数未推远端**（远端 tag 最新仍约 `v1.60.0`）。
 - 等后续优化稳定后，由用户决定：统一补打并推，还是只打里程碑版本。在那之前 push 一律不带 `--tags`，也不开 `push.followTags`。
 
 ### B11（可选）暗色模式
@@ -444,4 +458,4 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 - **B12 批量操作扩展**（批量改期 / 批量改状态，非 complete）：依据是本文「收口 §5 第 6 条」，目前未做。
 - **B13 缩略图服务端缩放**：依据是「收口 §5 第 7 条」和「§4 已知问题」（每次读原图）；标准库做不了，要先拍板要不要引图像依赖。
-- **B14 收口文档状态更新**：「收口 §6」最后一条（是否 push）和「二期收口 §3」最后一条（未 push）已经过时。commit 已在 2026-11-06 推送，tag 问题看 B10。只追加说明，不改写原文。
+- **B14 收口文档状态更新** ✅（2026-11-09 文档同步）：已在「收口 §6」「二期收口」测试总结与 §3 末条下**追加勘误**（不改写历史原文）；tag 问题仍见 B10。另同步 B1 关闭理由、B2–B4/B15 完成态、B 项总览与 `.editorconfig` 附注。

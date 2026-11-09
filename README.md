@@ -21,6 +21,7 @@ uv run python -m review_tool serve            # → http://127.0.0.1:8765/ ，�
 - 前端单测（W15，Vitest + jsdom + Testing Library，版本钉在 `web/package-lock.json`）：`cd web; npm ci; npm test`（= `vitest run`，一次性跑完退出；开发时可 `npx vitest` 监听模式）。测试文件与源码同目录 `*.test.js(x)`，覆盖 `lib/api.js`（带 key / 401）、`lib/route.js`、`lib/todos.js`（待办分组）、`lib/chartOption.js`（W16 ECharts option）、`WriteFlow`（预览 → 确认 → 失败重试会重新预览）、登录页；全部 mock `fetch`，不连真服务。
 - 分析页图表（W16）：前端用 **ECharts** 吃 `/api/charts/{kind}.json`（与 CLI `chart` 的 SVG **同源**——复用 `reports.chart.fetch_*_series` / `core.body.moving_average` / `config.BODY_TARGETS`，R1 单源），替代一期嵌 SVG；旧 SVG 端点 `/api/charts/{kind}` 保留供 CLI 与外部嵌入。
 - 练练写回（W17 / B4）：生活管家「训练」tab 下六种写回（记体征 / 设下次重量 / 排课 / 创建模板 / 替换模板动作 / 计划命令）均复用 `plan/confirm`（写回**不落库、不可撤销、不作系统状态**，仅用户明确要求时）；actions JSON 前端校验 + 后端 422 回显。
+- 代勾习惯（B15 / v1.83）：CLI `clickup-habit --habit lianlian`（默认 dry-run）与 Web `clickup_habit` 预览→确认；只勾 ClickUp「练练健身」，**不**写 `habit_logs` / 训练表（≠ 训练入库）。
 - 页面：今日看板（待办 / 已办 / 收工灯 / 本周节奏 / 负荷）、复盘与报告（周报 / 月报 / 昨日上下文，可下载 .md）、生活管家（一日三步 / 晨间简报 / 夜间复盘指引 / 本周做成 / 连续天数 / 体征 / 训练 / 营养 / 习惯 / 学习 / 承诺兑现 / 跨维关联）、分析（stats + 图表）、体检（doctor / fuse / 集成失败）。
 - 🔑 **最小鉴权（W14）**：所有 `/api/*` 需请求头带密钥（`Authorization: Bearer <key>` 或 `X-DailyLumen-Key`）；`/api/ping` 是不含信息的存活探针。密钥默认只存浏览器 sessionStorage（关标签页即失效），登录页勾选「记住」才存 localStorage；任何 401 自动回登录页。仍默认只绑 `127.0.0.1` 且只读；写接口需 `--enable-write`。HTTP 明文传输，别把 `--host` 改成局域网地址。
 - 逻辑与 CLI 同源（`week` / `month` / `stats` / `doctor` / `clickup`），详见 `docs/Web看板PRD.md`、`docs/Web看板路线图.md`。

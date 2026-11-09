@@ -16,7 +16,7 @@ reports   ->  pipeline  ->  storage  ->  core
 - **`core/` 领域层**：零 I/O —— 禁止 `sqlite3` / `os` / `pathlib` 等，可脱离库与文件系统单独测试。
 - **`storage/` 持久化层**：`import sqlite3` **只允许出现在这里**，SQLite 是唯一出入口。
 - **`pipeline/` 数据流转层**：复盘 md ↔ 库（解析 / 入库 / 回写 / 转换 / 生成 / 导出）
-  ＋ 外部素材源（ClickUp / 练练健身 → 素材简报，只读）与受控回写（``clickup-push``）。
+  ＋ 外部素材源（ClickUp / 练练健身 → 素材简报，只读）与受控回写（``clickup-push`` / ``clickup-habit`` / ``clickup-task``；默认 dry-run）。
 - **`reports/` 产出层**：读库生成面向人的结果（分析 / 体检 / 熔断 / AI 上下文 / 分数维护）。
 - 包根的 **`config.py`**（门面）+ **`settings.py`**（凭据 / 环境差异）是可配置层；
   **`__main__.py`** 是纯路由。个人参数与业务规则仍改 `config.py`；API Key 只进 `.env`。
@@ -64,6 +64,8 @@ reports   ->  pipeline  ->  storage  ->  core
 | `clickup.py` | **ClickUp → 素材简报**（按 `date_closed` 归日；`--with-habits` 附习惯段并同步 `habit_logs`） |
 | `habit_sync.py` | **ClickUp 习惯 → habit_logs**（唯一 ClickUp→库写方向；幂等；不改写已有 done） |
 | `clickup_sync.py` | **复盘入库 → 勾「每日复盘总结」**（默认 dry-run；`--apply` 真写 + GET 回读） |
+| `clickup_habit.py` | **受控代勾习惯**（v1.83.0 / B15：仅 `lianlian`「练练健身」；默认 dry-run；**不**写 `habit_logs` / 训练表） |
+| `clickup_task.py` | **偶发建任务 / 改状态 / 评论**（v1.60.0 / I2；默认 dry-run；不写 `habit_logs`） |
 | `clickup_pull.py` | **ClickUp 已完成任务 → `clickup_done` 快照**（按整天替换；离线可查；v1.37.0） |
 | `keepstrong.py` | 练练健身客户端（读 + 受控写）；M20 起 records 只留 `completed` |
 | `keepstrong_render.py` | 练练记录 → 素材 md（纯函数、零 I/O） |
@@ -108,6 +110,8 @@ python -m review_tool llm-vision --image 图 --date 日 [--kind diet|sleep|scree
 python -m review_tool import-history [--check] [--src 目录]   # 旧格式转换（--check 仅预览）
 python -m review_tool clickup [YYYY-MM-DD] [--out 目录] [--stdout] [--list ID] [--with-habits]
 python -m review_tool clickup-push [YYYY-MM-DD] [--apply]   # 勾「每日复盘总结」（默认 dry-run）
+python -m review_tool clickup-habit --habit lianlian [--date D] [--apply]  # B15 代勾「练练健身」（默认 dry-run）
+python -m review_tool clickup-task --create|--status|--comment … [--apply]  # 偶发写任务（默认 dry-run）
 python -m review_tool clickup-pull [--days N]               # 已完成任务 → clickup_done 快照
 python -m review_tool clickup-done 2026-10-20               # 那天完成了什么（写复盘用）
 python -m review_tool keepstrong [--date D] [--write] [--ingest]
@@ -130,7 +134,9 @@ python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
 python -m review_tool stats [--json]                   # 一键统计（文档取数）
 python -m review_tool chart [--type body|training|nutrition|all] [--out 目录] [--stdout]
 python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（样本不足 10 仅观察）
-# 权威列表：python -m review_tool -h（当前 39 子命令；new-day 默认关闭）
+python -m review_tool serve [--host …] [--port …] [--enable-write]  # Web 看板（需 web extra + DAILYLUMEN_WEB_KEY）
+python -m review_tool version
+# 权威列表：python -m review_tool -h（当前 42 子命令；new-day 默认关闭）
 ```
 
 ## 目录约定

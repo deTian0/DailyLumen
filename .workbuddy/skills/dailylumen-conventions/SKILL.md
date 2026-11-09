@@ -37,7 +37,7 @@ agent_created: true
 - **运动主数据源（v1.21.0–v1.26.0 / M17–M20）**：练练健身 API → `keepstrong` 素材 → `--write` 落 md → `ingest`（G1）；写回（`--set-weight` / `--log-body` / `--schedule`）须 `--yes`，不落库。**M20 起**训练日主判据 = 被复盘日 `status=="completed"`（`training_weekdays` 仅离线兜底）。**M21 / v1.27.0** 起 `coach` / `steward` / `doctor` 不再把星期兜底写成「应为 / 休息日 / 计划课次」。
 - **行为跟踪执行层在 ClickUp**（个人行为 / 习惯 / 年度目标 / 书单）：素材仍单向供给复盘；
   **v1.15.0 / M11 起**，「习惯与打卡」另有一条受控写库：ClickUp → `habit_logs` 快照
-  （**唯一 ClickUp→库写方向**，不参与四维评分）。空间结构、list ID、映射口径、日期归属
+  （**唯一 ClickUp→库写方向**，不参与四维评分）。另有受控回写：`clickup-push`（每日复盘总结）、`clickup-habit`（v1.83 / B15 仅代勾「练练健身」，默认 dry-run，**不**写 `habit_logs`）、`clickup-task`（偶发建任务）。空间结构、list ID、映射口径、日期归属
   （`date_closed`，含「次日早上补勾」回拨）与「两套打卡体系不许混」的边界，见 skill
   **`clickup-tracking`**。
 - **不在本仓库的资产**：助手人格 / 协作准则在用户级记忆 `~/.workbuddy/MEMORY.md`；
@@ -355,7 +355,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
-| **下一步开发做什么** | 隐私归一 M45–M50 ✅（`docs/隐私与配置归一路线图.md`）。**若开源**：先做 `docs/开源前隐私擦除计划.md`（O1–O6；历史仍有 `reviews.db` 等残留）。未跟踪内容在 **`local/`**；运行时依赖 pydantic*。 |
+| **下一步开发做什么** | 隐私归一 M45–M50 ✅；Web 看板 W1–W18 ✅，后续 B 项见 `docs/Web看板路线图.md`「后续待办（W18 之后）」（当前代码 **v1.83.0**：B2–B4/B15 ✅，B1 关闭/不修，B5–B8/B9–B13 等见该表）。**若开源**：先做 `docs/开源前隐私擦除计划.md`（O1–O6）。未跟踪内容在 **`local/`**；运行时依赖 pydantic*。 |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
@@ -374,6 +374,7 @@ agent_created: true
    `tests/architecture/test_repo_layout.py` 把这条钉死了 —— 别"顺手清理"回去。
 2. **改文件别用 Python 的文本模式写**：`open(p, "w")` 会在 Windows 上把行尾改成 CRLF，
    而 `.gitattributes` 要求 `eol=lf`。用 `open(p, "rb"/"wb")` + `replace(b"\r\n", b"\n")`。
+   仓库根另有 **`.editorconfig`**（`end_of_line = lf`，chore `274be6e`，未 bump 版本）减轻编辑器误写 CRLF；**不替代** git config / 写后回读。
 3. **改服务端权威字段 = 白改**：md 里的分数、`ingest` 能覆盖的普通字段，改 md 只是临时状态，
    下一次 CLI 跑动就归位 —— 要改请改 `config.py` / 代码再走 CLI 收敛。
 4. **`upsert_personal_track` 只增不删**：规范 ID 一改（如裸 `movefree` → `movefree@noon`），

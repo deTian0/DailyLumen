@@ -119,7 +119,7 @@ ClickUp 只提供「当日行为证据」，是否写进 md 由复盘流程判�
 
 库 → ClickUp 通道：复盘已入库后，用项目命令把「习惯与打卡」里的**每日复盘总结**
 元任务标完成 —— **只写这一条**，不碰其它任务。`clickup-task` **不能替代** `clickup-push`。
-B15 代勾「练练健身」是**另一条**窄通道（习惯 Continuity），≠ 训练明细入库，也**不能**替代 `habits --sync`。
+B15 代勾「练练健身」是**另一条**窄通道（习惯 Continuity），≠ 训练明细入库，也**不能**替代 `habits --sync`。⛔ 禁止静默自动勾；⛔ 禁止用 ClickUp 反推 `training_*` / 四维分；Web 同源动作 `clickup_habit`（plan→confirm）。
 
 ```bash
 python -m review_tool clickup-push 2026-10-12            # 默认 dry-run，只打印
