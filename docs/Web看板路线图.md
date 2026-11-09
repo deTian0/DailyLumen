@@ -321,11 +321,15 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06。当前版本 v1.81.0（B3 ECharts 按需引入），W1–W18 已推送到远端 `main`（不推 tag）。
+> 追加于 2026-11-06。当前版本 v1.82.0（B4 练练写回剩余 4 动作），W1–W18 已推送到远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**，push 前等用户验收；写操作一律只用 mock / 临时库测试。
-> 优先级建议：**P0** B1 → **P1** B4、B9 → **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12–B14。
+> 优先级建议：**P0** B1 → **P1** B9 → **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12–B14。
 
-### 本轮已完成（v1.81.0，2026-11-09）
+### 本轮已完成（v1.82.0，2026-11-09）
+
+- **B4 练练写回剩余 4 动作上面板**：`ks_schedule` / `ks_create_template` / `ks_replace_template_actions` / `ks_plan_command` 接到 `KeepStrongWrite`；`ActionsJsonEditor` 前端校验；Vitest mock 覆盖 plan→confirm / 422 / 401 `upstream_auth`；`api.js` 区分看板 401 与练练 `upstream_auth`。
+
+### 已完成（v1.81.0，2026-11-09）
 
 - **B3 ECharts 按需引入**：`EChart.jsx` 改 `echarts/core` + 按需注册；主 JS `1317.84→819.17 KB`（gzip `428.63→268.63 KB`）；无 dataZoom 故未注册。
 
@@ -362,12 +366,11 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **验收**：主 JS `1317.84→819.17 KB`（gzip `428.63→268.63 KB`）；`chartOption.test.js` 全绿；注册表对照 option 字段（line/bar/grid/tooltip/legend/markArea/markLine）。
 - **风险**：漏注册组件会**静默**少画东西（比如目标带 markArea），四个 kind 都要逐个目视。
 
-### B4（P1）练练写回剩余 4 个动作上面板
+### B4（P1）练练写回剩余 4 个动作上面板 ✅ v1.82.0
 
 - **目标**：把 `ks_schedule` / `ks_create_template` / `ks_replace_template_actions` / `ks_plan_command` 接到前端，沿用 `WriteFlow` 的预览→确认流程。
-- **涉及**：`web/src/pages/Life.jsx` 的 `KeepStrongWrite` 卡、新增 actions JSON 编辑 / 校验组件（`components/`）、`web/src/lib/api.js`。后端 `api/writes/keepstrong.py` 和路由已在 W17 就绪，原则上不改。
-- **验收**：JSON 编辑器做前端校验（语法错误 / 必填字段）再加后端 422 回显；Vitest 用 mock fetch 覆盖 plan→confirm、422、401 `upstream_auth`；**只用 mock，不连真练练**。
-- **风险**：外部副作用不可回滚，前端文案要明示「写回不落库、不可撤销」；`command` 只能取那 4 个值；中文参数的 URL 编码由后端负责，前端不要重复编码。
+- **实现**：`KeepStrongWrite.jsx`（自 `Life.jsx` 抽出）+ `ActionsJsonEditor.jsx`；`WriteFlow` 增 `canPreview`；`api.js` 401 仅 `unauthorized` 清 key；文案明示「写回不落库、不可撤销」；`command` 下拉仅 4 值；前端不重复 URL 编码。
+- **验收**：JSON 编辑器前端校验（语法 / 必填 `actionId`）+ 后端 422 回显；Vitest mock 覆盖 plan→confirm、422、401 `upstream_auth`；不连真练练；后端写路由未改。
 
 ### B5（P2）图表系列开关偏好记忆
 

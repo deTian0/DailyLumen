@@ -29,8 +29,9 @@ export function gateReason(health, blockedReason) {
 // blockedReason：前置门禁原因（如 mode≠deepseek），非空时整卡折叠为 GateLine
 // onDone(result)：确认成功后的回调（如定稿后串到 ingest 预览）
 // name：按钮可访问名里的动作名（默认 title），如「预览：同步习惯」
+// canPreview：表单未就绪（如 JSON 语法错）时禁用预览，避免无意义打后端
 export function WriteFlow({ action, params, health, toast, title, desc, renderPreview, confirmLabel = '确认写入',
-  canConfirm, blockedReason, onDone, body, autoPreview, name, previewLabel = '预览' }) {
+  canConfirm, canPreview = true, blockedReason, onDone, body, autoPreview, name, previewLabel = '预览' }) {
   const [plan, setPlan] = useState(null)
   const [res, setRes] = useState(null)
   const [err, setErr] = useState(null)
@@ -84,7 +85,8 @@ export function WriteFlow({ action, params, health, toast, title, desc, renderPr
           <strong>{title}</strong>
           <p className="muted">{desc}</p>
         </div>
-        <button type="button" className="btn-ghost" onClick={preview} disabled={!writable || busy}
+        <button type="button" className="btn-ghost" onClick={preview}
+          disabled={!writable || busy || !canPreview}
           aria-label={`${plan ? '重新' : ''}${previewLabel}：${act}`}>
           {busy && !plan ? '预览中…' : plan ? '重新预览' : `① ${previewLabel}`}
         </button>

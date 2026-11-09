@@ -53,7 +53,7 @@ describe('WriteFlow 预览 → 确认', () => {
     fireEvent.click(screen.getByRole('button', { name: '预览：同步习惯' }))
     fireEvent.click(await screen.findByRole('button', { name: '确认写入：同步习惯' }))
     expect(await screen.findByRole('alert')).toBeTruthy()
-    expect(screen.getByRole('alert').textContent).toContain('ClickUp 网络不可达')
+    expect(screen.getByRole('alert').textContent).toContain('上游网络不可达')
     expect(screen.queryByRole('button', { name: '确认写入：同步习惯' })).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '重试' }))

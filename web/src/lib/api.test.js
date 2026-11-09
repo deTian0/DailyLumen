@@ -70,6 +70,23 @@ describe('401 处理', () => {
     expect(authKey.get()).toBe('')
   })
 
+  it('401 upstream_auth（练练）保留错误体，不清看板 key、不派发登录事件', async () => {
+    authKey.set('k', true)
+    const onEvt = vi.fn()
+    window.addEventListener(UNAUTHORIZED_EVENT, onEvt)
+    fetchMock.mockResolvedValue(jsonRes(401, {
+      error: { code: 'upstream_auth', message: '练练 API Key 已过期' },
+    }))
+    const err = await api.writeConfirm('t').catch((e) => e)
+    window.removeEventListener(UNAUTHORIZED_EVENT, onEvt)
+    expect(err).toBeInstanceOf(ApiError)
+    expect(err.status).toBe(401)
+    expect(err.code).toBe('upstream_auth')
+    expect(errText(err)).toMatch(/上游拒绝访问/)
+    expect(authKey.get()).toBe('k')
+    expect(onEvt).not.toHaveBeenCalled()
+  })
+
   it('非 401 错误保留服务端错误体，不清 key', async () => {
     authKey.set('k')
     fetchMock.mockResolvedValue(jsonRes(409, { error: { code: 'token_invalid', message: '已失效' } }))

@@ -51,12 +51,6 @@ async function request(path, { method = 'GET', signal, body } = {}) {
     if (e.name === 'AbortError') throw e
     throw new ApiError(0, 'network', '无法连接本机服务，请确认 serve 正在运行')
   }
-  if (res.status === 401) {
-    // 密钥缺失 / 错误 / serve 换了 key：清掉本地存的 key，通知 App 回登录页
-    authKey.clear()
-    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
-    throw new ApiError(401, 'unauthorized', '访问密钥无效，请重新输入')
-  }
   if (!res.ok) {
     let code = `http_${res.status}`
     let message = `请求失败（${res.status}）`
@@ -68,6 +62,12 @@ async function request(path, { method = 'GET', signal, body } = {}) {
       }
     } catch {
       /* 非 JSON 错误体：保留默认文案 */
+    }
+    // 仅看板访问密钥失败才清 key / 回登录；练练 upstream_auth 等同为 401，勿误伤
+    if (res.status === 401 && code === 'unauthorized') {
+      authKey.clear()
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+      throw new ApiError(401, 'unauthorized', '访问密钥无效，请重新输入')
     }
     throw new ApiError(res.status, code, message)
   }
@@ -164,9 +164,11 @@ export function errText(e) {
     network: '无法连接本机服务，请确认 serve 正在运行',
     integration_disabled: 'ClickUp 集成未启用（local/.env 中关闭），今日数据不可用',
     credentials_missing: 'ClickUp 未配置凭据，今日数据不可用（在 local/.env 配置后重启 serve）',
-    upstream_auth: 'ClickUp 拒绝访问：token 失效或权限不足',
-    upstream_unreachable: 'ClickUp 网络不可达或超时，稍后再试',
-    rate_limited: 'ClickUp 限流（每分钟请求数超限），请稍后再刷新',
+    upstream_auth: '上游拒绝访问：凭据失效或权限不足（ClickUp / 练练）',
+    upstream_unreachable: '上游网络不可达或超时，稍后再试',
+    rate_limited: '上游限流（每分钟请求数超限），请稍后再刷新',
+    writeback_failed: '练练写回失败，请核对参数后重新预览',
+    skill_update_required: '练练要求更新 skill / 客户端后再写回',
     mode_gated: '当前 mode 不调 DeepSeek：读图 / AI 评价请改 local/.env 的 DAILYLUMEN_LLM_MODE=deepseek',
     image_too_large: '图片太大（单张上限 8 MB），请裁剪或压缩后重试',
     invalid_image: '只支持 PNG / JPEG / WebP 截图',

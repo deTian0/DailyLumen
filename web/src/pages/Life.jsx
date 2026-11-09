@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { Card, ErrorBox, Loading, Prose, Stat } from '../components/Common'
+import { KeepStrongWrite } from '../components/KeepStrongWrite'
 import { WriteFlow } from '../components/WriteFlow'
 
 // habits sync 预览：只列将写入 habit_logs 的行；personal_tracks 明示不动（R3 分区）
@@ -21,76 +22,6 @@ function HabitsPreview(p) {
         ))}
       </ul>
     </>
-  )
-}
-
-// W17 练练写回预览：把后端 preview 原样列出（key/value），明示「写回不落库」
-function KsPreview(p) {
-  const rows = Object.entries(p).filter(([, v]) => v !== null && v !== undefined && v !== '')
-  return (
-    <>
-      <p className="muted">将向练练健身发起写回（<strong>不落库、不作系统状态</strong>）；请到 App 核对生效。</p>
-      <ul className="task-list" aria-label="练练写回内容">
-        {rows.map(([k, v]) => (
-          <li key={k} className="task">
-            <div className="task-body"><div className="title">{k}</div></div>
-            <code className="sub">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</code>
-          </li>
-        ))}
-      </ul>
-      {p.note && <p className="hint">{p.note}</p>}
-    </>
-  )
-}
-
-// W17 练练写回：记体征体重 + 设下次重量（其余 4 种动作需 actions JSON，留 CLI）
-function KeepStrongWrite({ health, toast }) {
-  const [metric, setMetric] = useState('weight')
-  const [val, setVal] = useState('')
-  const [day, setDay] = useState('')
-  const [unit, setUnit] = useState('kg')
-  const [aid, setAid] = useState('')
-  const [w, setW] = useState('')
-  return (
-    <Card title="练练写回" meta="W17 · 写回练练，不落库（仅用户明确要求时）">
-      <p className="muted">两种常用写回：记体征体重 / 设下次重量。排课、模板、计划命令需 actions JSON，请用 CLI
-        <code> python -m review_tool keepstrong --help</code>。</p>
-      <div className="write-flow" aria-label="记体征">
-        <div className="write-head">
-          <div><strong>记体征</strong><p className="muted">POST /body/logs · 写回练练体征日志</p></div>
-        </div>
-        <div className="inline-form">
-          <label>指标<select value={metric} onChange={(e) => {
-            setMetric(e.target.value)
-            setUnit(e.target.value === 'weight' ? 'kg' : e.target.value === 'fat' ? '%' : unit)
-          }}>
-            <option value="weight">weight（体重）</option>
-            <option value="fat">fat（体脂）</option>
-            <option value="bodyRound">bodyRound（围度）</option>
-          </select></label>
-          <label>值<input value={val} onChange={(e) => setVal(e.target.value)} placeholder="如 62.5" /></label>
-          <label>日期<input value={day} onChange={(e) => setDay(e.target.value)} placeholder="YYYY-MM-DD（空=今日）" /></label>
-          <label>单位<input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="kg / % / cm" /></label>
-        </div>
-        <WriteFlow action="ks-log-body" body={{ metric, value: val, day: day || undefined, unit }}
-          health={health} toast={toast} title="记体征" desc="预览后确认写回练练（不落库）。"
-          renderPreview={KsPreview} confirmLabel="确认写回" name="记体征"
-          canConfirm={() => !!val && !!unit} />
-      </div>
-      <div className="write-flow" aria-label="设下次重量">
-        <div className="write-head">
-          <div><strong>设下次重量</strong><p className="muted">POST /training/actions/{`{id}`}/weight · 空串=沿用历史</p></div>
-        </div>
-        <div className="inline-form">
-          <label>actionId<input value={aid} onChange={(e) => setAid(e.target.value)} placeholder="act_xxx" /></label>
-          <label>重量(kg)<input value={w} onChange={(e) => setW(e.target.value)} placeholder="留空=沿用历史（⛔ 不用 0）" /></label>
-        </div>
-        <WriteFlow action="ks-set-weight" body={{ action_id: aid, weight: w === '' ? undefined : w }}
-          health={health} toast={toast} title="设下次重量" desc="预览后确认写回练练（不落库）。"
-          renderPreview={KsPreview} confirmLabel="确认写回" name="设下次重量"
-          canConfirm={() => !!aid} />
-      </div>
-    </Card>
   )
 }
 const TABS = [
