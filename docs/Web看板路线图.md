@@ -331,12 +331,16 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06；**状态对齐 2026-11-09**（代码版本 **v1.84.0**，B5 已合入）。W1–W18 与 v1.79–v1.84 推远端 `main`（不推 tag）。
+> 追加于 2026-11-06；**状态对齐 2026-11-09**（代码版本 **v1.85.0**，B5/B7 已合入）。W1–W18 与 v1.79–v1.85 推远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**；写操作一律只用 mock / 临时库测试。
-> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；B6–B8 / B11–B13 待办；B9 运维提醒（非代码）；B10 tag 待拍板；B14 文档勘误✅。
-> 优先级建议：**P1** B9（运维换 Key）→ **P2** B6、B7、B8 → 待拍板 B10 → 可选 B11、B12、B13。
+> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；B6/B8 / B11–B13 待办；B9 运维提醒（非代码）；B10 tag 待拍板；B14 文档勘误✅。
+> 优先级建议：**P1** B9（运维换 Key）→ **P2** B6、B8 → 待拍板 B10 → 可选 B11、B12、B13。
 
-### 本轮已完成（v1.84.0，2026-11-09）
+### 本轮已完成（v1.85.0，2026-11-09）
+
+- **B7 周报 ASCII 条 → CSS 进度条**：`asciiBar` + `markdown.jsx` 表细胞；真实格式 = `_md_bar` 的 `█`/`░`；可选兼容 CLI `[█·]`；`role=progressbar` + aria；CLI/md 不改。
+
+### 已完成（v1.84.0，2026-11-09）
 
 - **B5 图表图例开关偏好记忆**：`legendPrefs` + `EChart` `legendselectchanged`；key 带 `v1`；系列键集合变更自动失效；Vitest 覆盖合法/损坏/变更/写失败。
 
@@ -411,12 +415,13 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **验收**：对拍测试：结构化结果和 CLI `doctor` 的结论逐项一致；前端渲染分项状态；保留「查看原文」折叠。
 - **风险**：R1 单源。要是 doctor 只产 prose，先在 reports 层抽出结构化函数，CLI 改为基于它格式化，行为不变。
 
-### B7（P2）周报表格 ASCII 条改 CSS 进度条
+### B7（P2）周报表格 ASCII 条改 CSS 进度条 ✅ v1.85.0
 
 - **目标**：周报里的 ASCII 条（如 `████░░`）在 Web 端渲染成 CSS 进度条。
-- **涉及**：`web/src/lib/prose.js` / `Prose` 组件、`web/src/styles/**`。CLI 输出保持不变。
-- **验收**：prose 单测：识别出 ASCII 条后转成带 `role="progressbar"`、`aria-valuenow` 的元素；不认识的格式按原样显示。
-- **风险**：解析只在前端做，**不改后端报告文本**（CLI 和 md 还在用）。
+- **涉及**：`web/src/lib/asciiBar.js`、`markdown.jsx` 表细胞 / 行内、`web/src/styles/content.css`。CLI / md 输出保持不变。
+- **验收**：Vitest：识别 `_md_bar` 的 `█`/`░` → `role="progressbar"`；含分数时 aria 取分数；不认识的格式原样显示。
+- **勘误**：早期计划写「只改 prose.js」**不正确**——周报是 Markdown 表格，入口是 `markdown.jsx`（prose 仅 CLI 风格全文转 md）。
+- **风险**：解析只在前端做，**不改后端报告文本**。
 
 ### B8（P2）写操作真机验收清单
 

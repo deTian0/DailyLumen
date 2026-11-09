@@ -64,24 +64,28 @@
 
 ---
 
-## B7 · 周报 ASCII 条 → CSS 进度条（P2，前端小项）
+## B7 · 周报 ASCII 条 → CSS 进度条（P2，前端小项）✅ v1.85.0
 
 **目标**：周报 md 里的 `████░░` 进度条在 Web 端渲染成真 CSS 进度条；CLI 与 md 文件保持原样。
 
+> ⚠️ **勘误（执行前已纠正）**：不要只改 `prose.js`。周报走 `Reports` → `Markdown`（`web/src/lib/markdown.jsx`）表细胞；
+> 真实格式是 `reports/analyze.py::_md_bar` 的 `█`/`░`（宽约 10）；可选兼容 CLI `_bar` 的 `█`+`·`。
+> `prose.js` 只负责 CLI 风格全文 → md，不是周报主路径。
+
 **现状（实测）**：
-- 转换入口：`web/src/lib/prose.js::toProseSource()`（CLI 风格全文 → Markdown 的前端呈现层，本来就约定「不改后端文案」）
-- 渲染组件：`web/src/lib/markdown.jsx`
+- 周报渲染：`web/src/lib/markdown.jsx` 表细胞
+- 条形生成：`review_tool/reports/analyze.py::_md_bar`（`█`/`░`）
 
-**实现要点**：
-1. `prose.js` 新增 ASCII 条识别：正则匹配 `█+░+`（含全量/部分填充变体，注意 ▓ 等中间字符），从相邻文本提取标签与分母（周报里形如 `标签 ██████░░░░ 5/7`）
-2. 转成 markdown 中可识别的占位（或直接返回 React 节点，取决于 markdown.jsx 的管线），最终 DOM 元素带 `role="progressbar"`、`aria-valuemin/max/now`
-3. 样式：`web/src/styles/` 加进度条样式，颜色跟随主题变量（涨红跌绿不适用此处，用中性主色即可）
+**实现要点（已落地）**：
+1. `asciiBar.js`：`parseWholeBar` / `splitAsciiBars`；分数行覆盖 aria now/max
+2. `markdown.jsx` 表细胞 + 行内 → `role="progressbar"`
+3. `content.css`：`.md-bar*`，颜色 `--accent`
 
-**验收（写 Vitest，放 `prose.test.js`）**：
-- [ ] 标准 `████░░` 被识别并产出 progressbar 元素
-- [ ] 含分数 `5/7` 的行 aria-valuenow=5 / max=7
-- [ ] 不认识的格式（如只有 `█` 无上下文、纯文本混排）按原样显示
-- [ ] CLI 侧零改动：`tests/` 无需新增，跑全量确认无回归即可
+**验收**：
+- [x] 标准 `█░` 产出 progressbar
+- [x] 含分数 `5/7` → aria-valuenow=5 / max=7
+- [x] 不认识的格式原样显示
+- [x] CLI / md 零改动
 
 ---
 

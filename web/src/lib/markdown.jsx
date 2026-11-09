@@ -1,20 +1,56 @@
 // 极简 Markdown 渲染：标题 / 段落 / 引用 / 列表 / 表格 / 代码块 / 分隔线 + 行内 `code` **粗体**。
+// B7：表细胞 / 行内识别 `_md_bar`（█░）与可选 CLI（[█·]）→ CSS progressbar。
 // 直接产出 React 元素，不使用 dangerouslySetInnerHTML（报告内容来自本地文件，仍按不可信处理）。
 import { Fragment } from 'react'
+import { barPercent, parseWholeBar, splitAsciiBars } from './asciiBar'
 
 const INLINE = /(`[^`]+`|\*\*[^*]+\*\*)/g
 
+function AsciiProgress({ bar }) {
+  const pct = barPercent(bar)
+  return (
+    <span
+      className="md-bar"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={bar.max}
+      aria-valuenow={bar.now}
+      aria-label={bar.label}
+    >
+      <span className="md-bar-track" aria-hidden="true">
+        <span className="md-bar-fill" style={{ width: `${pct}%` }} />
+      </span>
+      <span className="md-bar-label">{bar.label}</span>
+    </span>
+  )
+}
+
 function inline(text, keyPrefix) {
-  return text.split(INLINE).map((part, i) => {
+  // 先按 code/粗体切，再在纯文本段里替换 ASCII 条
+  return text.split(INLINE).flatMap((part, i) => {
     const key = `${keyPrefix}-${i}`
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
-      return <code key={key}>{part.slice(1, -1)}</code>
+      return [<code key={key}>{part.slice(1, -1)}</code>]
     }
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
-      return <strong key={key}>{part.slice(2, -2)}</strong>
+      return [<strong key={key}>{part.slice(2, -2)}</strong>]
     }
-    return <Fragment key={key}>{part}</Fragment>
+    const chunks = splitAsciiBars(part)
+    if (chunks.length === 1 && chunks[0].type === 'text') {
+      return [<Fragment key={key}>{part}</Fragment>]
+    }
+    return chunks.map((c, j) => {
+      const ck = `${key}-b${j}`
+      if (c.type === 'bar') return <AsciiProgress key={ck} bar={c} />
+      return <Fragment key={ck}>{c.text}</Fragment>
+    })
   })
+}
+
+function cellNodes(text, keyPrefix) {
+  const whole = parseWholeBar(text)
+  if (whole) return <AsciiProgress key={keyPrefix} bar={whole} />
+  return inline(text, keyPrefix)
 }
 
 const splitRow = (line) =>
@@ -71,7 +107,7 @@ export function Markdown({ source }) {
               <tr>
                 {head.map((c, ci) => (
                   <th key={ci} scope="col">
-                    {inline(c, `th${id}-${ci}`)}
+                    {cellNodes(c, `th${id}-${ci}`)}
                   </th>
                 ))}
               </tr>
@@ -80,7 +116,7 @@ export function Markdown({ source }) {
               {rows.map((r, ri) => (
                 <tr key={ri}>
                   {r.map((c, ci) => (
-                    <td key={ci}>{inline(c, `td${id}-${ri}-${ci}`)}</td>
+                    <td key={ci}>{cellNodes(c, `td${id}-${ri}-${ci}`)}</td>
                   ))}
                 </tr>
               ))}
