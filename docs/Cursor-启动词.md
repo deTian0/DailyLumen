@@ -1,12 +1,13 @@
 # Cursor 启动词（贴进 Cursor 对话的第一段话）
 
-> ⚠️ **状态（2026-11-04）：隐私与配置归一 M45–M50 ✅（v1.52.2）**。
-> 路线图见 [`docs/隐私与配置归一路线图.md`](隐私与配置归一路线图.md)（本阶段结束，勿再追加里程碑）。
-> **若准备开源**：先读并执行 [`docs/开源前隐私擦除计划.md`](开源前隐私擦除计划.md)（O1–O6）——
-> 私有去日记 ≠ 可公开；历史仍可能残留 `reviews.db` / 姓名 / author 等。
+> ⚠️ **状态（2026-11-09）**：隐私归一 M45–M50 ✅；集成 I1–I7 ✅；**Web 看板 W0–W18 ✅**；
+> 代码 **v1.83.0**（B2–B4/B15 ✅，B1 关闭；其余 B 项见 [`Web看板路线图.md`](Web看板路线图.md)「后续待办」）。
+> 历史阶段路线图**勿再追加里程碑**。能力现状见 [`能力图谱.md`](能力图谱.md)。
+> **若准备开源**：先读并执行 [`开源前隐私擦除计划.md`](开源前隐私擦除计划.md)（O1–O6）——
+> 私有去日记 ≠ 可公开。
 > 日常复盘 / 新功能：按 conventions + 对应 skill；一次一个 feature。
 
-> 用法：开新会话时说明**本次要做的具体任务**（不要默认再跑 M45–M50）。
+> 用法：开新会话时说明**本次要做的具体任务**（不要默认再跑已收口阶段）。
 > `.cursor/rules/dailylumen.mdc` 会自动加载硬规则。
 
 ---
@@ -17,11 +18,11 @@
 你是 DailyLumen 项目的开发搭档。
 口径权威：.workbuddy/skills/dailylumen-conventions/SKILL.md
 本机数据在 local/（远程仅占位）；配置读 local/.env（pydantic-settings）。
-运行时依赖仅 pydantic / pydantic-settings；业务层不散落第三方。
-远端：git@github.com:deTian0/DailyLumen.git（分支 main）。
+运行时依赖仅 pydantic / pydantic-settings；Web 看板另需 optional extra web。
+远端：git@github.com:deTian0/DailyLumen.git（分支 main）；当前版本见 pyproject / README。
 本次任务：<在此写清具体需求>。
 红线：不改四维评分历史分；不建定时任务；不打开 FEATURES["new_day"]；
-不把 local/.env / 日记 / db 加入 git；写盘回读校验。
+不把 local/.env / 日记 / db 加入 git；写盘回读校验；Web 写操作须 --enable-write。
 ```
 
 ---
@@ -45,7 +46,9 @@ M49 mirror 路径见路线图 M49 节（本机保管，不入 git）。
 
 | 想了解 | 去哪 |
 | --- | --- |
-| 本阶段路线图（已完成） | [`隐私与配置归一路线图.md`](隐私与配置归一路线图.md) |
+| **下一步 / Web 后续 B 项** | [`Web看板路线图.md`](Web看板路线图.md) |
+| **现在真有什么** | [`能力图谱.md`](能力图谱.md) |
+| 隐私归一（已完成） | [`隐私与配置归一路线图.md`](隐私与配置归一路线图.md) |
 | **开源前隐私擦除** | [`开源前隐私擦除计划.md`](开源前隐私擦除计划.md) |
 | 项目总纲 | skill `dailylumen-conventions` |
 | 设计 / 变更日志 | [`设计说明.md`](设计说明.md) |

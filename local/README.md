@@ -7,4 +7,5 @@
 - **`.gitignore`**：`local/**` 全部忽略，仅反白本文件与 `.gitkeep`。
 
 请勿把真实 API Key、日记正文或数据库写进本 README。
-换机步骤见 `docs/迁移指南.md`；阶段计划见 `docs/隐私与配置归一路线图.md`（M45+）。
+换机步骤见 `docs/迁移指南.md`；`local/` 归一见 `docs/隐私与配置归一路线图.md`（M45–M50 ✅）。
+能力现状 / Web 看板见 `docs/能力图谱.md`、`docs/Web看板路线图.md`。

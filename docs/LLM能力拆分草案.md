@@ -6,7 +6,7 @@
 > **草稿/定稿守卫 + 独立部署专章 ✅（v1.56.1）**；  
 > **定稿 CLI + 收件箱归档 + write→finalize→ingest 闭环 ✅（v1.57.0）**。  
 > Vision 冒烟（合成 PNG + 可选 LIVE）已在 deepseek 客户端单测覆盖；真实图本机投放见下。  
-> **日期**：2026-11-05｜**当前版本锚点**：v1.57.0  
+> **日期**：2026-11-05｜**LLM 阶段收口锚点**：v1.58.0（其后 Web 看板至 **v1.83.0**，见 [`Web看板路线图.md`](Web看板路线图.md)；本文不再追加里程碑） 
 > **动机**：把「永远本地可跑的静态能力」与「可选的 LLM / WorkBuddy 宿主能力」拆清，并为  
 > WorkBuddy 上「读图填数 + 写评价建议」立一份可复用的标准契约；同时预留 **DeepSeek**  
 > 模式，使仓库可独立部署、不依赖 WorkBuddy。
@@ -245,7 +245,9 @@ L-3 在其之上可选调 DeepSeek 写 md 草稿。
 **真实截图**：请投放到本机 `local/每日复盘/收件箱/`（jpg/png）；⛔ 勿 commit 进 git。  
 无真实图时用仓库合成 fixture 证明流程。独立部署步骤见 [`独立部署.md`](独立部署.md)。
 
-### 下一步（可选，未开工）
+### 下一步（可选，未开工 · LLM 域）
+
+> **工程主线已转 Web 看板后续 B 项**（见 [`Web看板路线图.md`](Web看板路线图.md)）。下列仅 LLM 域可选增强，**勿**在本文开新 L-* 编号硬塞进主线。
 
 - 评价草稿与 `life-decision-guide` 书条目的自动挂靠（仍须人审）。  
 - 附录明细表（食物明细）的结构化扩展。  
@@ -280,7 +282,9 @@ L-3 在其之上可选调 DeepSeek 写 md 草稿。
 
 - `.workbuddy/skills/dailylumen-conventions/SKILL.md`（范围边界旁）  
 - `.workbuddy/skills/llm-host-contract/SKILL.md`（宿主短表）  
-- `docs/能力图谱.md`（「AI 评价与建议」）  
+- `docs/能力图谱.md`（「AI 评价与建议」+ Web 层）  
+- `docs/独立部署.md`（无宿主闭环）  
+- `docs/Web看板路线图.md`（当前工程后续待办）  
 - `.workbuddy/skills/daily-review-intake/SKILL.md`（契约指针 + **双 mode 操作步骤**）  
 - `.env.example`（`DAILYLUMEN_LLM_MODE` + `DEEPSEEK_*`）
 
