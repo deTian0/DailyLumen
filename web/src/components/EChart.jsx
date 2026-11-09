@@ -1,6 +1,26 @@
-// W16：ECharts 包装组件——在 div 上初始化、卸载时 dispose、窗口 resize 时重绘。
+// W16 / B3：ECharts 包装——echarts/core 按需注册（对照 chartOption.js 实际字段）。
 import { useEffect, useRef } from 'react'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { LineChart, BarChart } from 'echarts/charts'
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+} from 'echarts/components'
+import { SVGRenderer } from 'echarts/renderers'
+
+echarts.use([
+  LineChart,
+  BarChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  MarkAreaComponent,
+  MarkLineComponent,
+  SVGRenderer,
+])
 
 export function EChart({ option, className, style, ariaLabel }) {
   const ref = useRef(null)

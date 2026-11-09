@@ -321,11 +321,15 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06。当前版本 v1.80.0（B2 系统字体栈），W1–W18 已推送到远端 `main`（不推 tag）。
+> 追加于 2026-11-06。当前版本 v1.81.0（B3 ECharts 按需引入），W1–W18 已推送到远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**，push 前等用户验收；写操作一律只用 mock / 临时库测试。
-> 优先级建议：**P0** B1 → **P1** B3、B4、B9 → **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12–B14。
+> 优先级建议：**P0** B1 → **P1** B4、B9 → **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12–B14。
 
-### 本轮已完成（v1.80.0，2026-11-09）
+### 本轮已完成（v1.81.0，2026-11-09）
+
+- **B3 ECharts 按需引入**：`EChart.jsx` 改 `echarts/core` + 按需注册；主 JS `1317.84→819.17 KB`（gzip `428.63→268.63 KB`）；无 dataZoom 故未注册。
+
+### 已完成（v1.80.0，2026-11-09）
 
 - **B2 字体本地化（方案 B）**：去掉 Google Fonts；`--font` / `--font-mono` 改系统栈；`test_web_dist` 断言 dist 无 `fonts.googleapis.com` / `fonts.gstatic.com`。
 
@@ -351,11 +355,11 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **实现**：`web/index.html` 去掉 Google Fonts；`tokens.css` 的 `--font` = `system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif`，`--font-mono` = `ui-monospace, "Cascadia Code", …`；`test_web_dist.test_bundle_has_no_google_fonts`；`npm run build` 后 dist 入库。
 - **验收**：dist 中不含 `fonts.googleapis.com` / `fonts.gstatic.com`；全量 Python + 前端测试 + ruff 全绿。
 
-### B3（P1）ECharts 按需引入
+### B3（P1）ECharts 按需引入 ✅ v1.81.0
 
 - **目标**：bundle 从约 1.31 MB（gzip 427 KB）瘦身。
-- **涉及**：`web/src/components/EChart.jsx`（现在是 `import * as echarts from 'echarts'`），改成 `echarts/core` + 按需注册 `LineChart` / `BarChart`、`GridComponent` / `TooltipComponent` / `LegendComponent` / `MarkAreaComponent` / `MarkLineComponent` / `DataZoomComponent`（如果用到），再加 `SVGRenderer`。
-- **验收**：build 产物体积在 commit 信息里写明前后对比；`chartOption.test.js` 和四类图浏览器截图都正常；漏注册组件时 ECharts 会在控制台告警，要确认控制台干净。
+- **涉及**：`web/src/components/EChart.jsx` 改成 `echarts/core` + 按需注册 `LineChart` / `BarChart`、`GridComponent` / `TooltipComponent` / `LegendComponent` / `MarkAreaComponent` / `MarkLineComponent`、`SVGRenderer`（`chartOption` 无 dataZoom，未注册）。
+- **验收**：主 JS `1317.84→819.17 KB`（gzip `428.63→268.63 KB`）；`chartOption.test.js` 全绿；注册表对照 option 字段（line/bar/grid/tooltip/legend/markArea/markLine）。
 - **风险**：漏注册组件会**静默**少画东西（比如目标带 markArea），四个 kind 都要逐个目视。
 
 ### B4（P1）练练写回剩余 4 个动作上面板
