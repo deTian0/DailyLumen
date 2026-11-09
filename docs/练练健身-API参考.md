@@ -57,6 +57,8 @@
 | GET | `/api/v1/ai/body/logs` | `metric=weight\|fat\|bodyRound, bodyType?, startDate, endDate, page, pageSize<=100`（**最近 3 年**） | 体重 / 体脂 / 围度记录；**同一天保留最新一条** |
 
 > 分页：一律跟 `hasMore`；**不要超过各端点的 pageSize 上限**。
+> ⚠️ `page` **从 1 开始**（2026-11-09 实测）：传 `page=0` 返回
+> `400 {"code":-3,"msg":"Invalid page or pageSize"}`，看着像鉴权 / 日期错，实际只是页号。
 > 缓存：动作库结果（尤其 `actionId` + `name`）宜本地缓存复用，避免同一动作反复搜索。
 
 ---
