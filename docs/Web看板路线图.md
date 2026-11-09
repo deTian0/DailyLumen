@@ -331,12 +331,16 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06；**状态对齐 2026-11-09**（对齐起点 `274be6e` EditorConfig chore；代码版本仍 **v1.83.0**，本轮纯文档不 bump）。W1–W18 与 v1.79–v1.83 均已推远端 `main`（不推 tag）。
-> 下面每项独立做：一项一个 commit，**不打 tag**，push 前等用户验收；写操作一律只用 mock / 临时库测试。
-> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；B5–B8 / B11–B13 待办；B9 运维提醒（非代码）；B10 tag 待拍板；B14 文档勘误✅（本轮）。
-> 优先级建议：**P1** B9（运维换 Key）→ **P2** B5、B6、B7、B8 → 待拍板 B10 → 可选 B11、B12、B13。
+> 追加于 2026-11-06；**状态对齐 2026-11-09**（代码版本 **v1.84.0**，B5 已合入）。W1–W18 与 v1.79–v1.84 推远端 `main`（不推 tag）。
+> 下面每项独立做：一项一个 commit，**不打 tag**；写操作一律只用 mock / 临时库测试。
+> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；B6–B8 / B11–B13 待办；B9 运维提醒（非代码）；B10 tag 待拍板；B14 文档勘误✅。
+> 优先级建议：**P1** B9（运维换 Key）→ **P2** B6、B7、B8 → 待拍板 B10 → 可选 B11、B12、B13。
 
-### 本轮已完成（v1.83.0，2026-11-09）
+### 本轮已完成（v1.84.0，2026-11-09）
+
+- **B5 图表图例开关偏好记忆**：`legendPrefs` + `EChart` `legendselectchanged`；key 带 `v1`；系列键集合变更自动失效；Vitest 覆盖合法/损坏/变更/写失败。
+
+### 已完成（v1.83.0，2026-11-09）
 
 - **B15 练练完成后受控代勾 ClickUp「练练健身」**：CLI `clickup-habit --habit lianlian`（默认 dry-run / `--apply|--yes`）；写动作 `clickup_habit` 入 plan→confirm；只写 ClickUp、**不**写 `habit_logs` / `training_*`；练练 `completed` 仅旁证；Life 习惯/训练页入口；全 mock 测。
 
@@ -393,12 +397,12 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **验收**：CLI/API 全 mock（dry-run / complete / 幂等 / 缺任务 / 上游错误）；Vitest mock plan→confirm；不对真 ClickUp 确认；`habit_logs` 仍走 `habits --sync`。
 - **红线**：R3 不混 `personal_tracks`；禁止静默自动勾；禁止 ClickUp 反推训练表。
 
-### B5（P2）图表系列开关偏好记忆
+### B5（P2）图表系列开关偏好记忆 ✅ v1.84.0
 
 - **目标**：图例开关按 kind 记到 localStorage，刷新后保持。
-- **涉及**：`web/src/lib/chartOption.js::defaultLegendSelected`、`EChart.jsx`（监听 `legendselectchanged`）。
+- **涉及**：`web/src/lib/legendPrefs.js`、`chartOption.js::defaultLegendSelected`、`EChart.jsx`（监听 `legendselectchanged`）。
 - **验收**：Vitest：有偏好时覆盖默认（前 2 条），没有偏好或系列变了时回退默认；损坏的 JSON 不报错。
-- **风险**：key 要带版本号或 kind，系列改名后旧偏好要能自动失效。
+- **实现**：key=`dailylumen.legend.<kind>.v1`；键集合校验 + 版本号；防抖 300ms 保存。
 
 ### B6（P2）体检页结构化视图
 

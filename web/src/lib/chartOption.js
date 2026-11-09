@@ -1,5 +1,8 @@
 // W16：把 /api/charts/{kind}.json 的序列转成 ECharts option。
 // 纯函数、不依赖 echarts，方便单测；颜色 / 序列名 / 单位全部来自后端 JSON（与 SVG 同源）。
+// B5：图例 selected 优先读 localStorage 偏好（系列键集合不匹配则回退默认）。
+
+import { loadLegendSelected } from './legendPrefs'
 
 const baseGrid = { left: 56, right: 24, top: 40, bottom: 56 }
 
@@ -70,9 +73,13 @@ export function buildChartOption(data) {
   }
 
   if (kind === 'nutrition') {
+    const pref = loadLegendSelected(kind, series)
     return {
       tooltip: { trigger: 'axis', textStyle },
-      legend: { show: true, top: 4, selectedMode: true, ...legendStyle },
+      legend: {
+        show: true, top: 4, selectedMode: true, ...legendStyle,
+        ...(pref ? { selected: pref } : {}),
+      },
       grid: { ...baseGrid, right: 56 },
       xAxis: dateAxis(dates),
       yAxis: [axisLabel(series[0].values, series[0].unit), axisLabel(series[1].values, series[1].unit)],
@@ -80,8 +87,8 @@ export function buildChartOption(data) {
     }
   }
 
-  // trends / body：单轴多线
-  const legendSelected = defaultLegendSelected(series, kind)
+  // trends / body：单轴多线；B5 偏好覆盖默认前 2 条
+  const legendSelected = loadLegendSelected(kind, series) || defaultLegendSelected(series, kind)
   const opt = {
     tooltip: { trigger: 'axis', textStyle },
     legend: {

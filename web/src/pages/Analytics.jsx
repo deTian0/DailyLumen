@@ -37,7 +37,7 @@ function ChartView({ kind, label }) {
       ) : !option ? (
         <Loading label={`正在生成${label}图…`} />
       ) : (
-        <EChart option={option} ariaLabel={`${label}图表`} />
+        <EChart option={option} kind={kind} ariaLabel={`${label}图表`} />
       )}
     </div>
   )
