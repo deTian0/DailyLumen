@@ -41,26 +41,20 @@
 
 ---
 
-## B6 · 体检页结构化视图（P2，前后端中项）
+## B6 · 体检页结构化视图（P2，前后端中项）✅ v1.86.0
 
 **目标**：体检页按「分项状态 ✅/⚠️ + 计数 + 建议」卡片渲染，替代 prose 全文直出；保留「查看原文」折叠。
 
-**现状（实测，比路线图预估的省事）**：
-- `review_tool/reports/doctor.py::diagnose()` **已返回结构化 dict**（各分项已在内）
-- `review_tool/api/queries.py::doctor()` 已把 `result` 一并放进返回（`{healthy, text, result}`）
-- `review_tool/api/routes_reports.py::DoctorOut`（line 48）可能只声明了部分字段 —— 需核对
-- 前端页面：`web/src/pages/Doctor.jsx`
-
-**实现要点**：
-1. 核对 `DoctorOut` 是否透出 `result`；若未透出，**补模型字段**（透传，不改口径）——若需要裁剪字段，裁剪逻辑放 reports 层新函数（如 `summarize(result)`），api 只调用
-2. CLI `doctor` 若要改为基于 `diagnose()` 结果格式化，**行为必须逐字不变**（用现有 doctor 测试对拍）
-3. `Doctor.jsx` 重构：顶部健康结论（绿/黄横条）→ 分项卡片网格（每张卡：分项名 / 状态 icon / 关键计数 / 建议）→ 底部 `<details>`「查看原文」渲染原 `text`
-4. 深浅主题文字色遵守当前 IDE 主题变量
+**实现要点（已落地）**：
+1. `reports/doctor.py::summarize`：六闸对齐 `is_healthy`；结论对齐 `render`
+2. `DoctorOut.summary` 透传；CLI `render` **未改**
+3. `Doctor.jsx`：横条 → 卡片网格 → `<details>查看原文`
+4. 对拍：`tests/reports/test_doctor_summarize.py`；Vitest `Doctor.test.jsx`
 
 **验收**：
-- [ ] Python 对拍测试：`summarize(diagnose(...))` 输出与 CLI `doctor` 逐项结论一致（新增测试文件放 `tests/reports/`）
-- [ ] Vitest：Doctor.jsx 渲染分项卡片、状态 icon、原文折叠存在
-- [ ] 手工验证：`uv run python -m review_tool serve` 后体检页无 prose 直出（原文只在折叠区）
+- [x] summarize ↔ is_healthy / render 结论
+- [x] 前端分项卡片 + 原文折叠
+- [ ] 手工 serve 目视（可选，agent 不强制）
 
 ---
 

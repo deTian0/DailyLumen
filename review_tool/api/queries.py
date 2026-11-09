@@ -166,11 +166,15 @@ def ai_context(conn, day: str | None = None) -> dict[str, Any]:
 
 def doctor(conn, *, input_dir: str | None = None, today: str | None = None) -> dict[str, Any]:
     """= ``doctor``：体检结果 + 文本 + 健康结论（与 CLI rc 同源）。"""
-    from ..reports.doctor import diagnose, is_healthy, render
+    from ..reports.doctor import diagnose, is_healthy, render, summarize
 
     result = diagnose(input_dir=input_dir, today=today, conn=conn)
-    return {"healthy": is_healthy(result), "text": render(result, encoding="utf-8"),
-            "result": result}
+    return {
+        "healthy": is_healthy(result),
+        "text": render(result, encoding="utf-8"),
+        "result": result,
+        "summary": summarize(result),  # B6：卡片视图；口径在 reports 层
+    }
 
 
 def stats(conn, *, input_dir: str | None = None, db_path: str | None = None) -> dict[str, Any]:

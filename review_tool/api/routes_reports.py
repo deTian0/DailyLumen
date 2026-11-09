@@ -49,6 +49,7 @@ class DoctorOut(BaseModel):
     healthy: bool
     text: str
     result: dict[str, Any]
+    summary: dict[str, Any]  # B6：summarize(diagnose)；与 is_healthy / render 同源
 
 
 class FuseOut(BaseModel):

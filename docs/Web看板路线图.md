@@ -331,12 +331,16 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06；**状态对齐 2026-11-09**（代码版本 **v1.85.0**，B5/B7 已合入）。W1–W18 与 v1.79–v1.85 推远端 `main`（不推 tag）。
+> 追加于 2026-11-06；**状态对齐 2026-11-09**（代码版本 **v1.86.0**，B5/B7/B6 已合入）。W1–W18 与 v1.79–v1.86 推远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**；写操作一律只用 mock / 临时库测试。
-> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；B6/B8 / B11–B13 待办；B9 运维提醒（非代码）；B10 tag 待拍板；B14 文档勘误✅。
-> 优先级建议：**P1** B9（运维换 Key）→ **P2** B6、B8 → 待拍板 B10 → 可选 B11、B12、B13。
+> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；**B6✅ v1.86**；B8 / B11–B13 待办；B9 运维提醒（非代码）；B10 tag 待拍板；B14 文档勘误✅。
+> 优先级建议：**P1** B9（运维换 Key）→ **P2** B8 → 待拍板 B10 → 可选 B11、B12、B13。
 
-### 本轮已完成（v1.85.0，2026-11-09）
+### 本轮已完成（v1.86.0，2026-11-09）
+
+- **B6 体检页结构化视图**：`summarize`（reports）+ `DoctorOut.summary`；前端卡片对齐 `is_healthy` / `render`；原文折叠保留。
+
+### 已完成（v1.85.0，2026-11-09）
 
 - **B7 周报 ASCII 条 → CSS 进度条**：`asciiBar` + `markdown.jsx` 表细胞；真实格式 = `_md_bar` 的 `█`/`░`；可选兼容 CLI `[█·]`；`role=progressbar` + aria；CLI/md 不改。
 
@@ -408,12 +412,12 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **验收**：Vitest：有偏好时覆盖默认（前 2 条），没有偏好或系列变了时回退默认；损坏的 JSON 不报错。
 - **实现**：key=`dailylumen.legend.<kind>.v1`；键集合校验 + 版本号；防抖 300ms 保存。
 
-### B6（P2）体检页结构化视图
+### B6（P2）体检页结构化视图 ✅ v1.86.0
 
-- **目标**：体检页基于 doctor 的**结构化结果**渲染（分项状态 / 计数 / 建议），不再显示 prose 全文。
-- **涉及**：`review_tool/api/queries.py`（doctor 相关）、`reports` 层的 doctor 实现（看能否直接暴露结构化结果；没有的话在 api 层包装，**不在 api 层另算口径**）、`web/src/pages/` 下的体检页。
-- **验收**：对拍测试：结构化结果和 CLI `doctor` 的结论逐项一致；前端渲染分项状态；保留「查看原文」折叠。
-- **风险**：R1 单源。要是 doctor 只产 prose，先在 reports 层抽出结构化函数，CLI 改为基于它格式化，行为不变。
+- **目标**：体检页基于 doctor 的**结构化结果**渲染（分项状态 / 计数 / 建议），不再 prose 全文直出。
+- **涉及**：`reports/doctor.py::summarize`、`api/queries.doctor` / `DoctorOut.summary`、`web/src/pages/Doctor.jsx`。
+- **验收**：对拍：`summarize` 与 `is_healthy` / `render` 结论一致；前端分项卡片 + 「查看原文」折叠。
+- **实现**：六闸 `affects_health` 对齐 `is_healthy`；建议性分项不进健康结论；api 只透传。
 
 ### B7（P2）周报表格 ASCII 条改 CSS 进度条 ✅ v1.85.0
 

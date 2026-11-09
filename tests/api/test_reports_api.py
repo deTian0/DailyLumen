@@ -180,6 +180,10 @@ class TestAnalysisRoutes(_Fixture):
         self.assertIsInstance(data["healthy"], bool)
         self.assertEqual(data["result"]["rows"], 3)
         self.assertIn("day_ready", data["result"])
+        # B6：summary 与 healthy 同源
+        self.assertIn("summary", data)
+        self.assertEqual(data["summary"]["healthy"], data["healthy"])
+        self.assertTrue(any(it["id"] == "rows" for it in data["summary"]["items"]))
 
     def test_fuse(self):
         r = self.client.get("/api/fuse")

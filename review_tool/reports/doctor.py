@@ -1406,6 +1406,199 @@ def is_healthy(result: dict) -> bool:
     )
 
 
+def summarize(result: dict) -> dict:
+    """把 ``diagnose`` 结果收成 Web 卡片列表（R1：状态口径复用 ``is_healthy`` / ``render``）。
+
+    返回 ``{healthy, conclusion, items:[{id,title,status,count,summary,advice,affects_health}]}``。
+    ``status`` ∈ ``ok|warn|crit``；影响健康的分项与 ``is_healthy`` 六闸完全对齐。
+    """
+    healthy = is_healthy(result)
+    items: list[dict] = []
+
+    def _add(item_id: str, title: str, status: str, *, count=None,
+             summary: str = "", advice: str | None = None,
+             affects_health: bool = False) -> None:
+        items.append({
+            "id": item_id,
+            "title": title,
+            "status": status,
+            "count": count,
+            "summary": summary,
+            "advice": advice,
+            "affects_health": affects_health,
+        })
+
+    # ---- 影响 is_healthy 的六闸 ----
+    integ_ok = result["integrity"] == "ok"
+    _add(
+        "integrity", "库完整性",
+        "ok" if integ_ok else "crit",
+        summary=str(result["integrity"]),
+        advice=None if integ_ok else "库损坏，先备份再排查",
+        affects_health=True,
+    )
+    schema_ok = result["schema_version"] == result["schema_expected"]
+    _add(
+        "schema", "schema 版本",
+        "ok" if schema_ok else "crit",
+        count=result["schema_version"],
+        summary=(
+            f"v{result['schema_version']}"
+            if schema_ok
+            else f"v{result['schema_version']}（期望 v{result['schema_expected']}）"
+        ),
+        advice=None if schema_ok else "跑迁移 / 核对 SCHEMA_VERSION",
+        affects_health=True,
+    )
+    rows_ok = result["rows"] > 0
+    _add(
+        "rows", "复盘记录",
+        "ok" if rows_ok else "crit",
+        count=result["rows"],
+        summary=f"{result['rows']} 条",
+        advice=None if rows_ok else "库为空：先 ingest 标准复盘 md",
+        affects_health=True,
+    )
+    not_ing = result.get("not_ingested") or []
+    _add(
+        "not_ingested", "md 未入库",
+        "ok" if not not_ing else "warn",
+        count=len(not_ing),
+        summary=("无" if not not_ing
+                 else f"{len(not_ing)} 天有 md 未入库"),
+        advice=None if not not_ing else "python -m review_tool ingest",
+        affects_health=True,
+    )
+    orphans = result.get("orphan_in_db") or []
+    _add(
+        "orphan_in_db", "库孤儿记录",
+        "ok" if not orphans else "warn",
+        count=len(orphans),
+        summary=("无" if not orphans
+                 else f"{len(orphans)} 天在库但找不到源 md"),
+        advice=None if not orphans else "核对源文件或清理孤儿行",
+        affects_health=True,
+    )
+    overlap = result.get("habit_track_overlap") or []
+    _add(
+        "habit_track_overlap", "习惯隔离 R3",
+        "ok" if not overlap else "crit",
+        count=len(overlap),
+        summary=("habit_logs ∩ personal_tracks 无交集"
+                 if not overlap
+                 else "、".join(overlap)),
+        advice=None if not overlap else "检查 HABITS / PERSONAL_ITEMS，清理误写入",
+        affects_health=True,
+    )
+
+    # ---- 建议性分项（与 render 结论标签对齐，不进 is_healthy）----
+    stale = result.get("stale_days")
+    if stale is None:
+        _add("freshness", "新鲜度", "warn",
+             summary="库中无最新复盘日", advice="补录或 ingest")
+    else:
+        _add("freshness", "新鲜度",
+             "ok" if stale <= 1 else "warn",
+             count=stale,
+             summary=f"最新 {result.get('latest_date')}（距今 {stale} 天）",
+             advice=None if stale <= 1 else "建议补录最近复盘")
+
+    gaps = result.get("history_gaps") or []
+    gap_days = sum(g.get("missing", 0) for g in gaps)
+    _add("history_gaps", "历史断更",
+         "ok" if not gaps else "warn",
+         count=len(gaps),
+         summary=("相邻入库日连续"
+                  if not gaps
+                  else f"{len(gaps)} 处断更 / 缺 {gap_days} 天"),
+         advice=None if not gaps else "建议性提示，不代表库坏了")
+
+    miss = result.get("missing_fields") or []
+    pct = round((result.get("completeness") or 0) * 100, 1)
+    _add("completeness", "数据完整度",
+         "ok" if not miss else "warn",
+         count=len(miss),
+         summary=f"核心字段 {pct}%",
+         advice=None if not miss else "补齐缺失字段后重新 ingest")
+
+    drift = result.get("score_drift") or []
+    _add("score_drift", "分数一致性",
+         "ok" if not drift else "warn",
+         count=len(drift),
+         summary=("库分与字段重算一致"
+                  if not drift
+                  else f"{len(drift)} 处不一致"),
+         advice=None if not drift else "python -m review_tool finalize --apply")
+
+    stale_tr = result.get("stale_tracks") or []
+    _add("stale_tracks", "打卡对账",
+         "ok" if not stale_tr else "warn",
+         count=len(stale_tr),
+         summary=("打卡均可在源 md 找到"
+                  if not stale_tr
+                  else f"{len(stale_tr)} 条陈旧/重复"),
+         advice=None if not stale_tr else "ingest --prune-tracks")
+
+    cliff = result.get("track_adherence_cliff")
+    if not cliff:
+        _add("track_adherence", "打卡依从率", "ok",
+             summary="窗口样本不足，跳过骤降检测")
+    elif cliff.get("triggered"):
+        _add("track_adherence", "打卡依从率", "warn",
+             summary=(
+                 f"近 {cliff['recent_days']} 日 "
+                 f"{cliff['recent_rate'] * 100:.1f}% "
+                 f"相对基线骤降 {cliff['delta'] * 100:.1f}pp"
+             ),
+             advice="建议性；打卡权威在源 md")
+    else:
+        _add("track_adherence", "打卡依从率", "ok",
+             summary=(
+                 f"近 {cliff['recent_days']} 日 "
+                 f"{cliff['recent_rate'] * 100:.1f}%（未达骤降阈值）"
+             ))
+
+    pend = result.get("inbox_pending") or []
+    if result.get("inbox_files"):
+        _add("inbox", "收件箱",
+             "ok" if not pend else "warn",
+             count=len(pend),
+             summary=(
+                 f"共 {result['inbox_files']} 个，"
+                 + ("均已消化" if not pend else f"待处理 {len(pend)}")
+             ),
+             advice=None if not pend else "整理素材 → 草稿/定稿 → ingest → 归档")
+
+    fuse = result.get("fuse") or {}
+    abs_f = fuse.get("absolute") or []
+    if fuse.get("as_of"):
+        if not abs_f:
+            _add("fuse", "熔断检测", "ok", summary="无维度触发熔断",
+                 advice="详情: python -m review_tool fuse")
+        else:
+            active = [it for it in abs_f if not it.get("long_run")]
+            _add("fuse", "熔断检测",
+                 "crit" if active else "warn",
+                 count=len(abs_f),
+                 summary=f"{len(abs_f)} 维触发（长期低位不算绝对熔断态）",
+                 advice="详情: python -m review_tool fuse")
+
+    ready = result.get("day_ready") or {}
+    if ready:
+        light = ready.get("light") or "yellow"
+        status = {"green": "ok", "yellow": "warn", "red": "crit"}.get(light, "warn")
+        from .day_close import render_day_ready_line
+        _add("day_ready", "今日能否收工", status,
+             summary=render_day_ready_line(ready),
+             advice=f"对象日 {ready.get('day')}")
+
+    return {
+        "healthy": healthy,
+        "conclusion": "数据健康" if healthy else "存在待处理项，见上方标记",
+        "items": items,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     result = diagnose()
     print(render(result))
