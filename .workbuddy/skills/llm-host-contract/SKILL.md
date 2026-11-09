@@ -34,7 +34,7 @@ agent_created: true
 - [ ] 确认对象日（当晚写当天）  
 - [ ] 截图 / 口述 → 填数据块或附录（缺项空着）  
 - [ ] `python -m review_tool ai-context <日>` + 看 `doctor` 熔断 / 相对基线  
-- [ ] 建议段挂 `life-decision-guide`（人勾选才落改进点）  
+- [ ] 改进点由 AI 直接生成写入（2026-11-09 起不再等人勾）+ 建议段挂 `life-decision-guide`  
 - [ ] 撰写「七、AI」→ 可先七-A 草稿；人审后 `llm-finalize <日> --write`（或手清 pending / 七-B）  
 - [ ] `ingest`（未定稿会被跳过）→ `finalize --apply`（分数收口；≠ `llm-finalize`） 
 

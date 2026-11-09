@@ -443,9 +443,12 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **约束**：只提醒，**不读、不打印 `.env` 的值**。B4 / B15 等测试走 mock，不依赖真 Key。
 - **现状（2026-11-09）**：是否已换新 Key **以本机 `local/.env` 为准**（文档不跟踪密钥内容）；换完后用 `keepstrong --date <D> --stdout` 自检，不应再出现 `apiKeyExpired`。
 
-### B10（待拍板）版本 tag 补打
+### B10（已定调：不补打）版本 tag 补打
 
-- **代码已推、tag 未齐**：v1.73.0–v1.83.0（含 EditorConfig chore，版本仍停在 1.83.0）本地多半未打或未推 tag。
+> **2026-11-09 用户定调**：tag 一律不补打、不推，agent 不再跟进此项（历史 tag 保持原样）。
+> 以下原文保留作背景。
+
+- **代码已推、tag 未齐**：v1.73.0–v1.83.1（含 EditorConfig chore）本地多半未打或未推 tag。
 - **另**：本地曾有的 v1.60.1、v1.61.0–v1.72.0 等 tag **多数未推远端**（远端 tag 最新仍约 `v1.60.0`）。
 - 等后续优化稳定后，由用户决定：统一补打并推，还是只打里程碑版本。在那之前 push 一律不带 `--tags`，也不开 `push.followTags`。
 
