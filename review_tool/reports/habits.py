@@ -12,9 +12,10 @@ import json
 import sys
 from datetime import date
 
-from ..config import HABITS
+from ..config import ACTIVE_HABITS
 from ..core.habits import (
     adherence_from_rows,
+    adherence_rate,
     detect_gaps,
     habit_streak,
 )
@@ -23,16 +24,32 @@ from ..storage.db import init_db, load_habit_logs
 
 
 def collect(conn, *, as_of: str | None = None) -> dict:
-    """汇总体习惯报告数据。"""
+    """汇总体习惯报告数据。
+
+    只统计 ``config.ACTIVE_HABITS``（启用中的习惯）—— 已停用项的
+    历史 ``habit_logs`` 行仍在库里，但不进依从率 / streak / 断更，
+    合计也随之重算（否则停用项会继续拉低合计）。
+    """
     rows_raw = load_habit_logs(conn)
     rows = [dict(r) for r in rows_raw]
     end = as_of or (max((r["date"] for r in rows), default=None)
                     or date.today().isoformat())
+
+    active_keys = {spec["key"] for spec in ACTIVE_HABITS}
     adh = adherence_from_rows(rows)
+    adh["items"] = [it for it in adh["items"] if it["habit_key"] in active_keys]
+    rec = sum(it["recorded"] for it in adh["items"])
+    done = sum(it["done"] for it in adh["items"])
+    adh["total"] = {
+        "recorded": rec,
+        "done": done,
+        "adherence": adherence_rate(done, rec),
+    }
+
     streaks = [
-        habit_streak(rows, spec["key"], as_of=end) for spec in HABITS
+        habit_streak(rows, spec["key"], as_of=end) for spec in ACTIVE_HABITS
     ]
-    gaps = detect_gaps(rows, as_of=end)
+    gaps = detect_gaps(rows, as_of=end, items=ACTIVE_HABITS)
     return {
         "as_of": end,
         "count": len(rows),
@@ -46,7 +63,7 @@ def collect(conn, *, as_of: str | None = None) -> dict:
                 "target_per_week": s["target_per_week"],
                 "alert_days": s["alert_days"],
             }
-            for s in HABITS
+            for s in ACTIVE_HABITS
         ],
     }
 

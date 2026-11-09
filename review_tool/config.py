@@ -503,8 +503,16 @@ HABITS = [
         ],
         "target_per_week": 3,
         "alert_days": 7,
+        # 2026-11-09 用户暂停该项（连续 7 天断更）：ClickUp 任务已 archive，
+        # 报告 / 待办不再统计。历史 habit_logs 行保留不动 —— 恢复只需把
+        # enabled 改回 True（或删掉该键），再 Unarchive ClickUp 任务。
+        "enabled": False,
     },
 ]
+
+# 启用中的习惯 —— **报告 / 待办一律只看这个**；HABITS 仍是归一化全量目录
+# （历史 md / ClickUp 任务名仍要能解析，所以不从 HABITS 里删条目）。
+ACTIVE_HABITS = [h for h in HABITS if h.get("enabled", True)]
 
 # ClickUp「习惯与打卡」list id（select_habits / habit_sync 默认源）
 HABITS_LIST_ID = LIST_HABITS

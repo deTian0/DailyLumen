@@ -32,11 +32,11 @@ from datetime import date as _date
 from datetime import datetime, timedelta
 
 from ..config import (
+    ACTIVE_HABITS,
     ARCHIVE_SRC_DIR,
     BODY_TARGETS,
     FUSE_RULES,
     HABIT_FRESHNESS_LAG_DAYS,
-    HABITS,
     INPUT_DIR,
     PROFILE,
     PROMISE_DECLINED_BUCKET,
@@ -104,7 +104,8 @@ def habit_gap_status(conn, *, today: str) -> dict:
     as_of = max((r["date"] for r in rows), default=today)
     # 断更按「有日志的最近日」计更稳；若完全无日志则用 today
     check_as = as_of or today
-    gaps = detect_gaps(rows, as_of=check_as, items=HABITS)
+    # 只看启用中的习惯（config.ACTIVE_HABITS）：已停用项的断更不再报警
+    gaps = detect_gaps(rows, as_of=check_as, items=ACTIVE_HABITS)
     return {"as_of": check_as, "gaps": gaps, "count": len(gaps), "empty": False}
 
 
