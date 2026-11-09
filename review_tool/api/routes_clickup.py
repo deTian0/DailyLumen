@@ -112,7 +112,8 @@ def build_router(*, fetch=None, env=None, db_path: str | None = None,
             data = cq.today(date, fetch=fetch, env=env)
         except QueryError as e:
             # 参数错误不回退（那是调用方的错，不是上游故障）
-            if e.status < 500:
+            # 限流（429）也回退上次成功结果：它是上游故障，不是调用方参数错
+            if e.status < 500 and e.code != "rate_limited":
                 raise
             cached = today_cache.get(date or cq._today())
             if cached is None:

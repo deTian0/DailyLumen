@@ -67,6 +67,8 @@ def _collect(day: str, *, fetch=None, env=None) -> tuple[list[dict], str | None]
         return cu.collect(day, key=key, fetch=fetch), team
     except urllib.error.HTTPError as e:
         code = getattr(e, "code", None)
+        if code == 429:
+            raise QueryError(429, "rate_limited", "ClickUp 限流（每分钟请求数超限），请稍后再刷新") from e
         if code in (401, 403):
             msg = f"ClickUp 拒绝访问（HTTP {code}）：token 失效或权限不足，检查 local/.env 的 CLICKUP_API_KEY"
             raise QueryError(502, "upstream_auth", msg) from e

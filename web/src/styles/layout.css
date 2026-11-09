@@ -16,10 +16,17 @@
   left: 0;
 }
 
+/* 桌面端壳层固定为视口高度：整页不出现滚动条，长内容只在主区域内滚动 */
 .app {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+}
+.main {
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 @media (max-width: 900px) {
   .app {
@@ -232,6 +239,33 @@
   opacity: 0.7;
   cursor: not-allowed;
 }
+/* 异步操作中的按钮：保持宽度，右侧转圈提示（aria-busy 由组件设置） */
+.btn-primary[aria-busy='true'],
+.btn-ghost[aria-busy='true'] {
+  position: relative;
+  padding-right: 34px;
+  cursor: progress;
+}
+.btn-primary[aria-busy='true']::after,
+.btn-ghost[aria-busy='true']::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: spin 0.7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary[aria-busy='true']::after,
+  .btn-ghost[aria-busy='true']::after {
+    animation-duration: 2.4s;
+  }
+}
 .btn-ghost {
   border: 1px solid var(--border);
   cursor: pointer;
@@ -274,8 +308,16 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
+/* 序号圆点占第 1 列第 1 行；正文子元素统一落在第 2 列，避免伪元素抢占网格导致文字竖排 */
+.steps > li > * {
+  grid-column: 2;
+  min-width: 0;
+}
 .steps > li::before {
   content: counter(step);
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
   width: 28px;
   height: 28px;
   border-radius: 50%;

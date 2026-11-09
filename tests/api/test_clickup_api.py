@@ -307,5 +307,68 @@ class TestRouterPrecedence(_Base):
         self.assertIn("error", r.json())
 
 
+class TestRateLimit(unittest.TestCase):
+    """429 限流：有上限地等待重试；耗尽后抛出，由路由映射为 rate_limited 并回退旧数据。"""
+
+    @staticmethod
+    def _resp(body: bytes):
+        class _R:
+            def read(self):
+                return body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        return _R()
+
+    def test_429_then_success_retries_once(self):
+        from review_tool.integrations.clickup.client import http_get
+
+        calls = []
+
+        def opener(req, timeout=None):
+            calls.append(req)
+            if len(calls) == 1:
+                raise urllib.error.HTTPError("u", 429, "Too Many", {"X-RateLimit-Reset": "0"}, None)
+            return self._resp(b'{"tasks": []}')
+
+        with mock.patch("review_tool.integrations.clickup.client.time.sleep") as sleep:
+            out = http_get("/list/L1/task", "k", urlopen=opener)
+        self.assertEqual(out, {"tasks": []})
+        self.assertEqual(len(calls), 2)
+        sleep.assert_called_once()
+        self.assertEqual(sleep.call_args[0][0], 1.0)  # 夹在 [1, 60] 秒
+
+    def test_429_exhausted_raises_after_bounded_retries(self):
+        from review_tool.integrations.clickup.client import RATE_LIMIT_RETRIES, http_get
+
+        calls = []
+
+        def opener(req, timeout=None):
+            calls.append(req)
+            raise urllib.error.HTTPError("u", 429, "Too Many", {}, None)
+
+        with mock.patch("review_tool.integrations.clickup.client.time.sleep"):
+            with self.assertRaises(urllib.error.HTTPError):
+                http_get("/x", "k", urlopen=opener)
+        self.assertEqual(len(calls), RATE_LIMIT_RETRIES + 1)
+
+    def test_non_429_not_retried(self):
+        from review_tool.integrations.clickup.client import http_get
+
+        calls = []
+
+        def opener(req, timeout=None):
+            calls.append(req)
+            raise urllib.error.HTTPError("u", 401, "Unauthorized", {}, None)
+
+        with self.assertRaises(urllib.error.HTTPError):
+            http_get("/x", "k", urlopen=opener)
+        self.assertEqual(len(calls), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

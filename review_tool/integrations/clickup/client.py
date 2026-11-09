@@ -6,6 +6,7 @@ HTTP 细节集中在此；归日规则、素材渲染、写 md 等编排留在 `
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -17,8 +18,24 @@ from ...config import CLICKUP_BASE_URL, CLICKUP_TIMEOUT_S
 PAGE_SIZE = 100
 MAX_PAGES = 20
 
+# 429 限流：最多重试次数与单次最长等待（秒），防止紧循环与长时间阻塞
+RATE_LIMIT_RETRIES = 2
+RATE_LIMIT_MAX_WAIT_S = 60.0
+
 Fetcher = Callable[..., dict]
 Mutator = Callable[..., dict]
+
+
+def _rate_limit_wait(err: urllib.error.HTTPError) -> float:
+    """按 ``X-RateLimit-Reset``（Unix 时间戳，秒）算等待时长，夹在 [1, 60] 秒。"""
+    headers = getattr(err, "headers", None) or {}
+    try:
+        reset = float(headers.get("X-RateLimit-Reset"))
+    except (TypeError, ValueError):
+        return 10.0
+    if reset > 1e12:  # 若按毫秒给出，统一换算成秒
+        reset /= 1000.0
+    return min(max(reset - time.time(), 1.0), RATE_LIMIT_MAX_WAIT_S)
 
 
 def auth_headers(api_key: str, *, json_body: bool = False) -> dict[str, str]:
@@ -37,13 +54,24 @@ def http_get(
     base_url: str = CLICKUP_BASE_URL,
     urlopen=None,
 ) -> dict:
-    """GET 一个 ClickUp API 路径，返回解析后的 JSON。"""
+    """GET 一个 ClickUp API 路径，返回解析后的 JSON。
+
+    遇 429（每分钟每 token 限额）按 ``X-RateLimit-Reset`` 有上限地等待后重试，
+    重试次数耗尽仍 429 则原样抛出，由上层映射为 ``rate_limited``。
+    """
     opener = urlopen or urllib.request.urlopen
     req = urllib.request.Request(base_url.rstrip("/") + path)
     for k, v in auth_headers(key).items():
         req.add_header(k, v)
-    with opener(req, timeout=timeout) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    for attempt in range(RATE_LIMIT_RETRIES + 1):
+        try:
+            with opener(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code != 429 or attempt >= RATE_LIMIT_RETRIES:
+                raise
+            time.sleep(_rate_limit_wait(e))
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def http_put(

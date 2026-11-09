@@ -166,6 +166,7 @@ export function errText(e) {
     credentials_missing: 'ClickUp 未配置凭据，今日数据不可用（在 local/.env 配置后重启 serve）',
     upstream_auth: 'ClickUp 拒绝访问：token 失效或权限不足',
     upstream_unreachable: 'ClickUp 网络不可达或超时，稍后再试',
+    rate_limited: 'ClickUp 限流（每分钟请求数超限），请稍后再刷新',
     mode_gated: '当前 mode 不调 DeepSeek：读图 / AI 评价请改 local/.env 的 DAILYLUMEN_LLM_MODE=deepseek',
     image_too_large: '图片太大（单张上限 8 MB），请裁剪或压缩后重试',
     invalid_image: '只支持 PNG / JPEG / WebP 截图',

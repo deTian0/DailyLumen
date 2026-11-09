@@ -1,7 +1,18 @@
 // W16：把 /api/charts/{kind}.json 的序列转成 ECharts option。
 // 纯函数、不依赖 echarts，方便单测；颜色 / 序列名 / 单位全部来自后端 JSON（与 SVG 同源）。
 
-const baseGrid = { left: 56, right: 24, top: 36, bottom: 56 }
+const baseGrid = { left: 56, right: 24, top: 40, bottom: 56 }
+
+// 图例与刻度字号放大，避免分析页小字难读
+const textStyle = { fontSize: 13 }
+const legendStyle = { textStyle, itemWidth: 16, itemHeight: 10, itemGap: 16 }
+// 日期轴：自动抽稀并避免标签重叠，不再挤成一团
+const dateAxis = (dates) => ({
+  type: 'category',
+  data: dates,
+  boundaryGap: false,
+  axisLabel: { formatter: shortDate, hideOverlap: true, interval: 'auto', fontSize: 11, margin: 10 },
+})
 
 function axisLabel(values, unit) {
   // 数值轴：null 透传给 echarts（自动断点）；单位拼到轴名
@@ -46,10 +57,10 @@ export function buildChartOption(data) {
   if (kind === 'training') {
     const s = series[0]
     return {
-      tooltip: { trigger: 'axis' },
+      tooltip: { trigger: 'axis', textStyle },
       legend: { show: false },
       grid: baseGrid,
-      xAxis: { type: 'category', data: dates, axisLabel: { formatter: shortDate } },
+      xAxis: dateAxis(dates),
       yAxis: axisLabel(s.values, s.unit),
       series: [{
         name: s.name, type: 'bar', data: s.values,
@@ -60,10 +71,10 @@ export function buildChartOption(data) {
 
   if (kind === 'nutrition') {
     return {
-      tooltip: { trigger: 'axis' },
-      legend: { show: true, top: 4, selectedMode: true },
+      tooltip: { trigger: 'axis', textStyle },
+      legend: { show: true, top: 4, selectedMode: true, ...legendStyle },
       grid: { ...baseGrid, right: 56 },
-      xAxis: { type: 'category', data: dates, axisLabel: { formatter: shortDate } },
+      xAxis: dateAxis(dates),
       yAxis: [axisLabel(series[0].values, series[0].unit), axisLabel(series[1].values, series[1].unit)],
       series: series.map(lineSeries),
     }
@@ -72,16 +83,17 @@ export function buildChartOption(data) {
   // trends / body：单轴多线
   const legendSelected = defaultLegendSelected(series, kind)
   const opt = {
-    tooltip: { trigger: 'axis' },
+    tooltip: { trigger: 'axis', textStyle },
     legend: {
       show: series.length > 1,
       top: 4,
       data: series.map((s) => s.name),
       selectedMode: true,
+      ...legendStyle,
       ...(legendSelected ? { selected: legendSelected } : {}),
     },
     grid: baseGrid,
-    xAxis: { type: 'category', data: dates, axisLabel: { formatter: shortDate } },
+    xAxis: dateAxis(dates),
     yAxis: axisLabel(series[0].values, series[0].unit),
     series: series.map(lineSeries),
   }
