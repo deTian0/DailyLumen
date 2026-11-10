@@ -45,15 +45,17 @@ class TestGitignoreWhitelist(unittest.TestCase):
                 f".workbuddy/{private}/ 不应被白名单放行",
             )
         # skills 白名单 + 仓库根 .env.example（M16）+ local/ 占位（M45）
+        # + CI 非密钥个人参数夹具（v1.88.1，抵消 *.env）
         allowed = {
             "!.workbuddy/skills/",
             "!.workbuddy/skills/**",
             "!.env.example",
             "!local/.gitkeep",
             "!local/README.md",
+            "!tests/fixtures/ci.env",
         }
         self.assertEqual(set(negated), allowed,
-                         "白名单只应放行 skills/、.env.example、local 占位")
+                         "白名单只应放行 skills/、.env.example、local 占位、ci.env")
 
     def test_local_parent_dir_ignored_with_placeholders(self):
         """M45：local/** 全忽略，仅反白 .gitkeep + README.md。"""
