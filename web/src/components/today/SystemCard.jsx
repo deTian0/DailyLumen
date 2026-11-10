@@ -1,5 +1,5 @@
 // W13 从 Today.jsx 拆出
-import { Card, Loading } from '../Common'
+import { Card, Loading, StatusMark } from '../Common'
 
 const INTEG = [
   { id: 'clickup', label: 'ClickUp' },
@@ -24,15 +24,21 @@ export function SystemCard({ health }) {
             <div key={i.id}>
               <dt>{i.label}</dt>
               <dd>
-                <span className={`pill ${health.integrations?.[i.id] ? 'pill-green' : ''}`}>
-                  {health.integrations?.[i.id] ? '已启用' : '未启用'}
-                </span>
+                <StatusMark
+                  tone={health.integrations?.[i.id] ? 'ok' : 'muted'}
+                  label={health.integrations?.[i.id] ? '已启用' : '未启用'}
+                />
               </dd>
             </div>
           ))}
           <div>
             <dt>AI 一键功能</dt>
-            <dd>{health.ai_enabled ? '可用' : '不可用（需 deepseek 模式且集成开启）'}</dd>
+            <dd>
+              <StatusMark
+                tone={health.ai_enabled ? 'ok' : 'muted'}
+                label={health.ai_enabled ? '可用' : '不可用（需 deepseek 模式且集成开启）'}
+              />
+            </dd>
           </div>
         </dl>
       )}

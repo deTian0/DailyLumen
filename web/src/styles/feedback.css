@@ -53,6 +53,21 @@
 }
 .state-empty {
   color: var(--muted);
+  gap: 12px;
+  min-height: 88px;
+  padding: 28px 16px;
+}
+.state-empty .state-msg {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 36em;
+}
+.state-empty .state-action {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 .spinner {
   width: 18px;

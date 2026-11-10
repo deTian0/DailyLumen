@@ -72,16 +72,6 @@ export default function Today({ toast, health }) {
             {data && <> · ClickUp 拉取于 {data.fetched_at.slice(11, 16)}</>}
           </p>
         </div>
-        <div className="top-actions">
-          <label className="search">
-            <span aria-hidden="true">⌕</span>
-            <span className="visually-hidden">搜索今日任务</span>
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索今日任务" />
-          </label>
-          <button type="button" className="btn-primary" onClick={refresh} disabled={refreshing} aria-busy={refreshing}>
-            {refreshing ? '刷新中…' : '↻ 刷新今日'}
-          </button>
-        </div>
       </header>
 
       {data?.stale && (
@@ -126,6 +116,17 @@ export default function Today({ toast, health }) {
         </section>
       )}
 
+      <div className="list-toolbar" role="search">
+        <label className="search">
+          <span aria-hidden="true">⌕</span>
+          <span className="visually-hidden">搜索今日任务</span>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索今日任务" />
+        </label>
+        <button type="button" className="btn-ghost" onClick={refresh} disabled={refreshing} aria-busy={refreshing}>
+          {refreshing ? '刷新中…' : '↻ 刷新今日'}
+        </button>
+      </div>
+
       <div className="row">
         <Card title="今日待办" meta="逾期（默认折叠）· 今日到期 · 无截止">
           <div className="well">
@@ -134,7 +135,15 @@ export default function Today({ toast, health }) {
             ) : today.error && !data ? (
               <ErrorBox error={today.error} onRetry={today.reload} />
             ) : todoCount === 0 ? (
-              <Empty>{query ? '没有匹配的任务' : '今天没有待办，轻松一点'}</Empty>
+              <Empty
+                action={query ? (
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => setQuery('')}>
+                    清除搜索
+                  </button>
+                ) : null}
+              >
+                {query ? '没有匹配的任务' : '今天没有待办，轻松一点'}
+              </Empty>
             ) : (
               <TodoGroups lists={lists} writable={writable} toast={toast} onChanged={afterWrite}
                 query={query} />
@@ -150,7 +159,19 @@ export default function Today({ toast, health }) {
             ) : today.error && !data ? (
               <ErrorBox error={today.error} onRetry={today.reload} />
             ) : lists.done.length === 0 ? (
-              <Empty>{query ? '没有匹配的任务' : '还没有完成的任务'}</Empty>
+              <Empty
+                action={query ? (
+                  <button type="button" className="btn-ghost btn-sm" onClick={() => setQuery('')}>
+                    清除搜索
+                  </button>
+                ) : (
+                  <button type="button" className="btn-ghost btn-sm" onClick={refresh} disabled={refreshing}>
+                    刷新今日
+                  </button>
+                )}
+              >
+                {query ? '没有匹配的任务' : '还没有完成的任务'}
+              </Empty>
             ) : (
               <ul className="task-list" aria-label="已办任务">
                 {lists.done.map((t) => <Task key={t.id} t={t} kind="done" />)}
@@ -221,7 +242,15 @@ export default function Today({ toast, health }) {
               })}
             </div>
           ) : today.error ? (
-            <Empty>ClickUp 数据不可用，暂无负荷统计</Empty>
+            <Empty
+              action={
+                <button type="button" className="btn-ghost btn-sm" onClick={today.reload}>
+                  重试拉取
+                </button>
+              }
+            >
+              ClickUp 数据不可用，暂无负荷统计
+            </Empty>
           ) : (
             <Loading />
           )}

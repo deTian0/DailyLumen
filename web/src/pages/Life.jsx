@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
-import { Card, ErrorBox, Loading, Prose, Stat } from '../components/Common'
+import { Card, ErrorBox, Loading, Prose, Stat, StatusMark } from '../components/Common'
 import { ClickupHabitWrite } from '../components/ClickupHabitWrite'
 import { KeepStrongWrite } from '../components/KeepStrongWrite'
 import { WriteFlow } from '../components/WriteFlow'
@@ -16,9 +16,10 @@ function HabitsPreview(p) {
       </p>
       <ul className="task-list" aria-label="将写入的习惯">
         {p.rows.map((r) => (
-          <li key={r.habit_key} className="task">
+          <li key={r.habit_key} className={`task ${r.done ? 'task-done' : 'task-open'}`}>
+            <span className="dot" aria-hidden="true" />
             <div className="task-body"><div className="title">{r.item}</div><div className="sub">{r.habit_key}</div></div>
-            <span className={`pill ${r.done ? 'pill-green' : ''}`}>{r.done ? '完成' : '未完成'}</span>
+            <StatusMark tone={r.done ? 'ok' : 'muted'} label={r.done ? '完成' : '未完成'} />
           </li>
         ))}
       </ul>

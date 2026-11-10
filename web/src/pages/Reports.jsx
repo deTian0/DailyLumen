@@ -137,8 +137,8 @@ function AiPreview({ date, toast }) {
   return (
     <Card title="AI 评价预览" meta={st.data ? `mode=${st.data.mode}` : ''}
       actions={
-        <button type="button" className="btn-primary" onClick={run} disabled={!allowed || busy}
-          aria-describedby="ai-gate-note">
+        <button type="button" className="btn-ghost" onClick={run} disabled={!allowed || busy}
+          aria-busy={busy} aria-describedby="ai-gate-note">
           {busy ? '生成中…' : '生成预览'}
         </button>
       }>

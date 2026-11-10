@@ -22,7 +22,7 @@ const sample = {
 }
 
 describe('DoctorCards', () => {
-  it('渲染分项卡片与状态 icon', () => {
+  it('渲染分项卡片与状态点短标签', () => {
     render(<DoctorCards summary={sample} />)
     expect(screen.getByRole('list', { name: '体检分项' })).toBeTruthy()
     expect(screen.getByText('复盘记录')).toBeTruthy()
@@ -30,8 +30,10 @@ describe('DoctorCards', () => {
     expect(screen.getByText('schema 版本')).toBeTruthy()
     const crit = document.querySelector('[data-id="rows"]')
     expect(crit?.getAttribute('data-status')).toBe('crit')
-    expect(crit?.textContent).toContain('❌')
+    expect(crit?.querySelector('.status-crit')).toBeTruthy()
+    expect(crit?.textContent).toContain('异常')
     expect(crit?.textContent).toContain('库为空')
+    expect(document.querySelector('[data-id="schema"] .status-ok')?.textContent).toContain('正常')
   })
 
   it('原文折叠由页面 details 承担（卡片不含全文）', () => {

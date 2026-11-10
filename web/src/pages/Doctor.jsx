@@ -1,8 +1,8 @@
 import { api } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
-import { Card, ErrorBox, Loading, Prose, Stat } from '../components/Common'
+import { Card, ErrorBox, Loading, Prose, Stat, StatusMark } from '../components/Common'
 
-const STATUS_ICON = { ok: '✅', warn: '⚠️', crit: '❌' }
+const STATUS_LABEL = { ok: '正常', warn: '注意', crit: '异常' }
 
 export function DoctorCards({ summary }) {
   if (!summary?.items?.length) return null
@@ -17,8 +17,8 @@ export function DoctorCards({ summary }) {
           data-id={it.id}
         >
           <header className="doctor-card-head">
-            <span className="doctor-card-icon" aria-hidden="true">
-              {STATUS_ICON[it.status] || '•'}
+            <span className="doctor-card-icon">
+              <StatusMark tone={it.status} label={STATUS_LABEL[it.status] || it.status} />
             </span>
             <h3 className="doctor-card-title">{it.title}</h3>
             {it.count != null && (
@@ -99,4 +99,4 @@ export default function Doctor() {
   )
 }
 
-export { STATUS_ICON }
+export { STATUS_LABEL }

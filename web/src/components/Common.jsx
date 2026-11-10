@@ -104,8 +104,33 @@ export function CopyButton({ text, toast, label = '复制全文', aria }) {
   )
 }
 
-export function Empty({ children }) {
-  return <div className="state state-empty">{children}</div>
+/** 空状态：一句说明 + 可选 ghost CTA（B16） */
+export function Empty({ children, action }) {
+  return (
+    <div className="state state-empty">
+      <p className="state-msg">{children}</p>
+      {action ? <div className="state-action">{action}</div> : null}
+    </div>
+  )
+}
+
+const STATUS_TONE = {
+  ok: 'ok', green: 'ok',
+  warn: 'warn', amber: 'warn',
+  crit: 'crit', red: 'crit',
+  progress: 'progress', accent: 'progress',
+  muted: 'muted', idle: 'muted',
+}
+
+/** 点 + 短标签；tone 映射到 ink 语义色，不引入新主色 */
+export function StatusMark({ tone = 'muted', label, className = '' }) {
+  const t = STATUS_TONE[tone] || 'muted'
+  return (
+    <span className={`status status-${t} ${className}`.trim()}>
+      <span className={`dot dot-${t}`} aria-hidden="true" />
+      {label != null && label !== '' ? <span className="status-label">{label}</span> : null}
+    </span>
+  )
 }
 
 export function Card({ title, meta, children, className = '', actions }) {

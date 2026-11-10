@@ -1,23 +1,23 @@
 // B15：受控代勾 ClickUp「练练健身」习惯 —— 只写 ClickUp，≠ 训练明细入库；habit_logs 另 sync。
 import { useState } from 'react'
 import { todayStr } from '../lib/api'
-import { Card } from './Common'
+import { Card, StatusMark } from './Common'
 import { WriteFlow } from './WriteFlow'
 
 function HabitPreview(p) {
   const hint = p.keepstrong_hint?.message || ''
+  const done = p.action === 'skip_closed'
   return (
     <>
       <p className="muted">{p.disclaimer || '这是习惯勾选，≠ 训练明细入库。'}</p>
       <ul className="task-list" aria-label="代勾预览">
-        <li className="task">
+        <li className={`task ${done ? 'task-done' : 'task-in_progress'}`}>
+          <span className="dot" aria-hidden="true" />
           <div className="task-body">
             <div className="title">{p.label || p.habit_key}</div>
             <div className="sub">{p.date} · {p.name} · {p.task_id}</div>
           </div>
-          <span className={`pill ${p.action === 'skip_closed' ? 'pill-green' : ''}`}>
-            {p.action === 'skip_closed' ? '已完成（幂等）' : '将勾选'}
-          </span>
+          <StatusMark tone={done ? 'ok' : 'progress'} label={done ? '已完成（幂等）' : '将勾选'} />
         </li>
       </ul>
       {hint && <p className="hint">{hint}</p>}

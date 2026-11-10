@@ -35,7 +35,7 @@ function TaskDone({ t, writable, toast, onChanged }) {
       setState('error')
     }
   }
-  if (state === 'done') return <span className="pill pill-green">✓ 已完成</span>
+  if (state === 'done') return <span className="pill pill-green">已完成</span>
   if (plan) {
     return (
       <span className="task-confirm" role="group" aria-label={`确认完成 ${t.name}`}>

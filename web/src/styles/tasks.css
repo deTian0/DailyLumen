@@ -18,20 +18,58 @@
 .task:last-child {
   margin-bottom: 0;
 }
+/* B16：状态点统一用 ink 语义色（装饰亮色 --green/--red 不再当主指示） */
 .dot {
   width: 9px;
   height: 9px;
   margin-top: 5px;
   border-radius: 50%;
+  background: var(--border-strong);
+  flex: none;
+  display: inline-block;
+  vertical-align: middle;
+}
+.dot-ok,
+.dot-green,
+.task-done .dot {
+  background: var(--ink-green);
+}
+.dot-warn,
+.dot-amber,
+.task-open .dot {
+  background: var(--ink-amber);
+}
+.dot-crit,
+.dot-red,
+.task-overdue .dot {
+  background: var(--ink-red);
+}
+.dot-progress,
+.task-in_progress .dot {
   background: var(--accent);
+}
+.dot-muted,
+.dot-idle {
+  background: var(--border-strong);
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.status .dot {
+  margin-top: 0;
   flex: none;
 }
-.task-overdue .dot {
-  background: var(--red);
-}
-.task-done .dot {
-  background: var(--green);
-}
+.status-ok { color: var(--ink-green); }
+.status-warn { color: var(--ink-amber); }
+.status-crit { color: var(--ink-red); }
+.status-progress { color: var(--accent); }
+.status-muted { color: var(--muted); }
 .task .title {
   font-size: 14px;
   font-weight: 650;
@@ -55,20 +93,26 @@
   border: 1px solid var(--border);
   white-space: nowrap;
 }
+/* 短标签：ink 字色 + 浅底，与状态点同语义，不再实心白字块 */
 .pill-red {
-  color: #fff;
-  background: var(--ink-red);
-  border-color: var(--ink-red);
+  color: var(--ink-red);
+  background: rgba(180, 35, 24, 0.08);
+  border-color: rgba(180, 35, 24, 0.28);
 }
 .pill-blue {
-  color: #fff;
-  background: var(--accent);
-  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: rgba(13, 124, 111, 0.35);
 }
 .pill-green {
-  color: #fff;
-  background: var(--ink-green);
-  border-color: var(--ink-green);
+  color: var(--ink-green);
+  background: rgba(31, 107, 74, 0.1);
+  border-color: rgba(31, 107, 74, 0.28);
+}
+.pill-amber {
+  color: var(--ink-amber);
+  background: rgba(154, 103, 0, 0.1);
+  border-color: rgba(154, 103, 0, 0.28);
 }
 
 /* ---------- Week calendar strip ---------- */
