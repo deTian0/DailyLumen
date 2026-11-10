@@ -50,4 +50,6 @@ review_tool/reviews.db
 .env.*
 !.env.example
 *.env
+# CI 非密钥个人参数夹具（见 tests/fixtures/ci.env / workflows/ci.yml）
+!tests/fixtures/ci.env
 mcp.json

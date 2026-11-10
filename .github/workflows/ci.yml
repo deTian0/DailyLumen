@@ -9,6 +9,16 @@ jobs:
   test:
     name: 测试 (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    # M47 后个人参数只在 local/.env；CI 无该文件。注入非密钥夹具
+    # （与 tests/fixtures/ci.env 对齐），供 unittest + e2e 子进程共用。
+    env:
+      PROFILE_HEIGHT_CM: "170"
+      PROFILE_CARBS_G: "220"
+      PROFILE_PROTEIN_G: "82"
+      PROFILE_FAT_G: "46"
+      PROFILE_TRAINING_WEEKDAYS: "0,1,2,4,5"
+      BODY_WEIGHT_KG_LOW: "64.0"
+      BODY_WEIGHT_KG_HIGH: "66.0"
     strategy:
       fail-fast: false
       matrix:
@@ -57,6 +67,14 @@ jobs:
   coverage:
     name: 覆盖率（仅 3.13）
     runs-on: ubuntu-latest
+    env:
+      PROFILE_HEIGHT_CM: "170"
+      PROFILE_CARBS_G: "220"
+      PROFILE_PROTEIN_G: "82"
+      PROFILE_FAT_G: "46"
+      PROFILE_TRAINING_WEEKDAYS: "0,1,2,4,5"
+      BODY_WEIGHT_KG_LOW: "64.0"
+      BODY_WEIGHT_KG_HIGH: "66.0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
