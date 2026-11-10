@@ -331,12 +331,16 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06；**状态对齐 2026-11-10**（代码版本 **v1.88.0**；B5–B8 / B16 已合入，B8 纯文档不 bump）。W1–W18 与 v1.79–v1.88 推远端 `main`（不推 tag）。
+> 追加于 2026-11-06；**状态对齐 2026-11-10**（代码版本 **v1.89.0**；B5–B8 / B16 / **B17** 已合入，B8 纯文档不 bump）。W1–W18 与 v1.79–v1.89 推远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**；写操作一律只用 mock / 临时库测试。
-> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；**B6✅ v1.86**；**B8✅ 文档**；**B16✅ v1.88**；B11–B13 待办；B9 运维提醒（非代码）；B10 tag 不补打；B14 文档勘误✅。
+> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；**B6✅ v1.86**；**B8✅ 文档**；**B16✅ v1.88**；**B17✅ v1.89**；B11–B13 待办；B9 运维提醒（非代码）；B10 tag 不补打；B14 文档勘误✅。
 > 优先级建议：**P1** B9（运维换 Key）→ 可选 B11、B12、B13。
 
-### 本轮已完成（B16 视觉结构打磨，2026-11-10）
+### 本轮已完成（B17 壳层唯一滚动，2026-11-10）
+
+- **B17 壳层唯一滚动 / 去双滚动条（v1.89.0）**：`html/body/#root/.app` `overflow:hidden` + `100dvh`；仅 `.main` 纵向滚；去掉 `.prose-panel` / `.well` 的 max-height 内滚；窄屏侧栏顶栏后 main 仍唯一滚动。截图见 `local/screenshots/v189-scroll/`（gitignore 区）。
+
+### 已完成（B16 视觉结构打磨，2026-11-10）
 
 - **B16 视觉结构打磨（v1.88.0）**：状态点「点 + 短标签」收口；今日筛选/刷新贴待办区；空状态「说明 + 可选 ghost CTA」；主次按钮纪律（确认写操作仍 primary）。不换品牌色、不做默认暗色。
 
@@ -481,6 +485,20 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
   4. 主次按钮：一屏/一卡尽量一个 primary；写操作确认保留 primary。
 - **明确不做**：暗色（B11）、换 accent 蓝、多页签、玻璃拟态、3D 图标。
 - **验收**：Vitest + `npm run build`；四处版本对齐；不打 tag。
+
+### B17（P2）壳层唯一滚动 / 去双滚动条 ✅ v1.89.0
+
+- **目标**：消灭浏览器级（html/body）滚动条；长内容只在 `.main` 一条滚；禁止与 `.prose-panel` 叠双条。
+- **根因**：仅设 `.app { height:100vh }` 不够——grid 子项默认 `min-height:auto` 会按内容撑破壳，同时 `.prose-panel { max-height:70vh; overflow:auto }` 再叠内滚。
+- **实现**：
+  1. `tokens.css`：`html, body, #root { height:100%; overflow:hidden }`
+  2. `layout.css`：`.app` 锁 `100dvh` + `minmax(0,1fr)`；侧栏 `min-height:0` 不滚；`.main` `overflow-y:auto` + `scrollbar-gutter:stable` + 细/hover 滚动条
+  3. `content.css`：`.prose-panel` 去 max-height 内滚，报告全文流式跟随主栏
+  4. `cards.css`：`.well` 去 `max-height:420px` 内滚（今日双栏随主栏）
+  5. `login.css`：无壳时 `.login-wrap` 作唯一滚动
+  6. 窄屏：`grid-template-rows: auto minmax(0,1fr)`，body 仍不滚
+- **明确不做**：换品牌色、暗色、为 prose 保留第二套纵向滚动。
+- **验收**：复盘页截图无浏览器条；Vitest + build；四处版本对齐；不打 tag。
 
 ### B11（可选）暗色模式
 

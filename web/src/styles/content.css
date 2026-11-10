@@ -110,13 +110,14 @@
 }
 
 /* ---------- Markdown / prose（报告类正文，禁止等宽灰墙） ---------- */
+/* B17：跟随主栏自然流高，禁止再叠 max-height 内滚（双滚动条根因） */
 .prose-panel {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-2);
   padding: 16px 18px;
-  max-height: 70vh;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 .md {
   font-size: 14.5px;

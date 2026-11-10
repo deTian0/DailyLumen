@@ -1,9 +1,13 @@
-/* W14 / W18 登录页 */
+/* W14 / W18 登录页 · B17：无 .main 时本层作唯一滚动（通常居中不滚） */
 .login-wrap {
-  min-height: 100vh;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: auto;
   display: grid;
   place-items: center;
   padding: 24px;
+  box-sizing: border-box;
 }
 .login-card {
   width: min(420px, 100%);

@@ -44,11 +44,14 @@
   box-sizing: border-box;
 }
 
+/* B17：壳层锁死视口；禁止 html/body/#root 出现整页滚动条 */
 html,
 body,
 #root {
   margin: 0;
-  min-height: 100vh;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 body {
