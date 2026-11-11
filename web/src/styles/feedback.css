@@ -9,9 +9,9 @@
   font-size: 13px;
 }
 .banner-warn {
-  color: #7a4b16;
-  border-color: rgba(217, 119, 6, 0.35);
-  background: rgba(240, 160, 75, 0.12);
+  color: var(--banner-warn-fg);
+  border-color: var(--banner-warn-border);
+  background: var(--banner-warn-bg);
 }
 
 .toast {

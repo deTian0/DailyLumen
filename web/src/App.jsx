@@ -8,6 +8,7 @@ import Analytics from './pages/Analytics.jsx'
 import Doctor from './pages/Doctor.jsx'
 import Life from './pages/Life.jsx'
 import Login from './pages/Login.jsx'
+import ThemeSwitcher from './components/ThemeSwitcher.jsx'
 
 const NAV = [
   { id: 'today', label: '今日看板', ico: '⌂', Page: Today },
@@ -80,6 +81,7 @@ function Shell({ onLogout }) {
           ))}
         </nav>
         <div className="sidebar-foot">
+          <ThemeSwitcher />
           <div className="env" aria-live="polite">
             {health.error ? (
               <span className="env-bad">服务未连接</span>

@@ -1,7 +1,9 @@
 // W14 登录页：输入 local/.env 里的 DAILYLUMEN_WEB_KEY。先用 /api/health 校验，通过才保存。
 // 默认存 sessionStorage（关标签页即失效）；勾选「记住」才进 localStorage。
+// B11：登录页也跟主题（ThemeSwitcher）。
 import { useState } from 'react'
 import { authKey, errText, verifyKey } from '../lib/api'
+import ThemeSwitcher from '../components/ThemeSwitcher.jsx'
 
 export default function Login({ onSuccess, expired }) {
   const [key, setKey] = useState('')
@@ -60,6 +62,7 @@ export default function Login({ onSuccess, expired }) {
         <button type="submit" className="btn-primary" disabled={busy}>
           {busy ? '校验中…' : '进入看板'}
         </button>
+        <ThemeSwitcher className="theme-switch-login" />
       </form>
     </main>
   )

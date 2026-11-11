@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { authKey } from '../lib/api'
+import { ThemeProvider } from '../lib/ThemeContext'
 import Login from './Login'
 
 let fetchMock
@@ -9,6 +10,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
 })
 
+const renderLogin = (ui) => render(<ThemeProvider>{ui}</ThemeProvider>)
 const typeKey = (v) => fireEvent.change(screen.getByLabelText('访问密钥'), { target: { value: v } })
 const submit = () => fireEvent.click(screen.getByRole('button', { name: '进入看板' }))
 
@@ -16,7 +18,7 @@ describe('Login', () => {
   it('错 key：提示并不保存', async () => {
     fetchMock.mockResolvedValue(new Response('{}', { status: 401 }))
     const onSuccess = vi.fn()
-    render(<Login onSuccess={onSuccess} />)
+    renderLogin(<Login onSuccess={onSuccess} />)
     typeKey('wrong')
     submit()
     expect(await screen.findByText(/密钥不正确/)).toBeTruthy()
@@ -27,7 +29,7 @@ describe('Login', () => {
   it('对 key：默认存 sessionStorage 并回调', async () => {
     fetchMock.mockResolvedValue(new Response('{}', { status: 200 }))
     const onSuccess = vi.fn()
-    render(<Login onSuccess={onSuccess} />)
+    renderLogin(<Login onSuccess={onSuccess} />)
     typeKey('  right  ')
     submit()
     await waitFor(() => expect(onSuccess).toHaveBeenCalled())
@@ -37,7 +39,7 @@ describe('Login', () => {
 
   it('勾选记住：存 localStorage', async () => {
     fetchMock.mockResolvedValue(new Response('{}', { status: 200 }))
-    render(<Login onSuccess={() => {}} />)
+    renderLogin(<Login onSuccess={() => {}} />)
     typeKey('right')
     fireEvent.click(screen.getByRole('checkbox'))
     submit()
@@ -45,10 +47,18 @@ describe('Login', () => {
   })
 
   it('空输入不发请求；expired 显示失效提示', () => {
-    render(<Login expired />)
+    renderLogin(<Login expired />)
     expect(screen.getByText(/密钥已失效/)).toBeTruthy()
     submit()
     expect(screen.getByText('请输入访问密钥')).toBeTruthy()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('登录页有三套主题切换', () => {
+    renderLogin(<Login />)
+    expect(screen.getByRole('group', { name: '主题' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '青绿' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '暗色' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Omni' })).toBeTruthy()
   })
 })

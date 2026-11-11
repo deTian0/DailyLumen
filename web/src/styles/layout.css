@@ -52,7 +52,7 @@
 }
 .main:hover::-webkit-scrollbar-thumb,
 .main:focus-within::-webkit-scrollbar-thumb {
-  background: rgba(26, 35, 50, 0.28);
+  background: var(--scrollbar-thumb);
 }
 @media (max-width: 900px) {
   .app {
@@ -91,6 +91,14 @@
     margin-top: 0;
     margin-left: auto;
     padding-top: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .theme-switch {
+    width: auto;
+    min-width: 148px;
+    margin-bottom: 0;
   }
   .env-sub {
     display: none;
@@ -129,14 +137,14 @@
   height: 34px;
   border-radius: var(--radius-sm);
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   display: grid;
   place-items: center;
   font-size: 12px;
   font-weight: 800;
   flex: none;
   letter-spacing: -0.04em;
-  box-shadow: 0 4px 12px rgba(16, 148, 133, 0.28);
+  box-shadow: 0 4px 12px var(--accent-glow);
 }
 .nav {
   display: flex;
@@ -162,7 +170,7 @@
 }
 .nav-item:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--nav-hover);
 }
 .nav-item.active {
   color: var(--accent);
@@ -184,7 +192,7 @@
 }
 .nav-item.active .ico {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 .sidebar-foot {
   margin-top: auto;
@@ -275,7 +283,7 @@
   border: 0;
   cursor: pointer;
   font-weight: 700;
-  color: #fff;
+  color: var(--on-accent);
   background: var(--accent);
   padding: 11px 16px;
   border-radius: var(--radius-sm);

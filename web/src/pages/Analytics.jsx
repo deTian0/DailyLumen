@@ -4,6 +4,7 @@ import { useAsync } from '../lib/useAsync'
 import { Card, ErrorBox, Loading, Stat } from '../components/Common'
 import { EChart } from '../components/EChart'
 import { buildChartOption } from '../lib/chartOption'
+import { useTheme } from '../lib/ThemeContext'
 
 const CHARTS = [
   { id: 'trends', label: '四维趋势' },
@@ -21,11 +22,12 @@ const DIM_NAME = {
 
 // W16：前端自绘图（ECharts 吃 /api/charts/{kind}.json，与 SVG 同源）
 function ChartView({ kind, label }) {
+  const { theme } = useTheme()
   const [st, setSt] = useState({ kind, status: 'loading', n: 0 })
   const cur = st.kind === kind ? st : { kind, status: 'loading', n: 0 }
   if (cur !== st) setSt(cur)
   const data = useAsync((signal) => api.chartJson(kind, { signal }), [kind, cur.n])
-  const option = data.data ? buildChartOption(data.data) : null
+  const option = data.data ? buildChartOption(data.data, theme) : null
   return (
     <div className="chart-well" aria-busy={cur.status === 'loading'}>
       {data.error ? (

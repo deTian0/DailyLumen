@@ -1,22 +1,36 @@
-/* DailyLumen 看板 · B18：OmniClock 气质视觉参考（自写 token，非代码拷贝）
- * 柔和 mesh / 大圆角白卡 / 轻阴影 / 淡色图标底；主色仍走青绿，避免紫粉 OA。
+/* DailyLumen 看板 · B11 三套主题（CSS 变量覆盖）
+ * light = 现有青绿薄荷（W18–B18）；dark = 暗色；omni = OmniClock 气质浅色皮
+ * （视觉参考 Neo-Isshin/omniclock + 用户 TokenClock 截图；自写 token，非代码拷贝）
  */
+
 :root {
+  /* 结构量（各主题可覆盖半径/阴影） */
+  --radius: 20px;
+  --radius-sm: 12px;
+  --radius-lg: 24px;
+  --glass-blur: 18px;
+  --font: system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
+  --sidebar-w: 220px;
+  --on-accent: #ffffff;
+}
+
+/* ---------- light：青绿薄荷（默认 = :root 无 data-theme 时也生效） ---------- */
+:root,
+[data-theme="light"] {
   --bg: #e8f1ef;
   --sidebar-bg: rgba(255, 255, 255, 0.58);
   --surface: #ffffff;
   --surface-glass: rgba(255, 255, 255, 0.72);
   --surface-2: rgba(245, 250, 248, 0.78);
   --text: #1a2332;
-  /* 次要文字：对浅底 ≥4.5:1 */
   --muted: #5a6a78;
   --border: rgba(26, 45, 40, 0.09);
   --border-strong: rgba(26, 45, 40, 0.16);
-  /* 强调色：青绿略提亮（唯一主色） */
   --accent: #109485;
   --accent-hover: #0d7c6f;
   --accent-soft: #d6f2eb;
-  /* 文字用语义色（对浅底 ≥4.5:1）；亮色仅作装饰 */
+  --accent-glow: rgba(16, 148, 133, 0.28);
   --ink-green: #1f6b4a;
   --ink-red: #b42318;
   --ink-amber: #9a6700;
@@ -25,25 +39,139 @@
   --green: #2f9e6b;
   --red: #d64545;
   --amber: #d97706;
-  /* 轻 elev：宽扩散、低不透明度（dreamy float） */
   --shadow: 0 10px 32px rgba(26, 50, 45, 0.07), 0 2px 8px rgba(26, 50, 45, 0.04);
   --shadow-sm: 0 4px 18px rgba(26, 50, 45, 0.055);
   --inset: inset 0 1px 2px rgba(26, 35, 50, 0.07);
-  /* 兼容旧类名：映射到扁平阴影，避免残留双阴影 */
   --shadow-out: var(--shadow);
   --shadow-out-sm: var(--shadow-sm);
   --shadow-in: var(--inset);
   --shadow-in-sm: var(--inset);
-  /* OmniClock 参考量级：外层 ~24、内卡 ~16–18 */
-  --radius: 20px;
-  --radius-sm: 12px;
-  --radius-lg: 24px;
-  --glass-blur: 18px;
-  /* B2：系统字体栈（零外网、零自托管体积）；含中文兜底 */
-  --font: system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
-  --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
-  --sidebar-w: 220px;
   --focus: 0 0 0 3px rgba(16, 148, 133, 0.35);
+  --seg-track: rgba(26, 45, 40, 0.06);
+  --nav-hover: rgba(255, 255, 255, 0.55);
+  --scrollbar-thumb: rgba(26, 35, 50, 0.28);
+  --banner-warn-fg: #7a4b16;
+  --banner-warn-border: rgba(217, 119, 6, 0.35);
+  --banner-warn-bg: rgba(240, 160, 75, 0.12);
+  --mesh:
+    radial-gradient(1180px 680px at 4% -8%, rgba(130, 210, 188, 0.48) 0%, transparent 56%),
+    radial-gradient(980px 620px at 100% 2%, rgba(168, 208, 228, 0.42) 0%, transparent 52%),
+    radial-gradient(860px 520px at 72% 100%, rgba(186, 228, 210, 0.38) 0%, transparent 55%),
+    radial-gradient(640px 420px at 18% 88%, rgba(220, 232, 218, 0.34) 0%, transparent 50%),
+    linear-gradient(158deg, #e7f3ef 0%, #edf2f5 48%, #f2f6f3 100%);
+  --chart-text: #3a4a58;
+  --chart-axis: #6b7785;
+  --chart-split: rgba(26, 45, 40, 0.08);
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: rgba(26, 45, 40, 0.12);
+  --chart-mark-area: #bbf7d0;
+  --chart-mark-line: #15803d;
+}
+
+/* ---------- dark ---------- */
+[data-theme="dark"] {
+  --bg: #0f1419;
+  --sidebar-bg: rgba(18, 24, 32, 0.78);
+  --surface: #1a2330;
+  --surface-glass: rgba(28, 38, 50, 0.78);
+  --surface-2: rgba(32, 42, 56, 0.88);
+  --text: #e8eef4;
+  --muted: #9aa8b6;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --accent: #2dd4bf;
+  --accent-hover: #5eead4;
+  --accent-soft: rgba(45, 212, 191, 0.16);
+  --accent-glow: rgba(45, 212, 191, 0.32);
+  --ink-green: #6ee7b7;
+  --ink-red: #fca5a5;
+  --ink-amber: #fcd34d;
+  --ink-blue: #5eead4;
+  --blue: #2dd4bf;
+  --green: #34d399;
+  --red: #f87171;
+  --amber: #fbbf24;
+  --shadow: 0 12px 36px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.28);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --inset: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-out: var(--shadow);
+  --shadow-out-sm: var(--shadow-sm);
+  --shadow-in: var(--inset);
+  --shadow-in-sm: var(--inset);
+  --focus: 0 0 0 3px rgba(45, 212, 191, 0.4);
+  --seg-track: rgba(255, 255, 255, 0.08);
+  --nav-hover: rgba(255, 255, 255, 0.06);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.28);
+  --banner-warn-fg: #fcd34d;
+  --banner-warn-border: rgba(251, 191, 36, 0.35);
+  --banner-warn-bg: rgba(251, 191, 36, 0.12);
+  --mesh:
+    radial-gradient(1000px 600px at 6% -10%, rgba(45, 212, 191, 0.14) 0%, transparent 55%),
+    radial-gradient(900px 560px at 100% 0%, rgba(56, 128, 180, 0.12) 0%, transparent 50%),
+    radial-gradient(720px 480px at 70% 100%, rgba(30, 64, 80, 0.35) 0%, transparent 55%),
+    linear-gradient(160deg, #0f1419 0%, #121a22 50%, #10161c 100%);
+  --chart-text: #c8d0d8;
+  --chart-axis: #8a96a4;
+  --chart-split: rgba(255, 255, 255, 0.08);
+  --chart-tooltip-bg: #1e2836;
+  --chart-tooltip-border: rgba(255, 255, 255, 0.12);
+  --chart-mark-area: rgba(45, 212, 191, 0.18);
+  --chart-mark-line: #5eead4;
+}
+
+/* ---------- omni：TokenClock / OmniClock 浅色舒服皮（电蓝 + 浅灰 + 大圆角） ---------- */
+[data-theme="omni"] {
+  --bg: #f2f2f7;
+  --sidebar-bg: rgba(255, 255, 255, 0.62);
+  --surface: #ffffff;
+  --surface-glass: rgba(255, 255, 255, 0.78);
+  --surface-2: rgba(245, 245, 247, 0.92);
+  --text: #1c1c1e;
+  --muted: #8e8e93;
+  --border: rgba(60, 60, 67, 0.1);
+  --border-strong: rgba(60, 60, 67, 0.18);
+  --accent: #007aff;
+  --accent-hover: #0066d6;
+  --accent-soft: #e5f1ff;
+  --accent-glow: rgba(0, 122, 255, 0.28);
+  --ink-green: #1f6b4a;
+  --ink-red: #b42318;
+  --ink-amber: #9a6700;
+  --ink-blue: #007aff;
+  --blue: #007aff;
+  --green: #34c759;
+  --red: #ff3b30;
+  --amber: #ff9f0a;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.045);
+  --inset: inset 0 1px 2px rgba(60, 60, 67, 0.08);
+  --shadow-out: var(--shadow);
+  --shadow-out-sm: var(--shadow-sm);
+  --shadow-in: var(--inset);
+  --shadow-in-sm: var(--inset);
+  --radius: 22px;
+  --radius-sm: 14px;
+  --radius-lg: 26px;
+  --glass-blur: 22px;
+  --focus: 0 0 0 3px rgba(0, 122, 255, 0.35);
+  --seg-track: rgba(120, 120, 128, 0.12);
+  --nav-hover: rgba(120, 120, 128, 0.1);
+  --scrollbar-thumb: rgba(60, 60, 67, 0.28);
+  --banner-warn-fg: #7a4b16;
+  --banner-warn-border: rgba(255, 159, 10, 0.35);
+  --banner-warn-bg: rgba(255, 159, 10, 0.12);
+  --mesh:
+    radial-gradient(1100px 640px at 8% -6%, rgba(0, 122, 255, 0.08) 0%, transparent 55%),
+    radial-gradient(900px 560px at 100% 4%, rgba(90, 200, 250, 0.1) 0%, transparent 50%),
+    radial-gradient(780px 500px at 60% 100%, rgba(175, 182, 205, 0.14) 0%, transparent 52%),
+    linear-gradient(160deg, #f2f2f7 0%, #f5f5f8 48%, #eef0f5 100%);
+  --chart-text: #3a3a3c;
+  --chart-axis: #8e8e93;
+  --chart-split: rgba(60, 60, 67, 0.1);
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: rgba(60, 60, 67, 0.14);
+  --chart-mark-area: rgba(52, 199, 89, 0.22);
+  --chart-mark-line: #248a3d;
 }
 
 * {
@@ -68,19 +196,14 @@ body {
   position: relative;
 }
 
-/* B18：青绿 / 薄荷 / 浅青灰 mesh（fixed 伪元素，不干扰 B17 滚动壳） */
+/* mesh：各主题用 --mesh 覆盖 */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(1180px 680px at 4% -8%, rgba(130, 210, 188, 0.48) 0%, transparent 56%),
-    radial-gradient(980px 620px at 100% 2%, rgba(168, 208, 228, 0.42) 0%, transparent 52%),
-    radial-gradient(860px 520px at 72% 100%, rgba(186, 228, 210, 0.38) 0%, transparent 55%),
-    radial-gradient(640px 420px at 18% 88%, rgba(220, 232, 218, 0.34) 0%, transparent 50%),
-    linear-gradient(158deg, #e7f3ef 0%, #edf2f5 48%, #f2f6f3 100%);
+  background: var(--mesh);
 }
 
 a {

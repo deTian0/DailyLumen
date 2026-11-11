@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildChartOption, defaultLegendSelected, shortDate } from './chartOption'
+import { buildChartOption, chartChrome, defaultLegendSelected, shortDate } from './chartOption'
 
 const series = (over = {}) => ({
   kind: 'trends',
@@ -111,5 +111,19 @@ describe('shortDate', () => {
   it('ISO 日期 → MM-DD', () => {
     expect(shortDate('2026-11-06')).toBe('11-06')
     expect(shortDate('')).toBe('')
+  })
+})
+
+describe('chartChrome / theme', () => {
+  it('三套主题 chrome 色不同；dark tooltip 深底', () => {
+    expect(chartChrome('light').markLine).toBe('#15803d')
+    expect(chartChrome('dark').tooltipBg).toBe('#1e2836')
+    expect(chartChrome('omni').text).toBe('#3a3a3c')
+  })
+
+  it('buildChartOption 接受 theme 并写入 tooltip / 轴色', () => {
+    const opt = buildChartOption(series(), 'dark')
+    expect(opt.tooltip.backgroundColor).toBe('#1e2836')
+    expect(opt.xAxis.axisLabel.color).toBe('#8a96a4')
   })
 })

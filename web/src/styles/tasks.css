@@ -146,13 +146,13 @@
   font-variant-numeric: tabular-nums;
 }
 .day.sel {
-  color: #fff;
-  background: var(--text);
-  border-color: var(--text);
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .day.sel .wd,
 .day.sel .num {
-  color: #fff;
+  color: var(--on-accent);
 }
 .day.future {
   opacity: 0.55;
@@ -195,7 +195,7 @@
 .track {
   height: 10px;
   border-radius: 999px;
-  background: rgba(26, 35, 50, 0.08);
+  background: var(--seg-track);
   position: relative;
   overflow: hidden;
 }
