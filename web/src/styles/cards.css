@@ -1,8 +1,8 @@
-/* ---------- Stats / cards（W18：细边框 + 轻阴影；语义色左侧色标） ---------- */
+/* ---------- Stats / cards（B18：大圆角白卡 + 轻边框/阴影；语义色左侧色标） ---------- */
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 18px;
 }
 @media (max-width: 1100px) {
@@ -16,7 +16,7 @@
   }
 }
 .stat {
-  padding: 14px 16px;
+  padding: 16px 18px;
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -69,8 +69,8 @@
 .row {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
-  gap: 14px;
-  margin-bottom: 14px;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 @media (max-width: 1100px) {
   .row {
@@ -78,7 +78,7 @@
   }
 }
 .card {
-  padding: 16px 18px;
+  padding: 18px 20px;
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -87,7 +87,7 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 .card-h {
   display: flex;

@@ -11,7 +11,7 @@
   align-items: start;
   padding: 10px 12px;
   margin-bottom: 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   border: 1px solid var(--border);
 }

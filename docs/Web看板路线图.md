@@ -331,12 +331,16 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06；**状态对齐 2026-11-10**（代码版本 **v1.89.0**；B5–B8 / B16 / **B17** 已合入，B8 纯文档不 bump）。W1–W18 与 v1.79–v1.89 推远端 `main`（不推 tag）。
+> 追加于 2026-11-06；**状态对齐 2026-11-11**（代码版本 **v1.90.0**；B5–B8 / B16–**B18** 已合入，B8 纯文档不 bump）。W1–W18 与 v1.79–v1.90 推远端 `main`（不推 tag）。
 > 下面每项独立做：一项一个 commit，**不打 tag**；写操作一律只用 mock / 临时库测试。
-> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；**B6✅ v1.86**；**B8✅ 文档**；**B16✅ v1.88**；**B17✅ v1.89**；B11–B13 待办；B9 运维提醒（非代码）；B10 tag 不补打；B14 文档勘误✅。
+> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；**B6✅ v1.86**；**B8✅ 文档**；**B16✅ v1.88**；**B17✅ v1.89**；**B18✅ v1.90**；B11–B13 待办；B9 运维提醒（非代码）；B10 tag 不补打；B14 文档勘误✅。
 > 优先级建议：**P1** B9（运维换 Key）→ 可选 B11、B12、B13。
 
-### 本轮已完成（B17 壳层唯一滚动，2026-11-10）
+### 本轮已完成（B18 OmniClock 风格渐变壳，2026-11-11）
+
+- **B18 OmniClock 风格渐变壳（v1.90.0）**：视觉参考 OmniClock（非代码拷贝）；青绿/薄荷 mesh + 大圆角白卡 + 轻阴影 + 淡色图标底；侧栏轻毛玻璃；保留 B17 唯一主栏滚动。截图见 `local/screenshots/v190-omni-style/`（gitignore 区）。
+
+### 已完成（B17 壳层唯一滚动，2026-11-10）
 
 - **B17 壳层唯一滚动 / 去双滚动条（v1.89.0）**：`html/body/#root/.app` `overflow:hidden` + `100dvh`；仅 `.main` 纵向滚；去掉 `.prose-panel` / `.well` 的 max-height 内滚；窄屏侧栏顶栏后 main 仍唯一滚动。截图见 `local/screenshots/v189-scroll/`（gitignore 区）。
 
@@ -499,6 +503,17 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
   6. 窄屏：`grid-template-rows: auto minmax(0,1fr)`，body 仍不滚
 - **明确不做**：换品牌色、暗色、为 prose 保留第二套纵向滚动。
 - **验收**：复盘页截图无浏览器条；Vitest + build；四处版本对齐；不打 tag。
+
+### B18（P2）OmniClock 风格渐变壳 ✅ v1.90.0
+
+- **目标**：把 OmniClock「柔和 mesh / 大圆角白卡 / 轻阴影 / 淡色图标底」气质落到 DailyLumen Web 看板；**视觉参考，非代码拷贝**。
+- **实现**：
+  1. `tokens.css`：青绿薄荷 mesh（`body::before` fixed）；半径 / 阴影 / 边框 / accent 略提亮；保留 B17 overflow 锁
+  2. `layout.css`：侧栏 `backdrop-filter` 轻毛玻璃；导航 `.ico` 淡青绿底；按钮跟新半径
+  3. `cards.css` / `login.css`：更大圆角与更轻 elev；登录卡 `--radius-lg`
+  4. `content.css` / `feedback.css` / `tasks.css`：seg 胶囊轨、banner/toast/chart-well 协调
+- **明确不做**：整站紫粉；企业宝蓝实心侧栏；回退 B17 双滚动；拷贝 OmniClock 源码进仓。
+- **验收**：Vitest + build；截图今日/复盘；四处版本对齐；不打 tag。
 
 ### B11（可选）暗色模式
 

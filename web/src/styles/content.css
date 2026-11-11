@@ -7,7 +7,7 @@
   margin: 0 0 10px;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
@@ -70,29 +70,36 @@
 }
 
 .seg {
-  display: flex;
-  gap: 4px;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(26, 45, 40, 0.06);
+  border: 1px solid var(--border);
 }
 .seg-btn {
-  border: 1px solid var(--border);
+  border: 0;
   cursor: pointer;
   font: inherit;
   font-size: 12px;
   font-weight: 650;
-  padding: 6px 11px;
-  border-radius: 8px;
-  background: var(--surface);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: transparent;
   color: var(--muted);
+}
+.seg-btn:hover {
+  color: var(--text);
 }
 .seg-btn.active {
   color: #fff;
   background: var(--accent);
-  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ---------- Charts ---------- */
 .chart-well {
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface-2);
   padding: 12px;

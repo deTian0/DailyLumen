@@ -1,43 +1,49 @@
-/* DailyLumen 看板 · 冷静青绿 / 石板灰生活工具感（W18：去新拟物） */
+/* DailyLumen 看板 · B18：OmniClock 气质视觉参考（自写 token，非代码拷贝）
+ * 柔和 mesh / 大圆角白卡 / 轻阴影 / 淡色图标底；主色仍走青绿，避免紫粉 OA。
+ */
 :root {
-  --bg: #eef2f4;
-  --sidebar-bg: #f2f6f5;
+  --bg: #e8f1ef;
+  --sidebar-bg: rgba(255, 255, 255, 0.58);
   --surface: #ffffff;
-  --surface-2: #f5f8f7;
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --surface-2: rgba(245, 250, 248, 0.78);
   --text: #1a2332;
   /* 次要文字：对浅底 ≥4.5:1 */
   --muted: #5a6a78;
-  --border: #d4dce3;
-  --border-strong: #b5c2cb;
-  /* 强调色：冷静青绿（唯一主色，贯穿全站） */
-  --accent: #0d7c6f;
-  --accent-hover: #0a655a;
-  --accent-soft: #d9efe9;
+  --border: rgba(26, 45, 40, 0.09);
+  --border-strong: rgba(26, 45, 40, 0.16);
+  /* 强调色：青绿略提亮（唯一主色） */
+  --accent: #109485;
+  --accent-hover: #0d7c6f;
+  --accent-soft: #d6f2eb;
   /* 文字用语义色（对浅底 ≥4.5:1）；亮色仅作装饰 */
   --ink-green: #1f6b4a;
   --ink-red: #b42318;
   --ink-amber: #9a6700;
   --ink-blue: #0d7c6f;
-  --blue: #0d7c6f;
+  --blue: #109485;
   --green: #2f9e6b;
   --red: #d64545;
   --amber: #d97706;
-  /* 轻 elev：单方向柔阴影；凹陷仅留给输入槽 */
-  --shadow: 0 1px 2px rgba(26, 35, 50, 0.05), 0 4px 14px rgba(26, 35, 50, 0.04);
-  --shadow-sm: 0 1px 2px rgba(26, 35, 50, 0.05);
+  /* 轻 elev：宽扩散、低不透明度（dreamy float） */
+  --shadow: 0 10px 32px rgba(26, 50, 45, 0.07), 0 2px 8px rgba(26, 50, 45, 0.04);
+  --shadow-sm: 0 4px 18px rgba(26, 50, 45, 0.055);
   --inset: inset 0 1px 2px rgba(26, 35, 50, 0.07);
   /* 兼容旧类名：映射到扁平阴影，避免残留双阴影 */
   --shadow-out: var(--shadow);
   --shadow-out-sm: var(--shadow-sm);
   --shadow-in: var(--inset);
   --shadow-in-sm: var(--inset);
-  --radius: 12px;
-  --radius-sm: 8px;
+  /* OmniClock 参考量级：外层 ~24、内卡 ~16–18 */
+  --radius: 20px;
+  --radius-sm: 12px;
+  --radius-lg: 24px;
+  --glass-blur: 18px;
   /* B2：系统字体栈（零外网、零自托管体积）；含中文兜底 */
   --font: system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
   --sidebar-w: 220px;
-  --focus: 0 0 0 3px rgba(13, 124, 111, 0.35);
+  --focus: 0 0 0 3px rgba(16, 148, 133, 0.35);
 }
 
 * {
@@ -57,11 +63,24 @@ body,
 body {
   font-family: var(--font);
   color: var(--text);
-  background:
-    radial-gradient(1100px 520px at 8% -12%, #d7ebe6 0%, transparent 55%),
-    radial-gradient(900px 480px at 100% 0%, #e2e8ef 0%, transparent 48%),
-    var(--bg);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+/* B18：青绿 / 薄荷 / 浅青灰 mesh（fixed 伪元素，不干扰 B17 滚动壳） */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1180px 680px at 4% -8%, rgba(130, 210, 188, 0.48) 0%, transparent 56%),
+    radial-gradient(980px 620px at 100% 2%, rgba(168, 208, 228, 0.42) 0%, transparent 52%),
+    radial-gradient(860px 520px at 72% 100%, rgba(186, 228, 210, 0.38) 0%, transparent 55%),
+    radial-gradient(640px 420px at 18% 88%, rgba(220, 232, 218, 0.34) 0%, transparent 50%),
+    linear-gradient(158deg, #e7f3ef 0%, #edf2f5 48%, #f2f6f3 100%);
 }
 
 a {
