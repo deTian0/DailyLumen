@@ -12,6 +12,7 @@
 - ``writes/keepstrong`` 练练写回（W17：设重量 / 记体征 / 排课 / 模板 / 计划命令；写回不落库）
 - ``writes/keepstrong_sync`` 练练 → 复盘 md（D1：``keepstrong --write`` 同源；不写库）
 - ``writes/daily_pull`` 夜间采集拉齐（D6：``daily-pull --apply`` 同源；G1）
+- ``writes/drafts``     候选草稿落收件箱（E1 / FR-K3：promise / three-things / improve；不入库）
 
 ``confirm`` 分派走 ``writes.base`` 的注册表（``@register(action, needs=...)``）。
 """
@@ -33,6 +34,11 @@ from .writes.clickup import (
     plan_task_status,
 )
 from .writes.daily_pull import plan_daily_pull
+from .writes.drafts import (
+    plan_improve_draft,
+    plan_promise_draft,
+    plan_three_things_draft,
+)
 from .writes.habits import plan_habits_sync
 from .writes.ingest import plan_ingest
 from .writes.keepstrong import (
@@ -58,10 +64,12 @@ __all__ = [
     "MAX_BATCH", "MAX_IMAGES", "MAX_IMAGE_BYTES", "TOKEN_TTL_S", "TokenStore", "confirm",
     "inbox_image", "list_inbox", "plan_ai_draft", "plan_clickup_habit", "plan_clickup_pull",
     "plan_finalize",
-    "plan_daily_pull", "plan_habits_sync", "plan_inbox_archive", "plan_ingest",
+    "plan_daily_pull", "plan_habits_sync", "plan_improve_draft", "plan_inbox_archive",
+    "plan_ingest",
     "plan_keepstrong_sync",
     "plan_ks_create_template",
     "plan_ks_log_body", "plan_ks_plan_command", "plan_ks_replace_template_actions",
-    "plan_ks_schedule", "plan_ks_set_weight", "plan_task_batch", "plan_task_create",
-    "plan_task_status", "plan_vision", "registered_actions",
+    "plan_ks_schedule", "plan_ks_set_weight", "plan_promise_draft", "plan_task_batch",
+    "plan_task_create",
+    "plan_task_status", "plan_three_things_draft", "plan_vision", "registered_actions",
 ]

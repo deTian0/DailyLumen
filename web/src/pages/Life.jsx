@@ -5,6 +5,7 @@ import { useAsync } from '../lib/useAsync'
 import { Card, ErrorBox, Loading, Prose, Stat, StatusMark } from '../components/Common'
 import { ClickupHabitWrite } from '../components/ClickupHabitWrite'
 import { DailyPullWrite } from '../components/DailyPullWrite'
+import { DraftWrite } from '../components/DraftsWrite'
 import { KeepStrongWrite } from '../components/KeepStrongWrite'
 import { KeepstrongSyncWrite } from '../components/KeepstrongSyncWrite'
 import { PromiseDetailList } from '../components/life/PromiseDetailList'
@@ -44,6 +45,7 @@ const TABS = [
   { id: 'tutor', label: '学习', load: (s) => api.life('tutor', {}, { signal: s }) },
   { id: 'promises', label: '承诺兑现', load: (s) => api.life('promises', {}, { signal: s }) },
   { id: 'correlate', label: '跨维关联', load: (s) => api.life('correlate', {}, { signal: s }) },
+  { id: 'drafts', label: '候选草稿', cli: 'promise-draft / three-things-draft / improve-draft', load: (s) => api.life('day-help', {}, { signal: s }) },
 ]
 
 const n = (v, unit = '') => (v === null || v === undefined ? '—' : `${v}${unit}`)
@@ -241,6 +243,19 @@ export default function Life({ toast, health }) {
                 <div id="daily-pull">
                   <DailyPullWrite health={health} toast={toast} />
                 </div>
+              )}
+              {tab === 'drafts' && (
+                <>
+                  <DraftWrite kind="promise-draft" health={health} toast={toast}
+                    title="明日 Top 3 候选" date=""
+                    desc="从 ClickUp 到期未完成 / 逾期 / 进行中取候选（机器只搬运）；确认后落收件箱 md，勾 ≤3 条回填「四、明日 Top 3」。" />
+                  <DraftWrite kind="three-things-draft" health={health} toast={toast}
+                    title="今日三件事候选" date=""
+                    desc="从 ClickUp 当日已完成取候选（有产出优先）；确认后落收件箱 md，勾 ≤3 条回填「二、今日三件事」。" />
+                  <DraftWrite kind="improve-draft" health={health} toast={toast}
+                    title="改进点取数骨架" date=""
+                    desc="ai-context 同源取近 7 日数字落骨架；排序查书仍须走 life-decision-guide 会话，勾 1 条回填「三、一个改进点」。" />
+                </>
               )}
               {tab === 'promises' && res.data.data && (
                 <PromiseDetailList data={res.data.data} />

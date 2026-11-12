@@ -7,7 +7,8 @@
    ks-create-template / ks-replace-template-actions / ks-plan-command（W17，练练写回不落库）·
    clickup-habit（B15，代勾「练练健身」习惯，不写 habit_logs）·
    keepstrong-sync（D1，练练 → 复盘 md，不写库；≠ ks_* App 写回）·
-   daily-pull（D6，夜间采集拉齐 = CLI --apply；会打网写库）；
+   daily-pull（D6，夜间采集拉齐 = CLI --apply；会打网写库）·
+   promise-draft / three-things-draft / improve-draft（E1 / FR-K3，候选草稿落收件箱，不入库）；
    ``GET /api/write/inbox`` 只读列收件箱图片
 2. ``POST /api/write/confirm``（JSON ``{"token": ...}``）→ 执行预览过的内容，写后回读校验
 
@@ -145,6 +146,10 @@ class DailyPullIn(BaseModel):
     date: str | None = None
 
 
+class DraftIn(BaseModel):
+    date: str | None = None
+
+
 def build_router(*, db_path: str | None = None, fetch=None, env=None, client=None,
                  mode: str | None = None, backup_dir: str | None = None,
                  tokens: wo.TokenStore | None = None, cu_client=None,
@@ -225,6 +230,20 @@ def build_router(*, db_path: str | None = None, fetch=None, env=None, client=Non
     @router.post("/daily-pull/plan", response_model=PlanOut)
     def plan_daily_pull(body: DailyPullIn):
         return wo.plan_daily_pull(store, day=body.date)
+
+    # E1 / FR-K3：候选草稿落收件箱（plan 内存渲染零写盘；confirm 写收件箱 md，不入库）
+    @router.post("/promise-draft/plan", response_model=PlanOut)
+    def plan_promise(body: DraftIn):
+        return wo.plan_promise_draft(store, day=body.date, env=env, fetch=fetch)
+
+    @router.post("/three-things-draft/plan", response_model=PlanOut)
+    def plan_three_things(body: DraftIn):
+        return wo.plan_three_things_draft(store, day=body.date, env=env, fetch=fetch)
+
+    @router.post("/improve-draft/plan", response_model=PlanOut)
+    def plan_improve(body: DraftIn):
+        with readonly(db_path) as conn:
+            return wo.plan_improve_draft(store, day=body.date, conn=conn)
 
     # W17：练练写回（写回不落库；预览零网络写，确认才 POST）
     @router.post("/ks-set-weight/plan", response_model=PlanOut)

@@ -2,6 +2,7 @@
 from . import (  # noqa: F401  （导入即登记）
     clickup,
     daily_pull,
+    drafts,
     habits,
     ingest,
     keepstrong,
