@@ -117,17 +117,26 @@ def streaks(conn, as_of: str | None = None) -> dict[str, Any]:
 
 
 def day_help(day: str | None = None, mode: str | None = None) -> dict[str, Any]:
-    """= ``day-help [DATE] [--mode M]``：一日三步 + 可复制命令（纯函数，不读库）。"""
+    """= ``day-help [DATE] [--mode M]``：一日三步 + 可复制命令。
+
+    不读库；训练日分支仅看本地复盘 md 数据块（D7），无文件则不追加。
+    """
     from datetime import date as _d
 
     from ..config import get_llm_mode
-    from ..core.day_help import render_day_help
+    from ..core.day_help import infer_training_day_hint, render_day_help
 
     day = _check_date(day) if day else _d.today().isoformat()
     mode = mode or get_llm_mode()
     if mode not in ("workbuddy", "deepseek"):
         raise QueryError(422, "invalid_mode", "mode 须为 workbuddy|deepseek")
-    return {"date": day, "mode": mode, "text": render_day_help(day, mode)}
+    td = infer_training_day_hint(day)
+    return {
+        "date": day,
+        "mode": mode,
+        "training_day": td,
+        "text": render_day_help(day, mode, training_day=td),
+    }
 
 
 def steward(conn, slot: str, *, as_of: str | None = None,

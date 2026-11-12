@@ -33,6 +33,32 @@ class TestRenderDayHelp(unittest.TestCase):
         ds = dh.draft_next_hint("2099-01-15", LLM_MODE_DEEPSEEK)
         self.assertIn("llm-day", ds)
 
+    def test_training_day_branch_in_render(self):
+        yes = dh.render_day_help("2099-01-15", LLM_MODE_WORKBUDDY, training_day=True)
+        self.assertIn("keepstrong --date 2099-01-15 --write", yes)
+        self.assertIn("clickup-habit", yes)
+        self.assertIn("须预览→确认", yes)
+        no = dh.render_day_help("2099-01-15", LLM_MODE_WORKBUDDY, training_day=False)
+        self.assertNotIn("keepstrong --date", no)
+        none = dh.render_day_help("2099-01-15", LLM_MODE_WORKBUDDY, training_day=None)
+        self.assertNotIn("训练日附加", none)
+
+    def test_draft_next_hint_training_day(self):
+        tip = dh.draft_next_hint("2099-01-15", LLM_MODE_DEEPSEEK, training_day=True)
+        self.assertIn("keepstrong --date 2099-01-15 --write", tip)
+        self.assertNotIn("llm-day", tip)
+
+    def test_infer_training_day_hint(self):
+        self.assertTrue(
+            dh.infer_training_day_hint("2099-01-15", md_text="训练日: 是\n体重_kg: 80\n")
+        )
+        self.assertFalse(
+            dh.infer_training_day_hint("2099-01-15", md_text="training_day: no\n")
+        )
+        self.assertIsNone(
+            dh.infer_training_day_hint("2099-01-15", md_text="体重_kg: 80\n")
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

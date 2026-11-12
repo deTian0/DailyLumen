@@ -37,10 +37,15 @@ class TestW7Parity(_DbFixture):
         self.assertEqual(r["data"], _json(data))
 
     def test_day_help(self):
-        from review_tool.core.day_help import render_day_help
+        from review_tool.core.day_help import infer_training_day_hint, render_day_help
 
         r = lq.day_help("2026-09-09", "deepseek")
-        self.assertEqual(r["text"], render_day_help("2026-09-09", "deepseek"))
+        td = infer_training_day_hint("2026-09-09")
+        self.assertEqual(r["training_day"], td)
+        self.assertEqual(
+            r["text"],
+            render_day_help("2026-09-09", "deepseek", training_day=td),
+        )
 
     def test_invalid(self):
         for call in (lambda: lq.day_help("2026-13-01"),

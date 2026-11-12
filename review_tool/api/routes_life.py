@@ -34,6 +34,7 @@ class DayHelpOut(BaseModel):
     date: str
     mode: str
     text: str
+    training_day: bool | None = None
 
 
 def build_router(*, db_path: str | None = None) -> APIRouter:

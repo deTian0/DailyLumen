@@ -134,8 +134,14 @@ def suggest_next_command(
 
     day = status.get("day") or datetime.date.today().isoformat()
     m = normalize_llm_mode(mode if mode is not None else get_llm_mode())
+    # D7：status 可带 training_day；缺省时从本地 md 推断（只读）
+    td = status.get("training_day")
+    if td is None:
+        from ..core.day_help import infer_training_day_hint
+
+        td = infer_training_day_hint(day)
     if not status.get("md_exists"):
-        return draft_next_hint(day, m)
+        return draft_next_hint(day, m, training_day=td)
     if status.get("pending_draft"):
         return f"python -m review_tool llm-finalize {day} --write"
     if status.get("missing_focus"):
