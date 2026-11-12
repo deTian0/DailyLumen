@@ -373,7 +373,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
-| **下一步开发做什么** | 隐私归一 M45–M50 ✅；Web 看板 W1–W18 ✅，后续 B 项见 `docs/Web看板路线图.md`「后续待办（W18 之后）」（当前代码 **v1.83.0**：B2–B4/B15 ✅，B1 关闭/不修，B5–B8/B9–B13 等见该表）。**若开源**：先做 `docs/开源前隐私擦除计划.md`（O1–O6）。未跟踪内容在 **`local/`**；运行时依赖 pydantic*。 |
+| **下一步开发做什么** | **日用闭环 D1–D7** → `docs/日用闭环路线图.md`（首项 **D1** Web `keepstrong_sync`；代码基线 **v1.92.0**）。Web W0–W18 + B2–B19 ✅（B12 跳过；B 项档案见 `docs/Web看板路线图.md`）。隐私归一 M45–M50 ✅。**若开源**：先做 `docs/开源前隐私擦除计划.md`（O1–O6）。未跟踪内容在 **`local/`**；运行时依赖 pydantic*；D 系列一项一 commit，**不打 tag**。 |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
