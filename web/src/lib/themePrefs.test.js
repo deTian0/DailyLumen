@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   applyTheme,
   bootTheme,
+  isValidPref,
   isValidTheme,
   loadThemePreference,
   resolveTheme,
@@ -13,10 +14,12 @@ import {
 
 describe('themePrefs key / validity', () => {
   it('版本化 key 与合法集合', () => {
-    expect(themePrefsKey()).toBe('dailylumen.theme.v1')
+    expect(themePrefsKey()).toBe('dailylumen.theme.v2')
     expect(THEMES).toEqual(['light', 'dark', 'omni'])
     expect(isValidTheme('omni')).toBe(true)
     expect(isValidTheme('purple')).toBe(false)
+    expect(isValidPref('auto')).toBe(true)
+    expect(isValidPref('neon')).toBe(false)
   })
 })
 
@@ -69,6 +72,21 @@ describe('load / save / resolve', () => {
     saveThemePreference('nope', store)
     expect(store.getItem(themePrefsKey())).toBeNull()
   })
+
+  it('E3/B22：auto 合法且可存取', () => {
+    saveThemePreference('auto', store)
+    expect(loadThemePreference(store)).toBe('auto')
+  })
+
+  it('E3/B22：v1 记忆迁移到 v2（light/dark/omni 直接继承）', () => {
+    store.setItem('dailylumen.theme.v1', JSON.stringify({ theme: 'dark' }))
+    expect(loadThemePreference(store)).toBe('dark')
+    expect(JSON.parse(store.getItem(themePrefsKey())).theme).toBe('dark')
+    // 迁移是一次性的：v2 已写则不再读 v1 —— 先清 v2 再测第二个迁移
+    store.removeItem(themePrefsKey())
+    store.setItem('dailylumen.theme.v1', JSON.stringify('omni'))
+    expect(loadThemePreference(store)).toBe('omni')
+  })
 })
 
 describe('applyTheme', () => {
@@ -95,6 +113,11 @@ describe('applyTheme', () => {
 describe('matchMedia 跟随（无记忆时）', () => {
   it('有记忆时 resolve 不跟系统', () => {
     expect(resolveTheme('light', { matches: true })).toBe('light')
+  })
+  it('E3/B22：auto 跟系统；omni 不被 auto 吞（显式优先）', () => {
+    expect(resolveTheme('auto', { matches: true })).toBe('dark')
+    expect(resolveTheme('auto', { matches: false })).toBe('light')
+    expect(resolveTheme('omni', { matches: false })).toBe('omni')
   })
 })
 

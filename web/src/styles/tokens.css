@@ -246,3 +246,18 @@ textarea:-webkit-autofill {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ---------- E3 / B22：主题切换过渡（0.2s 颜色渐变；reduced-motion 下被全局覆盖为 0.001ms） ---------- */
+body,
+.card,
+.prose-panel,
+.sidebar,
+.well,
+.task,
+.stat,
+.banner {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}

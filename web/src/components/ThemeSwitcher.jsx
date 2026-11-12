@@ -1,21 +1,23 @@
-// B11：三选一主题切换（胶囊轨，气质对齐 OmniClock segmented control）
-import { THEMES, THEME_LABELS } from '../lib/themePrefs'
+// B11 三主题 → E3 / B22：四态切换（系统 / 青绿 / 暗色 / Omni；胶囊轨）。
+// 「系统」= 跟随 prefers-color-scheme（light/dark 二选一，实时变）；omni 仅显式。
+import { PREFS, THEME_LABELS } from '../lib/themePrefs'
 import { useTheme } from '../lib/ThemeContext'
 
 export default function ThemeSwitcher({ className = '' }) {
-  const { theme, setTheme } = useTheme()
+  const { pref, theme, setTheme } = useTheme()
   return (
     <div
       className={`theme-switch ${className}`.trim()}
       role="group"
       aria-label="主题"
     >
-      {THEMES.map((id) => (
+      {PREFS.map((id) => (
         <button
           key={id}
           type="button"
-          className={`theme-switch-btn ${theme === id ? 'active' : ''}`}
-          aria-pressed={theme === id}
+          className={`theme-switch-btn ${pref === id ? 'active' : ''}`}
+          aria-pressed={pref === id}
+          title={id === 'auto' ? `跟随系统（当前 ${THEME_LABELS[theme]}）` : undefined}
           onClick={() => setTheme(id)}
         >
           {THEME_LABELS[id]}

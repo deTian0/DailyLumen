@@ -6,20 +6,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>DailyLumen · 生活管家</title>
-    <!-- E2 / B20：首屏前应用主题，防闪白（与 lib/themePrefs.js 同口径；localStorage 不可用回退 light） -->
+    <!-- E2 / B20 + E3 / B22：首屏前应用主题，防闪白（与 lib/themePrefs.bootTheme 同口径；
+         显式 light/dark/omni 直接用；auto / 无记忆 / 损坏 → 系统偏好） -->
     <script>
       (function () {
-        var t = 'light'
+        var t = null
         try {
-          var raw = localStorage.getItem('dailylumen.theme.v1')
+          var raw = localStorage.getItem('dailylumen.theme.v2') || localStorage.getItem('dailylumen.theme.v1')
           if (raw) {
             var p = JSON.parse(raw)
             var v = typeof p === 'string' ? p : (p && p.theme)
             if (v === 'light' || v === 'dark' || v === 'omni') t = v
-          } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            t = 'dark'
+            /* v2 的 'auto' 保持 null —— 落到下面系统判断，与 resolveTheme('auto') 同语义 */
           }
-        } catch (e) { /* 隐私模式 / 损坏 JSON：回退 light */ }
+        } catch (e) { /* 隐私模式 / 损坏 JSON：落到系统判断 */ }
+        if (!t) {
+          try {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          } catch (e) { t = 'light' }
+        }
         document.documentElement.setAttribute('data-theme', t)
         document.documentElement.style.colorScheme = t === 'dark' ? 'dark' : 'light'
       })()
