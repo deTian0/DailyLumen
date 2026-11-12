@@ -4,6 +4,7 @@ import { hashQuery } from '../lib/route'
 import { useAsync } from '../lib/useAsync'
 import { Card, ErrorBox, Loading, Prose, Stat, StatusMark } from '../components/Common'
 import { ClickupHabitWrite } from '../components/ClickupHabitWrite'
+import { DailyPullWrite } from '../components/DailyPullWrite'
 import { KeepStrongWrite } from '../components/KeepStrongWrite'
 import { KeepstrongSyncWrite } from '../components/KeepstrongSyncWrite'
 import { PromiseDetailList } from '../components/life/PromiseDetailList'
@@ -235,6 +236,11 @@ export default function Life({ toast, health }) {
                     <ClickupHabitWrite health={health} toast={toast} />
                   </div>
                 </>
+              )}
+              {tab === 'evening' && (
+                <div id="daily-pull">
+                  <DailyPullWrite health={health} toast={toast} />
+                </div>
               )}
               {tab === 'promises' && res.data.data && (
                 <PromiseDetailList data={res.data.data} />

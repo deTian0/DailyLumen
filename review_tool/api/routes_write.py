@@ -6,7 +6,8 @@
    vision / inbox-archive / clickup-pull（W11）· ks-set-weight / ks-log-body / ks-schedule /
    ks-create-template / ks-replace-template-actions / ks-plan-command（W17，练练写回不落库）·
    clickup-habit（B15，代勾「练练健身」习惯，不写 habit_logs）·
-   keepstrong-sync（D1，练练 → 复盘 md，不写库；≠ ks_* App 写回）；
+   keepstrong-sync（D1，练练 → 复盘 md，不写库；≠ ks_* App 写回）·
+   daily-pull（D6，夜间采集拉齐 = CLI --apply；会打网写库）；
    ``GET /api/write/inbox`` 只读列收件箱图片
 2. ``POST /api/write/confirm``（JSON ``{"token": ...}``）→ 执行预览过的内容，写后回读校验
 
@@ -140,6 +141,10 @@ class KeepstrongSyncIn(BaseModel):
     date: str | None = None
 
 
+class DailyPullIn(BaseModel):
+    date: str | None = None
+
+
 def build_router(*, db_path: str | None = None, fetch=None, env=None, client=None,
                  mode: str | None = None, backup_dir: str | None = None,
                  tokens: wo.TokenStore | None = None, cu_client=None,
@@ -215,6 +220,11 @@ def build_router(*, db_path: str | None = None, fetch=None, env=None, client=Non
     @router.post("/keepstrong-sync/plan", response_model=PlanOut)
     def plan_ks_sync(body: KeepstrongSyncIn):
         return wo.plan_keepstrong_sync(store, day=body.date, env=env, ks_client=ks_client)
+
+    # D6：夜间 daily-pull（薄封装 CLI --apply；plan 零副作用）
+    @router.post("/daily-pull/plan", response_model=PlanOut)
+    def plan_daily_pull(body: DailyPullIn):
+        return wo.plan_daily_pull(store, day=body.date)
 
     # W17：练练写回（写回不落库；预览零网络写，确认才 POST）
     @router.post("/ks-set-weight/plan", response_model=PlanOut)

@@ -67,7 +67,8 @@ class TestDailyPull(unittest.TestCase):
         with mock.patch.object(daily_pull, "keepstrong_main", ks), \
              mock.patch.object(daily_pull, "sync_main", lambda a: 0), \
              mock.patch.object(daily_pull, "ingest_main", lambda a: 0), \
-             mock.patch.object(daily_pull, "_report", lambda day: None):
+             mock.patch.object(daily_pull, "_report", lambda day: None), \
+             mock.patch("sys.stdout", new_callable=io.StringIO):
             daily_pull.main(["--date", "2026-10-22", "--apply"])
         self.assertEqual(seen, [["--date", "2026-10-22", "--write", "--ingest"]])
 

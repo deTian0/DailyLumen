@@ -77,6 +77,35 @@ def _steps(day: str) -> list[tuple[str, object, str]]:
     ]
 
 
+def step_specs(day: str) -> list[dict[str, str]]:
+    """只读步骤清单（零 I/O）；Web plan / CLI dry-run 共用。"""
+    return [
+        {"name": name, "cli": f"python -m review_tool {cmd}"}
+        for name, _fn, cmd in _steps(day)
+    ]
+
+
+def run_steps(day: str) -> dict:
+    """真跑三步；失败继续。返回结构化结果（Web confirm / CLI --apply 共用）。"""
+    results: list[dict] = []
+    for name, fn, cmd in _steps(day):
+        rc = int(fn() or 0)  # type: ignore[operator]
+        results.append({
+            "name": name,
+            "cli": f"python -m review_tool {cmd}",
+            "rc": rc,
+            "ok": rc == 0,
+        })
+    failures = [r for r in results if not r["ok"]]
+    return {
+        "date": day,
+        "steps": results,
+        "ok": not failures,
+        "failed": len(failures),
+        "failures": [{"name": r["name"], "rc": r["rc"]} for r in failures],
+    }
+
+
 def _report(day: str) -> None:
     """收尾一行汇报：当天各关键位置的就位情况（只读）。"""
     from ..storage.db import DB_PATH, init_db
@@ -121,19 +150,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     day = day or _default_day()
 
-    steps = _steps(day)
     if not apply:
         print(f"dry-run：将对 {day} 执行以下动作（加 --apply 真跑；"
               "会打网，仅夜间使用）：")
-        for name, _fn, cmd in steps:
-            print(f"  · {name}\n      $ python -m review_tool {cmd}")
+        for spec in step_specs(day):
+            print(f"  · {spec['name']}\n      $ {spec['cli']}")
         return 0
 
+    # CLI 边打印边跑；结构化结果与 Web confirm 共用 run_steps 语义
+    # （此处仍逐步打印，避免一次刷完标题再静默执行）
     failures: list[tuple[str, int]] = []
-    for name, fn, cmd in steps:
+    for name, fn, cmd in _steps(day):
         print(f"\n[{name}]")
         print(f"  $ python -m review_tool {cmd}")
-        rc = fn()  # type: ignore[operator]
+        rc = int(fn() or 0)  # type: ignore[operator]
         if rc != 0:
             failures.append((name, rc))
             print(f"  ⚠️ 该步返回码 {rc}，继续执行其余步骤", file=sys.stderr)
