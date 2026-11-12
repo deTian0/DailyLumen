@@ -7,7 +7,7 @@ import tempfile
 import unittest
 
 from review_tool.reports.doctor import diagnose, is_healthy, render, summarize
-from review_tool.storage.db import init_db, upsert
+from review_tool.storage.db import init_db, upsert, upsert_habit_log
 
 
 class TestDoctorSummarize(unittest.TestCase):
@@ -79,6 +79,39 @@ class TestDoctorSummarize(unittest.TestCase):
         self.assertEqual(by_id["not_ingested"]["status"], "warn")
         self.assertGreater(by_id["not_ingested"]["count"], 0)
         self.assertIn("ingest", by_id["not_ingested"]["advice"] or "")
+
+    def test_habit_freshness_stale_advisory_not_in_health(self):
+        day = "2026-09-21"
+        path = os.path.join(self.md_dir, "复盘", "2026-09", f"{day}.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("# x\n")
+        upsert(self.conn, {"date": day})
+        upsert_habit_log(self.conn, {
+            "date": "2026-09-10", "habit_key": "reading_30",
+            "category": "行为习惯", "item": "每日阅读 30 分钟", "done": 1, "src": "clickup",
+        }, overwrite=True)
+        self.conn.commit()
+        r = self._run(today="2026-09-22")
+        s = summarize(r)
+        by_id = {it["id"]: it for it in s["items"]}
+        self.assertIn("habit_freshness", by_id)
+        self.assertEqual(by_id["habit_freshness"]["status"], "warn")
+        self.assertFalse(by_id["habit_freshness"]["affects_health"])
+        self.assertTrue(s["healthy"], "鲜度建议性，不得拖垮 is_healthy")
+        self.assertEqual(s["healthy"], is_healthy(r))
+        self.assertIn("habits --sync", by_id["habit_freshness"]["advice"] or "")
+
+    def test_habit_freshness_empty_warn(self):
+        day = "2026-09-21"
+        path = os.path.join(self.md_dir, "复盘", "2026-09", f"{day}.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("# x\n")
+        upsert(self.conn, {"date": day})
+        self.conn.commit()
+        r = self._run(today="2026-09-22")
+        by_id = {it["id"]: it for it in summarize(r)["items"]}
+        self.assertEqual(by_id["habit_freshness"]["status"], "warn")
+        self.assertIn("为空", by_id["habit_freshness"]["summary"])
 
 
 if __name__ == "__main__":

@@ -1570,6 +1570,46 @@ def summarize(result: dict) -> dict:
              ),
              advice=None if not pend else "整理素材 → 草稿/定稿 → ingest → 归档")
 
+    # D3：习惯鲜度（建议性；diagnose 已算 habit_freshness，此处只透出，不进 is_healthy）
+    hf = result.get("habit_freshness") or {}
+    if hf.get("empty"):
+        _add(
+            "habit_freshness", "习惯鲜度",
+            "warn",
+            summary="habit_logs 为空或无最新日（建议性）",
+            advice="生活管家 · 习惯 → 预览同步；或 CLI `habits --sync`",
+            affects_health=False,
+        )
+    elif hf.get("stale"):
+        _add(
+            "habit_freshness", "习惯鲜度",
+            "warn",
+            count=hf.get("lag"),
+            summary=(
+                f"habit_logs 最新 {hf.get('habit_latest')} 落后复盘最新 "
+                f"{hf.get('review_latest')} 共 {hf.get('lag')} 天"
+                f"（阈值 ≥{hf.get('threshold')}；建议性）"
+            ),
+            advice=(
+                "生活管家 · 习惯 → 预览同步；区间回填："
+                f"`habits --sync {hf.get('habit_latest')} {hf.get('review_latest')}`"
+            ),
+            affects_health=False,
+        )
+    else:
+        _add(
+            "habit_freshness", "习惯鲜度",
+            "ok",
+            count=hf.get("lag"),
+            summary=(
+                f"habit_logs 最新 {hf.get('habit_latest') or '—'} "
+                f"与复盘最新 {hf.get('review_latest') or '—'} 对齐"
+                f"（落后 {hf.get('lag') if hf.get('lag') is not None else '—'} 天"
+                f" < {hf.get('threshold')}；建议性）"
+            ),
+            affects_health=False,
+        )
+
     fuse = result.get("fuse") or {}
     abs_f = fuse.get("absolute") or []
     if fuse.get("as_of"):

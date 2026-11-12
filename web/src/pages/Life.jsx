@@ -174,10 +174,12 @@ export default function Life({ toast, health }) {
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
   useEffect(() => {
-    // D2 CTA：#/life?tab=coach&focus=keepstrong-sync|clickup-habit
+    // D2/D3 CTA：#/life?tab=coach|habits&focus=keepstrong-sync|clickup-habit|habits-sync
     const focus = hashQuery('focus')
-    if (!focus || tab !== 'coach') return
-    if (focus !== 'keepstrong-sync' && focus !== 'clickup-habit') return
+    if (!focus) return
+    const okCoach = tab === 'coach' && (focus === 'keepstrong-sync' || focus === 'clickup-habit')
+    const okHabits = tab === 'habits' && focus === 'habits-sync'
+    if (!okCoach && !okHabits) return
     const t = window.setTimeout(() => {
       document.getElementById(focus)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 80)
@@ -213,11 +215,13 @@ export default function Life({ toast, health }) {
               {tab === 'habits' && (
                 <>
                   <ClickupHabitWrite health={health} toast={toast} />
-                  <Card title="同步 ClickUp 习惯" meta="写 habit_logs · 与 personal_tracks 分区">
-                    <WriteFlow action="habits-sync" params={{}} health={health} toast={toast}
-                      title="今日习惯同步" desc="从 ClickUp「习惯与打卡」拉今日完成态，预览后确认写入（写前自动备份库）。代勾练练健身请用上方卡（只写 ClickUp）。"
-                      renderPreview={HabitsPreview} confirmLabel="确认同步" />
-                  </Card>
+                  <div id="habits-sync">
+                    <Card title="同步 ClickUp 习惯" meta="写 habit_logs · 与 personal_tracks 分区">
+                      <WriteFlow action="habits-sync" params={{}} health={health} toast={toast}
+                        title="今日习惯同步" desc="从 ClickUp「习惯与打卡」拉今日完成态，预览后确认写入（写前自动备份库）。代勾练练健身请用上方卡（只写 ClickUp）。"
+                        renderPreview={HabitsPreview} confirmLabel="确认同步" />
+                    </Card>
+                  </div>
                 </>
               )}
               {tab === 'coach' && (

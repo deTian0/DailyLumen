@@ -27,6 +27,13 @@ export function DoctorCards({ summary }) {
           </header>
           <p className="doctor-card-summary">{it.summary}</p>
           {it.advice ? <p className="doctor-card-advice">{it.advice}</p> : null}
+          {it.id === 'habit_freshness' && it.status !== 'ok' && (
+            <p className="doctor-card-cta">
+              <a className="btn-ghost btn-sm" href="#/life?tab=habits&focus=habits-sync">
+                去习惯同步预览 →
+              </a>
+            </p>
+          )}
         </article>
       ))}
     </div>

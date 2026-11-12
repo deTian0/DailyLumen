@@ -18,6 +18,11 @@ const sample = {
       id: 'schema', title: 'schema 版本', status: 'ok', count: 11,
       summary: 'v11', advice: null, affects_health: true,
     },
+    {
+      id: 'habit_freshness', title: '习惯鲜度', status: 'warn', count: 11,
+      summary: 'habit_logs 落后 11 天', advice: '建议同步',
+      affects_health: false,
+    },
   ],
 }
 
@@ -34,6 +39,12 @@ describe('DoctorCards', () => {
     expect(crit?.textContent).toContain('异常')
     expect(crit?.textContent).toContain('库为空')
     expect(document.querySelector('[data-id="schema"] .status-ok')?.textContent).toContain('正常')
+  })
+
+  it('习惯鲜度异常时给出去同步预览的深链（不自动 apply）', () => {
+    render(<DoctorCards summary={sample} />)
+    const link = screen.getByRole('link', { name: /去习惯同步预览/ })
+    expect(link.getAttribute('href')).toBe('#/life?tab=habits&focus=habits-sync')
   })
 
   it('原文折叠由页面 details 承担（卡片不含全文）', () => {
