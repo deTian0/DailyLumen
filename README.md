@@ -15,6 +15,7 @@ uv sync --extra web                          # 首次：装 fastapi / uvicorn（
 # 首次：在 local/.env 末尾加一行访问密钥（未配置时 serve 拒绝启动）
 #   DAILYLUMEN_WEB_KEY=<python -c "import secrets; print(secrets.token_urlsafe(32))" 的输出>
 uv run python -m review_tool serve            # → http://127.0.0.1:8765/ ，登录页输入同一个密钥
+# Windows：仓库根双击或运行 start.bat（可选端口，默认 8765）
 ```
 
 - 前端构建产物 `web/dist` **已入库**，不需要 node 也能直接用；改了 `web/src` 才需要 `cd web; npm ci; npm run build` 重新构建。

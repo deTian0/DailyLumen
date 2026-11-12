@@ -339,7 +339,7 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 ### 本轮已完成（B19 样式可访问性，2026-11-12）
 
 - **B19 主题可访问性与样式 token 收敛（v1.92.0）**：对比度（`--on-accent` / `--on-status` / `--accent-ink`）、搜索框焦点、`var(--ink)` 无效引用、图表系列色跟主题、45 条死 token 清理、输入框文字/占位符/自动填充跨主题可读。计划见 [`plans/B19-样式可访问性与token收敛-plan.md`](plans/B19-样式可访问性与token收敛-plan.md)。
-- **验收**：前端 17 文件 94 例全绿（新增 `tokens.test.js` 三主题 16 组对比度 + 未定义变量 + 硬编码色断言、`chartTheme.test.js` 映射色 ≥3:1 + 回退）；`npm run build` 重建 dist（CSS 31.63 KB）；Python 全量 1271 OK / 2 skip；ruff 全绿。截图 `local/screenshots/v192-a11y/` 留用户手动验收（浏览器走查两次被会话中断，未自动执行）。
+- **验收**：前端 17 文件 94 例全绿（新增 `tokens.test.js` 三主题 16 组对比度 + 未定义变量 + 硬编码色断言、`chartTheme.test.js` 映射色 ≥3:1 + 回退）；`npm run build` 重建 dist（CSS 31.63 KB）；Python 全量 1271 OK / 2 skip；ruff 全绿。**调色定稿**（2026-11-12）：用户实机 light 多页截图确认满意，B19 色板冻结，不再微调。
 
 ### 本轮已完成（B11 三套主题，2026-11-11）
 
