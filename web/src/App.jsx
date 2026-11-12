@@ -42,6 +42,8 @@ function Shell({ onLogout }) {
   const [toastMsg, setToastMsg] = useState('')
   const timer = useRef(null)
   const health = useAsync((signal) => api.health({ signal }), [])
+  // E2 / B20：窄屏汉堡折叠导航（aria-expanded；点导航项后自动收起）
+  const [navOpen, setNavOpen] = useState(false)
 
   useEffect(() => {
     const onHash = () => setPage(readHash())
@@ -67,13 +69,24 @@ function Shell({ onLogout }) {
           <div className="brand-mark" aria-hidden="true">DL</div>
           DailyLumen
         </div>
-        <nav aria-label="主导航" className="nav">
+        <button
+          type="button"
+          className="nav-toggle"
+          aria-expanded={navOpen}
+          aria-controls="main-nav"
+          onClick={() => setNavOpen((v) => !v)}
+        >
+          <span className="ico" aria-hidden="true">☰</span>
+          导航
+        </button>
+        <nav aria-label="主导航" id="main-nav" className={`nav ${navOpen ? 'open' : ''}`}>
           {NAV.map((n) => (
             <a
               key={n.id}
               href={`#/${n.id}`}
               className={`nav-item ${n.id === page ? 'active' : ''}`}
               aria-current={n.id === page ? 'page' : undefined}
+              onClick={() => setNavOpen(false)}
             >
               <span className="ico" aria-hidden="true">{n.ico}</span>
               {n.label}

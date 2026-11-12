@@ -67,19 +67,43 @@
     max-height: none;
     flex-direction: row;
     align-items: center;
-    padding: 12px 16px;
-    gap: 12px;
-    overflow-x: auto;
-    overflow-y: hidden;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
   .sidebar .brand {
     padding: 0;
   }
+  /* E2 / B20：窄屏导航折叠——汉堡按钮 + aria-expanded；点项后收起（App.jsx） */
+  .nav-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 8px 12px;
+    margin-left: auto;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .nav-toggle .ico {
+    font-size: 14px;
+  }
   .nav {
-    flex-direction: row;
+    display: none;
+    flex-basis: 100%;
+    flex-direction: column;
     gap: 4px;
+  }
+  .nav.open {
+    display: flex;
   }
   .nav-item span.ico {
     margin: 0;
@@ -105,6 +129,34 @@
   }
   .main {
     min-height: 0;
+  }
+}
+
+/* E2 / B20：汉堡按钮只在窄屏出现（宽屏恒隐） */
+.nav-toggle {
+  display: none;
+}
+
+/* E2 / B20：更窄屏（≤640px）触控目标 ≥40px（导航 / tab / 主题切换 / 分页 / 登出） */
+@media (max-width: 640px) {
+  .nav-item {
+    min-height: 40px;
+    padding: 10px 12px;
+  }
+  .tab {
+    min-height: 40px;
+    padding: 9px 12px;
+  }
+  .theme-switch-btn {
+    min-height: 40px;
+    padding: 9px 10px;
+  }
+  .picker .btn-ghost {
+    min-height: 40px;
+    min-width: 40px;
+  }
+  .logout-btn {
+    min-height: 40px;
   }
 }
 
@@ -412,4 +464,46 @@
   font-size: 12px;
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
+}
+
+/* ---------- E2 / B20：打印样式（报告可打印；隐藏壳层噪音） ---------- */
+@media print {
+  .sidebar,
+  .nav-toggle,
+  .theme-switch,
+  .toast,
+  .write-flow,
+  .gate-line,
+  .toolbar,
+  .picker,
+  .card-actions,
+  .tabs,
+  .banner {
+    display: none !important;
+  }
+  html, body, #root, .app {
+    height: auto !important;
+    overflow: visible !important;
+    background: var(--surface) !important;
+  }
+  .app {
+    display: block;
+  }
+  .main {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  .prose-panel {
+    border: none;
+    background: var(--surface);
+    padding: 0;
+  }
+  .prose-panel .md {
+    max-width: none; /* 打印吃满纸面 */
+  }
+  .card {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border-color: var(--border) !important;
+  }
 }

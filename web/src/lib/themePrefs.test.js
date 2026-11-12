@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   applyTheme,
+  bootTheme,
   isValidTheme,
   loadThemePreference,
   resolveTheme,
@@ -94,5 +95,21 @@ describe('applyTheme', () => {
 describe('matchMedia 跟随（无记忆时）', () => {
   it('有记忆时 resolve 不跟系统', () => {
     expect(resolveTheme('light', { matches: true })).toBe('light')
+  })
+})
+
+describe('bootTheme（E2 / B20：index.html 内联脚本同源纯函数）', () => {
+  it('合法记忆优先；纯字符串兼容', () => {
+    expect(bootTheme(JSON.stringify({ theme: 'omni' }), true)).toBe('omni')
+    expect(bootTheme(JSON.stringify('dark'), false)).toBe('dark')
+  })
+  it('无记忆 → 系统 light/dark', () => {
+    expect(bootTheme(null, true)).toBe('dark')
+    expect(bootTheme(null, false)).toBe('light')
+    expect(bootTheme(undefined, true)).toBe('dark')
+  })
+  it('损坏 JSON / 非法值 → 系统回退', () => {
+    expect(bootTheme('{not-json', true)).toBe('dark')
+    expect(bootTheme(JSON.stringify({ theme: 'neon' }), false)).toBe('light')
   })
 })

@@ -79,3 +79,21 @@ export function readDomTheme() {
   const t = document.documentElement.getAttribute('data-theme')
   return isValidTheme(t) ? t : 'light'
 }
+
+/**
+ * E2 / B20：index.html 首屏内联脚本的同源纯函数（两处逻辑必须一致，测试锁定）。
+ * 与 loadThemePreference/systemThemePreference 的差异：零依赖、可内联展开（不 import）。
+ * localStorage 不可用 / JSON 损坏 / 非法值 → 回退（系统 dark → 'dark'，否则 'light'）。
+ */
+export function bootTheme(rawStored, prefersDark) {
+  if (rawStored) {
+    try {
+      const parsed = JSON.parse(rawStored)
+      const theme = typeof parsed === 'string' ? parsed : parsed?.theme
+      if (isValidTheme(theme)) return theme
+    } catch {
+      // 落到系统判断
+    }
+  }
+  return prefersDark ? 'dark' : 'light'
+}

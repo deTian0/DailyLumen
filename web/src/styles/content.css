@@ -164,6 +164,15 @@
   max-height: none;
   overflow: visible;
 }
+/* E2 / B20：正文 74ch 阅读行宽居中（表格 / 滚动容器自行撑满并横向滚动） */
+.prose-panel .md {
+  max-width: 74ch;
+  margin-inline: auto;
+}
+.prose-panel .md .md-table {
+  max-width: none;
+  /* 行宽容器内表格可横向滚动，不挤压列 */
+}
 .md {
   font-size: 14.5px;
   line-height: 1.7;

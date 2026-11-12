@@ -26,6 +26,15 @@ echarts.use([
 
 const SAVE_DEBOUNCE_MS = 300
 
+// E2 / B20：prefers-reduced-motion 时关闭 ECharts 入场动画（CSS media 拦不住 canvas/SVG 动画）
+export function prefersReducedMotion(w = window) {
+  try {
+    return !!w.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+  } catch {
+    return false
+  }
+}
+
 export function EChart({ option, className, style, ariaLabel, kind }) {
   const ref = useRef(null)
   const chartRef = useRef(null)
@@ -33,6 +42,7 @@ export function EChart({ option, className, style, ariaLabel, kind }) {
   useEffect(() => {
     if (!ref.current) return
     const chart = echarts.init(ref.current, null, { renderer: 'svg' })
+    if (prefersReducedMotion()) chart.setOption({ animation: false })
     chartRef.current = chart
     const onResize = () => chart.resize()
     window.addEventListener('resize', onResize)

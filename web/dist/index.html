@@ -6,8 +6,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>DailyLumen · 生活管家</title>
-    <script type="module" crossorigin src="/assets/index-B3S13FJY.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CIXlBTWN.css">
+    <!-- E2 / B20：首屏前应用主题，防闪白（与 lib/themePrefs.js 同口径；localStorage 不可用回退 light） -->
+    <script>
+      (function () {
+        var t = 'light'
+        try {
+          var raw = localStorage.getItem('dailylumen.theme.v1')
+          if (raw) {
+            var p = JSON.parse(raw)
+            var v = typeof p === 'string' ? p : (p && p.theme)
+            if (v === 'light' || v === 'dark' || v === 'omni') t = v
+          } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            t = 'dark'
+          }
+        } catch (e) { /* 隐私模式 / 损坏 JSON：回退 light */ }
+        document.documentElement.setAttribute('data-theme', t)
+        document.documentElement.style.colorScheme = t === 'dark' ? 'dark' : 'light'
+      })()
+    </script>
+    <script type="module" crossorigin src="/assets/index-C8fzPjPw.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DSbV0nb8.css">
   </head>
   <body>
     <div id="root"></div>
