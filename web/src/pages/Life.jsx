@@ -6,6 +6,7 @@ import { Card, ErrorBox, Loading, Prose, Stat, StatusMark } from '../components/
 import { ClickupHabitWrite } from '../components/ClickupHabitWrite'
 import { KeepStrongWrite } from '../components/KeepStrongWrite'
 import { KeepstrongSyncWrite } from '../components/KeepstrongSyncWrite'
+import { PromiseDetailList } from '../components/life/PromiseDetailList'
 import { WriteFlow } from '../components/WriteFlow'
 
 // habits sync 预览：只列将写入 habit_logs 的行；personal_tracks 明示不动（R3 分区）
@@ -234,6 +235,9 @@ export default function Life({ toast, health }) {
                     <ClickupHabitWrite health={health} toast={toast} />
                   </div>
                 </>
+              )}
+              {tab === 'promises' && res.data.data && (
+                <PromiseDetailList data={res.data.data} />
               )}
               <Card title="全文" meta={`= CLI ${cur.cli || (tab === 'morning' || tab === 'evening' ? `steward --slot ${tab}` : tab)}`}>
                 <Prose source={res.data.text} />
