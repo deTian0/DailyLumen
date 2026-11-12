@@ -331,10 +331,15 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 
 ## 后续待办（W18 之后）
 
-> 追加于 2026-11-06；**状态对齐 2026-11-11**（代码版本 **v1.91.0**；B5–B8 / B16–**B18** / **B11** 已合入，B8 纯文档不 bump；**B13 用户确认不做**）。W1–W18 与 v1.79–v1.91 推远端 `main`（不推 tag）。
+> 追加于 2026-11-06；**状态对齐 2026-11-12**（代码版本 **v1.92.0**；B5–B8 / B16–**B19** 已合入，B8 纯文档不 bump；**B13 用户确认不做**）。W1–W18 与 v1.79–v1.92 推远端 `main`（不推 tag；v1.92 待用户确认后推）。
 > 下面每项独立做：一项一个 commit，**不打 tag**；写操作一律只用 mock / 临时库测试。
-> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；**B6✅ v1.86**；**B8✅ 文档**；**B16✅ v1.88**；**B17✅ v1.89**；**B18✅ v1.90**；**B11✅ v1.91**；B12 待办；**B13 关闭/不做**；B9 运维提醒（非代码）；B10 tag 不补打；B14 文档勘误✅。
-> 优先级建议：**P1** B9（运维换 Key）→ 可选 B12。
+> **B 项总览**：B1 关闭/不修；B2✅ v1.80；B3✅ v1.81；B4✅ v1.82；B15✅ v1.83；**B5✅ v1.84**；**B7✅ v1.85**；**B6✅ v1.86**；**B8✅ 文档**；**B16✅ v1.88**；**B17✅ v1.89**；**B18✅ v1.90**；**B11✅ v1.91**；**B19✅ v1.92**；B12 待办；**B13 关闭/不做**；B9 运维提醒（非代码）；B10 tag 不补打；B14 文档勘误✅。
+> 优先级建议：**P1** B9（运维换 Key）→ 可选 B12 / B20。
+
+### 本轮已完成（B19 样式可访问性，2026-11-12）
+
+- **B19 主题可访问性与样式 token 收敛（v1.92.0）**：对比度（`--on-accent` / `--on-status` / `--accent-ink`）、搜索框焦点、`var(--ink)` 无效引用、图表系列色跟主题、45 条死 token 清理、输入框文字/占位符/自动填充跨主题可读。计划见 [`plans/B19-样式可访问性与token收敛-plan.md`](plans/B19-样式可访问性与token收敛-plan.md)。
+- **验收**：前端 17 文件 94 例全绿（新增 `tokens.test.js` 三主题 16 组对比度 + 未定义变量 + 硬编码色断言、`chartTheme.test.js` 映射色 ≥3:1 + 回退）；`npm run build` 重建 dist（CSS 31.63 KB）；Python 全量 1271 OK / 2 skip；ruff 全绿。截图 `local/screenshots/v192-a11y/` 留用户手动验收（浏览器走查两次被会话中断，未自动执行）。
 
 ### 本轮已完成（B11 三套主题，2026-11-11）
 
@@ -530,6 +535,20 @@ week_done/clickup_done/fuse/chart/analyze 的取数函数都接收外部 `conn`�
 - **涉及**：`web/src/styles/tokens.css`（`[data-theme]`）、`themePrefs.js` / `ThemeContext` / `ThemeSwitcher`、`chartOption.js`、登录页与侧栏。
 - **默认规则**：无 localStorage 时系统偏好只映射 light/dark；`omni` 仅显式选择；记忆 key `dailylumen.theme.v1`。
 - **验收**：三套切换截图；Vitest 偏好/默认/损坏；对比度人工过一眼（完整 WCAG 不强制）。
+
+### B19（P1）主题可访问性与样式 token 收敛 ✅ v1.92.0
+
+- **目标**：三套主题正文 ≥ 4.5:1、图形/UI 边界 ≥ 3:1；所有 `var(--x)` 有定义；图表系列色跟主题。
+- **实测问题**：dark `--on-accent` 白字仅 1.86:1；`.rstep-done` 约 1.4:1；搜索框焦点被 `outline:0` 压掉；`var(--ink)` 未定义；dark 图表学习/系统色低于 3:1。
+- **实现**：
+  1. `light` / `dark` / `omni` 分别定义 `--on-accent`、`--on-status`；新增 `--accent-strong`（实心控件）与 `--accent-ink`（文字）。
+  2. omni `--muted` → `#6e6e73`；light/omni `--ink-amber` → `#8a5a00`；新增 `--border-input`。
+  3. `.search:has(input:focus-visible)` 焦点环；`var(--ink)` → `var(--text)`；合并重复 `.visually-hidden`。
+  4. 新增 `chartTheme.js`，按 series `key` 映射主题可访问色，未知 key 回退。
+  5. 删除 `--chart-*` / `--blue|green|red|amber` / `--shadow-out|in` 共 45 条零引用声明；补 `--radius-2xs` / `--radius-xs`。
+  6. 表单控件统一 `color: var(--text)`、`::placeholder`、`::selection`、`:-webkit-autofill`。
+- **测试**：`tokens.test.js`（三主题对比度 + 未定义变量）、`chartTheme.test.js`（图表色 ≥3:1）、`chartOption.test.js` 更新。
+- **明确不做**：B20 阅读/移动端、B21 视觉回归、B22 跟随系统、后端 SVG/JSON 改色、换品牌青绿、打 tag。
 
 ### B12–B14（补充，依据见各条）
 

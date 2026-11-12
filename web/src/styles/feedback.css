@@ -9,9 +9,9 @@
   font-size: 13px;
 }
 .banner-warn {
-  color: var(--banner-warn-fg);
-  border-color: var(--banner-warn-border);
-  background: var(--banner-warn-bg);
+  color: var(--ink-amber);
+  border-color: var(--warn-border);
+  background: var(--warn-soft);
 }
 
 .toast {
@@ -73,7 +73,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  border: 3px solid rgba(90, 106, 120, 0.22);
+  border: 3px solid var(--border-strong);
   border-top-color: var(--accent);
   animation: spin 0.8s linear infinite;
 }

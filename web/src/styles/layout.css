@@ -8,7 +8,7 @@
   background: var(--surface);
   color: var(--text);
   padding: 10px 16px;
-  border-radius: 0 0 8px 0;
+  border-radius: 0 0 var(--radius-xs) 0;
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
 }
@@ -48,7 +48,7 @@
 }
 .main::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-2xs);
 }
 .main:hover::-webkit-scrollbar-thumb,
 .main:focus-within::-webkit-scrollbar-thumb {
@@ -136,7 +136,7 @@
   width: 34px;
   height: 34px;
   border-radius: var(--radius-sm);
-  background: var(--accent);
+  background: var(--accent-strong);
   color: var(--on-accent);
   display: grid;
   place-items: center;
@@ -173,7 +173,7 @@
   background: var(--nav-hover);
 }
 .nav-item.active {
-  color: var(--accent);
+  color: var(--accent-ink);
   background: var(--surface);
   border-color: var(--border);
   box-shadow: var(--shadow-sm);
@@ -183,15 +183,15 @@
   height: 28px;
   display: grid;
   place-items: center;
-  border-radius: 10px;
+  border-radius: var(--radius-xs);
   font-size: 13px;
   flex: none;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
   opacity: 1;
 }
 .nav-item.active .ico {
-  background: var(--accent);
+  background: var(--accent-strong);
   color: var(--on-accent);
 }
 .sidebar-foot {
@@ -278,13 +278,21 @@
   font: inherit;
   color: var(--text);
 }
+/* B19：input 自身 outline 关闭，键盘焦点画在外层胶囊上 */
+.search:has(input:focus-visible) {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.search:focus-within {
+  border-color: var(--accent);
+}
 
 .btn-primary {
   border: 0;
   cursor: pointer;
   font-weight: 700;
   color: var(--on-accent);
-  background: var(--accent);
+  background: var(--accent-strong);
   padding: 11px 16px;
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-sm);
@@ -386,7 +394,7 @@
   place-items: center;
   font-size: 12px;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-ink);
   background: var(--accent-soft);
   border: 1px solid transparent;
 }

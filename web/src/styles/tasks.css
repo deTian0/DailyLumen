@@ -68,7 +68,7 @@
 .status-ok { color: var(--ink-green); }
 .status-warn { color: var(--ink-amber); }
 .status-crit { color: var(--ink-red); }
-.status-progress { color: var(--accent); }
+.status-progress { color: var(--accent-ink); }
 .status-muted { color: var(--muted); }
 .task .title {
   font-size: 14px;
@@ -96,23 +96,23 @@
 /* 短标签：ink 字色 + 浅底，与状态点同语义，不再实心白字块 */
 .pill-red {
   color: var(--ink-red);
-  background: rgba(180, 35, 24, 0.08);
-  border-color: rgba(180, 35, 24, 0.28);
+  background: var(--crit-soft);
+  border-color: var(--crit-border);
 }
 .pill-blue {
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-color: rgba(13, 124, 111, 0.35);
+  color: var(--ink-blue);
+  background: var(--info-soft);
+  border-color: var(--info-border);
 }
 .pill-green {
   color: var(--ink-green);
-  background: rgba(31, 107, 74, 0.1);
-  border-color: rgba(31, 107, 74, 0.28);
+  background: var(--ok-soft);
+  border-color: var(--ok-border);
 }
 .pill-amber {
   color: var(--ink-amber);
-  background: rgba(154, 103, 0, 0.1);
-  border-color: rgba(154, 103, 0, 0.28);
+  background: var(--warn-soft);
+  border-color: var(--warn-border);
 }
 
 /* ---------- Week calendar strip ---------- */
@@ -126,7 +126,7 @@
 }
 .day {
   aspect-ratio: 1;
-  border-radius: 10px;
+  border-radius: var(--radius-xs);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -147,8 +147,8 @@
 }
 .day.sel {
   color: var(--on-accent);
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
 }
 .day.sel .wd,
 .day.sel .num {
@@ -168,7 +168,7 @@
   display: grid;
   gap: 10px;
   padding: 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: var(--surface-2);
 }

@@ -40,8 +40,8 @@
 }
 .tab.active {
   color: var(--on-accent);
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
 }
 .toolbar {
   display: flex;
@@ -62,9 +62,9 @@
 .toolbar select {
   font: inherit;
   padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-input);
+  background: var(--field-bg);
   box-shadow: var(--inset);
   color: var(--text);
 }
@@ -93,7 +93,7 @@
 }
 .seg-btn.active {
   color: var(--on-accent);
-  background: var(--accent);
+  background: var(--accent-strong);
   box-shadow: var(--shadow-sm);
 }
 
@@ -127,7 +127,7 @@
 }
 .theme-switch-btn.active {
   color: var(--on-accent);
-  background: var(--accent);
+  background: var(--accent-strong);
   box-shadow: var(--shadow-sm);
 }
 .theme-switch-login {
@@ -158,7 +158,7 @@
 /* B17：跟随主栏自然流高，禁止再叠 max-height 内滚（双滚动条根因） */
 .prose-panel {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   padding: 16px 18px;
   max-height: none;
@@ -212,21 +212,21 @@
   border-left: 3px solid var(--accent);
   color: var(--muted);
   background: var(--accent-soft);
-  border-radius: 0 8px 8px 0;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
 }
 .md code {
   font-family: var(--font-mono);
-  background: var(--seg-track);
+  background: var(--code-bg);
   padding: 1px 6px;
-  border-radius: 5px;
+  border-radius: var(--radius-2xs);
   font-size: 0.88em;
 }
 .md pre {
   font-family: var(--font-mono);
-  background: var(--seg-track);
+  background: var(--code-bg);
   border: 1px solid var(--border);
   padding: 12px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-xs);
   overflow: auto;
   font-size: 0.84em;
   line-height: 1.55;
@@ -286,7 +286,7 @@
 .md-table {
   overflow-x: auto;
   margin: 0.75em 0;
-  border-radius: 8px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: var(--surface);
 }
@@ -313,7 +313,7 @@
   border-bottom: 0;
 }
 .md-table tbody tr:hover td {
-  background: rgba(13, 124, 111, 0.04);
+  background: var(--hover-tint);
 }
 
 /* ---------- 系统状态 kv ---------- */
@@ -380,14 +380,14 @@
   overflow: auto;
   margin: 8px 0;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border);
-  background: var(--seg-track);
+  background: var(--code-bg);
 }
 .write-flow {
   margin: 14px 0;
   padding: 14px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-xs);
   border: 1px dashed var(--border-strong);
   background: var(--surface-2);
 }
@@ -405,8 +405,8 @@
 .inline-form { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 4px; align-items: end; }
 .inline-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .inline-form input, .inline-form select {
-  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--surface); font: inherit; min-width: 12ch;
+  padding: 6px 10px; border-radius: var(--radius-xs); border: 1px solid var(--border-input);
+  background: var(--field-bg); color: var(--text); font: inherit; min-width: 12ch;
 }
 .json-editor {
   display: flex; flex-direction: column; gap: 4px; margin: 8px 0;
@@ -414,8 +414,8 @@
 }
 .json-editor textarea {
   font-family: var(--font-mono); font-size: 12px; line-height: 1.45;
-  padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--surface); color: var(--ink); resize: vertical; min-height: 6rem;
+  padding: 8px 10px; border-radius: var(--radius-xs); border: 1px solid var(--border-input);
+  background: var(--field-bg); color: var(--text); resize: vertical; min-height: 6rem;
   box-shadow: var(--inset);
 }
 .json-editor textarea[aria-invalid="true"] { border-color: var(--ink-amber); }
@@ -427,15 +427,11 @@
 .new-task { margin-top: 12px; display: grid; gap: 8px; }
 .new-task-row { display: flex; gap: 8px; }
 .new-task-row input {
-  flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
-  background: var(--surface); font: inherit; box-shadow: var(--inset);
+  flex: 1; padding: 8px 12px; border-radius: var(--radius-xs); border: 1px solid var(--border-input);
+  background: var(--field-bg); color: var(--text); font: inherit; box-shadow: var(--inset);
 }
 .check { display: flex; gap: 8px; align-items: center; margin-top: 10px; font-size: 13px; }
 
-.visually-hidden {
-  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-}
 .hint-warn { color: var(--ink-amber); }
 .chips { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .chips li {
@@ -443,33 +439,36 @@
   font-size: 12px; border: 1px solid var(--border); background: var(--surface);
 }
 .chip-x { border: 0; background: transparent; cursor: pointer; font: inherit; padding: 0 2px; color: inherit; }
-.chip-x:focus-visible { outline: 2px solid currentColor; border-radius: 4px; }
+.chip-x:focus-visible { border-radius: var(--radius-2xs); }
 
 .vision-pick { border: 0; padding: 0; margin: 0 0 10px; min-width: 0; }
 .vision-pick:disabled { opacity: .55; }
 .vision-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.vision-row select { padding: 4px 8px; border-radius: 8px; font: inherit; border: 1px solid var(--border); }
+.vision-row select {
+  padding: 4px 8px; border-radius: var(--radius-xs); font: inherit;
+  border: 1px solid var(--border-input); background: var(--field-bg); color: var(--text);
+}
 .file-btn { position: relative; cursor: pointer; }
-.file-btn:focus-within { outline: 2px solid currentColor; outline-offset: 2px; }
+.file-btn:has(input:focus-visible) { outline: 3px solid var(--accent); outline-offset: 2px; }
 .inbox-pick { margin-top: 10px; display: grid; gap: 2px; }
 
 /* B6：体检结构化卡片 */
 .doctor-banner {
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--radius-xs);
   font-weight: 700;
   margin-bottom: 14px;
   border: 1px solid var(--border);
 }
 .doctor-banner-ok {
-  background: rgba(47, 158, 107, 0.12);
+  background: var(--ok-soft);
   color: var(--ink-green);
-  border-color: rgba(47, 158, 107, 0.35);
+  border-color: var(--ok-border);
 }
 .doctor-banner-warn {
-  background: rgba(217, 119, 6, 0.12);
+  background: var(--warn-soft);
   color: var(--ink-amber);
-  border-color: rgba(217, 119, 6, 0.35);
+  border-color: var(--warn-border);
 }
 .doctor-grid {
   display: grid;
@@ -480,7 +479,7 @@
 .doctor-card {
   border: 1px solid var(--border);
   border-left-width: 3px;
-  border-radius: 10px;
+  border-radius: var(--radius-xs);
   background: var(--surface);
   padding: 12px 14px;
   box-shadow: var(--shadow-sm);

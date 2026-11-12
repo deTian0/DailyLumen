@@ -22,7 +22,7 @@ describe('buildChartOption trends', () => {
     expect(opt.yAxis.type).toBe('value')
     expect(opt.series).toHaveLength(2)
     expect(opt.series[0].name).toBe('系统分')
-    expect(opt.series[0].lineStyle.color).toBe('#2563eb')
+    expect(opt.series[0].lineStyle.color).toBe('#1d4ed8')
     expect(opt.series[0].data).toEqual([4.0, null, 5.0])
     expect(opt.series[0].connectNulls).toBe(false)
     expect(opt.legend.show).toBe(true)
@@ -57,7 +57,7 @@ describe('buildChartOption training', () => {
       target: null,
     })
     expect(opt.series[0].type).toBe('bar')
-    expect(opt.series[0].itemStyle.color).toBe('#16a34a')
+    expect(opt.series[0].itemStyle.color).toBe('#15803d')
     expect(opt.yAxis.name).toBe('分钟')
     expect(opt.legend.show).toBe(false)
   })
@@ -115,6 +115,16 @@ describe('shortDate', () => {
 })
 
 describe('chartChrome / theme', () => {
+  it('系列色跟主题：dark 用提亮映射，未知 key 回退后端原色', () => {
+    const dark = buildChartOption(series(), 'dark')
+    expect(dark.series[0].lineStyle.color).toBe('#60a5fa')
+    const unknown = buildChartOption(
+      { ...series(), series: [{ key: 'unknown', name: '未知', color: '#123456', unit: '', values: [1], type: 'line' }] },
+      'dark',
+    )
+    expect(unknown.series[0].lineStyle.color).toBe('#123456')
+  })
+
   it('三套主题 chrome 色不同；dark tooltip 深底', () => {
     expect(chartChrome('light').markLine).toBe('#15803d')
     expect(chartChrome('dark').tooltipBg).toBe('#1e2836')

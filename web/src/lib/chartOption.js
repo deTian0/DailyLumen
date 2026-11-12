@@ -5,6 +5,7 @@
 
 import { loadLegendSelected } from './legendPrefs'
 import { isValidTheme, readDomTheme } from './themePrefs'
+import { seriesColor } from './chartTheme'
 
 const baseGrid = { left: 56, right: 24, top: 40, bottom: 56 }
 
@@ -100,14 +101,15 @@ function axisLabel(values, unit, axisCommon) {
   }
 }
 
-function lineSeries(s) {
+function lineSeries(s, theme) {
+  const color = seriesColor(s, theme)
   return {
     name: s.name,
     type: 'line',
     data: s.values,
     yAxisIndex: s.yAxisIndex || 0,
-    lineStyle: { color: s.color, width: s.dash ? 1.6 : 1.8, type: s.dash ? 'dashed' : 'solid' },
-    itemStyle: { color: s.color },
+    lineStyle: { color, width: s.dash ? 1.6 : 1.8, type: s.dash ? 'dashed' : 'solid' },
+    itemStyle: { color },
     symbol: 'circle',
     symbolSize: 3,
     connectNulls: false,
@@ -143,7 +145,7 @@ export function buildChartOption(data, theme) {
       yAxis: axisLabel(s.values, s.unit, axisCommon),
       series: [{
         name: s.name, type: 'bar', data: s.values,
-        itemStyle: { color: s.color }, barMaxWidth: 24,
+        itemStyle: { color: seriesColor(s, t) }, barMaxWidth: 24,
       }],
       textStyle,
     }
@@ -163,7 +165,7 @@ export function buildChartOption(data, theme) {
         axisLabel(series[0].values, series[0].unit, axisCommon),
         axisLabel(series[1].values, series[1].unit, axisCommon),
       ],
-      series: series.map(lineSeries),
+      series: series.map((s) => lineSeries(s, t)),
       textStyle,
     }
   }
@@ -183,7 +185,7 @@ export function buildChartOption(data, theme) {
     grid: baseGrid,
     xAxis: dateAxis(dates, axisCommon),
     yAxis: axisLabel(series[0].values, series[0].unit, axisCommon),
-    series: series.map(lineSeries),
+    series: series.map((s) => lineSeries(s, t)),
     textStyle,
   }
 
