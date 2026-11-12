@@ -122,6 +122,20 @@ def assess_day_ready(
     return status
 
 
+def _read_training_day_hint(day: str) -> bool | None:
+    """读本地复盘 md 并推断训练日（reports 层持有 I/O；core 只做纯文本推断）。"""
+    from ..core.day_help import infer_training_day_hint, review_md_template
+
+    path = review_md_template(day)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return infer_training_day_hint(day, md_text=f.read())
+    except OSError:
+        return None
+
+
 def suggest_next_command(
     status: dict[str, Any],
     *,
@@ -134,12 +148,10 @@ def suggest_next_command(
 
     day = status.get("day") or datetime.date.today().isoformat()
     m = normalize_llm_mode(mode if mode is not None else get_llm_mode())
-    # D7：status 可带 training_day；缺省时从本地 md 推断（只读）
+    # D7：status 可带 training_day；缺省时从本地 md 推断（只读；读盘在本层，core 零 I/O）
     td = status.get("training_day")
     if td is None:
-        from ..core.day_help import infer_training_day_hint
-
-        td = infer_training_day_hint(day)
+        td = _read_training_day_hint(day)
     if not status.get("md_exists"):
         return draft_next_hint(day, m, training_day=td)
     if status.get("pending_draft"):

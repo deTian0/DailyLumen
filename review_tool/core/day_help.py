@@ -1,9 +1,12 @@
 """一日三步：可复制命令模板（纯规则，零 I/O）。
 
 心智：投放收件箱 → 草稿（llm-day / WorkBuddy 宿主）→ 定稿入库归档；
-有事看 ``doctor`` 红绿灯。本模块只渲染文案，不读盘、不调 API。
+有事看 ``doctor`` 红绿灯。本模块只渲染文案，不读盘、不调 API ——
+训练日推断只认调用方传入的 md 文本；读盘由 reports / api 层完成。
 """
 from __future__ import annotations
+
+import re
 
 from .llm_mode import (
     LLM_MODE_DEEPSEEK,
@@ -17,9 +20,6 @@ DAY_STEPS: tuple[str, ...] = (
     "② 草稿（llm-day 或 WorkBuddy 宿主）",
     "③ 定稿入库归档（llm-finalize → ingest → 归档）",
 )
-
-import os
-import re
 
 _INBOX = "local/每日复盘/收件箱"
 _REVIEW_MD = "local/每日复盘/复盘/{ym}/{day}.md"
@@ -38,22 +38,12 @@ def review_md_template(day: str) -> str:
 
 
 def infer_training_day_hint(day: str, *, md_text: str | None = None) -> bool | None:
-    """从本地复盘 md 数据块推断训练日（只读；无文件 / 无字段 → None）。
+    """从复盘 md 数据块文本推断训练日（零 I/O；无字段 → None）。
 
-    不打网、不读库；供 day-help / draft_next 决定是否插入训练日文案。
+    ``md_text`` 由调用方读盘后传入（core 层零 I/O；reports / api 负责读文件）；
+    打网、读盘都不在本层。
     """
-    text = md_text
-    if text is None:
-        # 相对仓库根的路径模板；与 CLI 展示口径一致
-        path = review_md_template(day)
-        if not os.path.isfile(path):
-            return None
-        try:
-            with open(path, encoding="utf-8") as f:
-                text = f.read()
-        except OSError:
-            return None
-    m = _TRAINING_DAY_RE.search(text or "")
+    m = _TRAINING_DAY_RE.search(md_text or "")
     if not m:
         return None
     val = (m.group(1) or "").strip().split()[0].lower() if (m.group(1) or "").strip() else ""

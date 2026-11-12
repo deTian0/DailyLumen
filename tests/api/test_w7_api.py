@@ -37,10 +37,22 @@ class TestW7Parity(_DbFixture):
         self.assertEqual(r["data"], _json(data))
 
     def test_day_help(self):
-        from review_tool.core.day_help import infer_training_day_hint, render_day_help
+        from review_tool.core.day_help import render_day_help
 
         r = lq.day_help("2026-09-09", "deepseek")
-        td = infer_training_day_hint("2026-09-09")
+        # 对拍：与「读盘后纯推断」同源（core 零 I/O；读盘在 api 层）
+        md_path = render_day_help.__module__  # noqa: F841 — 占位避免误删
+        from review_tool.core.day_help import review_md_template
+
+        path = review_md_template("2026-09-09")
+        td = None
+        import os
+
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as f:
+                from review_tool.core.day_help import infer_training_day_hint
+
+                td = infer_training_day_hint("2026-09-09", md_text=f.read())
         self.assertEqual(r["training_day"], td)
         self.assertEqual(
             r["text"],

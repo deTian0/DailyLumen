@@ -32,6 +32,7 @@ from .writes.clickup import (
     plan_task_create,
     plan_task_status,
 )
+from .writes.daily_pull import plan_daily_pull
 from .writes.habits import plan_habits_sync
 from .writes.ingest import plan_ingest
 from .writes.keepstrong import (
@@ -42,7 +43,6 @@ from .writes.keepstrong import (
     plan_ks_schedule,
     plan_ks_set_weight,
 )
-from .writes.daily_pull import plan_daily_pull
 from .writes.keepstrong_sync import plan_keepstrong_sync
 from .writes.review_md import plan_ai_draft, plan_finalize
 from .writes.vision import (

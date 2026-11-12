@@ -116,6 +116,22 @@ def streaks(conn, as_of: str | None = None) -> dict[str, Any]:
     return _pack(data, render_streaks(data))
 
 
+def _infer_training_day(day: str) -> bool | None:
+    """读本地复盘 md 推断训练日（api 层持有 I/O；core 零 I/O 只认传入文本）。"""
+    import os
+
+    from ..core.day_help import infer_training_day_hint, review_md_template
+
+    path = review_md_template(day)
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return infer_training_day_hint(day, md_text=f.read())
+    except OSError:
+        return None
+
+
 def day_help(day: str | None = None, mode: str | None = None) -> dict[str, Any]:
     """= ``day-help [DATE] [--mode M]``：一日三步 + 可复制命令。
 
@@ -124,13 +140,13 @@ def day_help(day: str | None = None, mode: str | None = None) -> dict[str, Any]:
     from datetime import date as _d
 
     from ..config import get_llm_mode
-    from ..core.day_help import infer_training_day_hint, render_day_help
+    from ..core.day_help import render_day_help
 
     day = _check_date(day) if day else _d.today().isoformat()
     mode = mode or get_llm_mode()
     if mode not in ("workbuddy", "deepseek"):
         raise QueryError(422, "invalid_mode", "mode 须为 workbuddy|deepseek")
-    td = infer_training_day_hint(day)
+    td = _infer_training_day(day)
     return {
         "date": day,
         "mode": mode,
