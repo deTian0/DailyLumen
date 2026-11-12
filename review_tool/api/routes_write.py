@@ -5,7 +5,8 @@
    动作：habits-sync / ai-draft / finalize（W9）· task-create / task-status / ingest（W10）·
    vision / inbox-archive / clickup-pull（W11）· ks-set-weight / ks-log-body / ks-schedule /
    ks-create-template / ks-replace-template-actions / ks-plan-command（W17，练练写回不落库）·
-   clickup-habit（B15，代勾「练练健身」习惯，不写 habit_logs）；
+   clickup-habit（B15，代勾「练练健身」习惯，不写 habit_logs）·
+   keepstrong-sync（D1，练练 → 复盘 md，不写库；≠ ks_* App 写回）；
    ``GET /api/write/inbox`` 只读列收件箱图片
 2. ``POST /api/write/confirm``（JSON ``{"token": ...}``）→ 执行预览过的内容，写后回读校验
 
@@ -135,6 +136,10 @@ class ClickupHabitIn(BaseModel):
     date: str | None = None
 
 
+class KeepstrongSyncIn(BaseModel):
+    date: str | None = None
+
+
 def build_router(*, db_path: str | None = None, fetch=None, env=None, client=None,
                  mode: str | None = None, backup_dir: str | None = None,
                  tokens: wo.TokenStore | None = None, cu_client=None,
@@ -205,6 +210,11 @@ def build_router(*, db_path: str | None = None, fetch=None, env=None, client=Non
     def plan_habit(body: ClickupHabitIn):
         return wo.plan_clickup_habit(store, habit=body.habit, day=body.date,
                                      env=env, fetch=fetch, ks_client=ks_client)
+
+    # D1：练练 → 复盘 md（≠ ks_* App 写回；不写库；入库另走 ingest）
+    @router.post("/keepstrong-sync/plan", response_model=PlanOut)
+    def plan_ks_sync(body: KeepstrongSyncIn):
+        return wo.plan_keepstrong_sync(store, day=body.date, env=env, ks_client=ks_client)
 
     # W17：练练写回（写回不落库；预览零网络写，确认才 POST）
     @router.post("/ks-set-weight/plan", response_model=PlanOut)

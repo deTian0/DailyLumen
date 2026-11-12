@@ -4,6 +4,7 @@ import { useAsync } from '../lib/useAsync'
 import { Card, ErrorBox, Loading, Prose, Stat, StatusMark } from '../components/Common'
 import { ClickupHabitWrite } from '../components/ClickupHabitWrite'
 import { KeepStrongWrite } from '../components/KeepStrongWrite'
+import { KeepstrongSyncWrite } from '../components/KeepstrongSyncWrite'
 import { WriteFlow } from '../components/WriteFlow'
 
 // habits sync 预览：只列将写入 habit_logs 的行；personal_tracks 明示不动（R3 分区）
@@ -198,6 +199,7 @@ export default function Life({ toast, health }) {
               )}
               {tab === 'coach' && (
                 <>
+                  <KeepstrongSyncWrite health={health} toast={toast} />
                   <KeepStrongWrite health={health} toast={toast} />
                   <ClickupHabitWrite health={health} toast={toast} />
                 </>

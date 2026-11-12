@@ -2,7 +2,7 @@
 
 > **给谁用**：用户本人按清单逐项手动点。  
 > **谁不做**：agent / Cursor **不**对真实 ClickUp / 练练执行确认；本仓库自动化测试一律 mock。  
-> **核实**：2026-11-09，对照 `review_tool/api/writes/*.py` 注册表共 **17** 条动作（`registered_actions()`），代码基准 commit **`ea4e2ca`**（B6 / v1.86.0）。
+> **核实**：2026-11-12，对照 `review_tool/api/writes/*.py` 注册表共 **18** 条动作（`registered_actions()`），含 D1 `keepstrong_sync`；代码基线 **v1.93.0**。
 
 ## 总前置（每项开始前）
 
@@ -31,6 +31,7 @@
 | 10 | `vision` | 报告 · 读图日流程 | （调 LLM） | — | ✅ 复盘 md 数据块 | 待人审；先 md 后库 |
 | 11 | `inbox_archive` | 报告 · 读图日流程 · 归档 | — | — | ✅ 移动收件箱文件 | → `收件箱/已处理/日/` |
 | 12–17 | `ks_*` ×6 | 生活 · 练练写回 | ✅ 练练 | ❌ **不落库** | — | 不可撤销 |
+| 18 | `keepstrong_sync` | 生活 · 训练 · 练练→复盘 md | 读练练 | ❌ **不写库** | ✅ 复盘 md | D1；≠ `ks_*`；入库另走 ingest |
 
 练练 6 动作：`ks_set_weight` / `ks_log_body` / `ks_schedule` / `ks_create_template` / `ks_replace_template_actions` / `ks_plan_command`。
 

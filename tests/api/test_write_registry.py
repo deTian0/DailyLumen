@@ -10,6 +10,7 @@ from review_tool.api.writes import base
 EXPECTED = {
     "habits_sync", "ai_draft", "finalize", "task_create", "task_status", "task_batch",
     "ingest", "vision", "inbox_archive", "clickup_pull",
+    "keepstrong_sync",
 }
 
 
