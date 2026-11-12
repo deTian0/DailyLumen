@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { hashQuery } from '../lib/route'
 import { useAsync } from '../lib/useAsync'
 import { Card, ErrorBox, Loading, Prose, Stat, StatusMark } from '../components/Common'
 import { ClickupHabitWrite } from '../components/ClickupHabitWrite'
@@ -157,9 +158,31 @@ function Highlights({ id, d }) {
 }
 
 export default function Life({ toast, health }) {
-  const [tab, setTab] = useState('morning')
+  const initialTab = () => {
+    const q = hashQuery('tab')
+    return TABS.some((t) => t.id === q) ? q : 'morning'
+  }
+  const [tab, setTab] = useState(initialTab)
   const cur = TABS.find((t) => t.id === tab)
   const res = useAsync((signal) => cur.load(signal), [tab])
+  useEffect(() => {
+    const onHash = () => {
+      const q = hashQuery('tab')
+      if (TABS.some((t) => t.id === q)) setTab(q)
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  useEffect(() => {
+    // D2 CTA：#/life?tab=coach&focus=keepstrong-sync|clickup-habit
+    const focus = hashQuery('focus')
+    if (!focus || tab !== 'coach') return
+    if (focus !== 'keepstrong-sync' && focus !== 'clickup-habit') return
+    const t = window.setTimeout(() => {
+      document.getElementById(focus)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 80)
+    return () => window.clearTimeout(t)
+  }, [tab, res.data])
   return (
     <>
       <header className="topbar">
@@ -199,9 +222,13 @@ export default function Life({ toast, health }) {
               )}
               {tab === 'coach' && (
                 <>
-                  <KeepstrongSyncWrite health={health} toast={toast} />
+                  <div id="keepstrong-sync">
+                    <KeepstrongSyncWrite health={health} toast={toast} />
+                  </div>
                   <KeepStrongWrite health={health} toast={toast} />
-                  <ClickupHabitWrite health={health} toast={toast} />
+                  <div id="clickup-habit">
+                    <ClickupHabitWrite health={health} toast={toast} />
+                  </div>
                 </>
               )}
               <Card title="全文" meta={`= CLI ${cur.cli || (tab === 'morning' || tab === 'evening' ? `steward --slot ${tab}` : tab)}`}>

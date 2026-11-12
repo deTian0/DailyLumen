@@ -93,7 +93,7 @@ from .storage.db import (
     upsert_personal_track,
 )
 
-__version__ = "1.93.0"
+__version__ = "1.94.0"
 
 __all__ = [
     # config

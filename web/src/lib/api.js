@@ -128,6 +128,8 @@ export const api = {
   fuse: (month, o) => json(`/api/fuse${qs({ month })}`, o),
   integrationErrors: (o) => json('/api/integrations/errors', o),
   life: (domain, params, o) => json(`/api/${domain}${qs(params)}`, o),
+  // D2：今日训练日只读状态（练练旁证 + md 是否已同步）
+  trainingDay: (date, o) => json(`/api/training-day${qs({ date })}`, o),
   steward: (slot, params, o) => json(`/api/steward/${slot}${qs(params)}`, o),
   aiStatus: (o) => json('/api/ai/status', o),
   aiReviewPreview: (date, o) =>

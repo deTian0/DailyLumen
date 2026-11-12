@@ -75,6 +75,13 @@ def build_router(*, db_path: str | None = None) -> APIRouter:
         with readonly(db_path) as conn:
             return lq.correlate(conn, min_samples)
 
+    # D2：今日训练日只读状态（练练旁证 + md 是否已同步）；不影响 is_healthy
+    @router.get("/training-day")
+    def get_training_day(date: str | None = D):
+        from . import training_day as td
+
+        return td.training_day_status(date)
+
     @router.get("/week-done", response_model=WeekDoneOut)
     def get_week_done(year: int | None = Query(default=None), week: int | None = Query(default=None)):
         with readonly(db_path) as conn:

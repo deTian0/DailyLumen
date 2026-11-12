@@ -8,6 +8,7 @@ import { ReviewSteps } from '../components/ReviewSteps'
 import { NewTask, Task, TodoGroups } from '../components/today/Todos'
 import { PullPreview } from '../components/today/PullPreview'
 import { SystemCard } from '../components/today/SystemCard'
+import { TrainingDayStrip } from '../components/today/TrainingDayStrip'
 
 const LIGHT = {
   green: { text: '绿灯', tone: 'green', hint: '可以收工' },
@@ -22,6 +23,7 @@ export default function Today({ toast, health }) {
   const [query, setQuery] = useState('')
   const today = useAsync((signal) => api.today(undefined, { signal }), [])
   const doctor = useAsync((signal) => api.doctor({ signal }), [])
+  const trainingDay = useAsync((signal) => api.trainingDay(undefined, { signal }), [])
   const days = useMemo(() => weekDays(day), [day])
   const weekDone = useAsync((signal) => api.done(days[0], days[6], { signal }), [days])
 
@@ -114,6 +116,13 @@ export default function Today({ toast, health }) {
           </div>
           <ReviewSteps ready={ready} />
         </section>
+      )}
+
+      {trainingDay.data && <TrainingDayStrip status={trainingDay.data} />}
+      {trainingDay.error && (
+        <div className="banner banner-warn" role="status">
+          训练日状态暂不可用：{errText(trainingDay.error)}
+        </div>
       )}
 
       <div className="list-toolbar" role="search">
