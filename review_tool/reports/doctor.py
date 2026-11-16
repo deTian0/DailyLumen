@@ -44,6 +44,7 @@ from ..config import (
     TRACK_ADHERENCE_ALERT,
     get_llm_mode,
 )
+from ..config import HISTORY_GAP_IGNORED_RANGES
 from ..core.body import (
     WEEK_SPIKE_KG,
     distance_to_target,
@@ -372,11 +373,22 @@ def _expected_training_day(date_str: str) -> int:
     return 1 if wd in PROFILE["training_weekdays"] else 0
 
 
+def _gap_ignored(prev: str, nxt: str) -> bool:
+    """该空洞是否落在「已明确放弃补录」的区间内（``config.HISTORY_GAP_IGNORED_RANGES``）。"""
+    for lo, hi in HISTORY_GAP_IGNORED_RANGES:
+        if prev >= lo and nxt <= hi:
+            return True
+    return False
+
+
 def history_gaps(dates: list[str] | set[str]) -> list[dict]:
     """相邻入库日间隔 > 1 天的空洞清单。
 
     每项：``{"prev": 起日, "next": 止日, "missing": 缺失天数}``，
     其中缺失天数 = (止日 - 起日).days - 1。建议性提示，不参与 ``is_healthy``。
+
+    落在 ``config.HISTORY_GAP_IGNORED_RANGES`` 内的空洞**不再返回**
+    （用户 2026-11-16 定调：7~8 月那 19 天放弃补录，不再提示）。
     """
     ordered = sorted(dates)
     out: list[dict] = []
@@ -384,7 +396,7 @@ def history_gaps(dates: list[str] | set[str]) -> list[dict]:
         da = datetime.strptime(a, "%Y-%m-%d").date()
         db = datetime.strptime(b, "%Y-%m-%d").date()
         missing = (db - da).days - 1
-        if missing > 0:
+        if missing > 0 and not _gap_ignored(a, b):
             out.append({"prev": a, "next": b, "missing": missing})
     return out
 
@@ -1368,8 +1380,8 @@ def render(result: dict, *, encoding: str | None = None) -> str:
             f"收件箱待归档={'是' if ready.get('inbox_pending') else '否'}"
         )
         L.append(
-            "  健康叙事关注: 体重 + 饮食 + 睡眠 + 训练"
-            "（体脂可选，缺测不拉红）"
+            "  健康叙事关注: 饮食 + 睡眠 + 运动"
+            "（体重按周记、体脂可选，缺测不拉红）"
         )
     else:
         L.append(f"  {warn} （无 day_ready）")

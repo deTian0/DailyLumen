@@ -375,6 +375,14 @@ def _body_targets_from_settings() -> dict[str, float]:
 
 BODY_TARGETS = _body_targets_from_settings()
 
+# 明确放弃补录的历史区间（告警豁免；**只影响告警可见性**，不改分数 / 统计 / 报表数值）
+# 用户 2026-11-16 定调：2026-07 ~ 2026-08 那 19 天不补录，doctor / stats / 月报
+# 不再把它们算作「历史断更」。区间为闭区间 [lo, hi]，判定条件是
+# 「缺口前一有记录日 ≥ lo」且「缺口后一有记录日 ≤ hi」。
+HISTORY_GAP_IGNORED_RANGES: tuple[tuple[str, str], ...] = (
+    ("2026-07-01", "2026-08-31"),
+)
+
 # 体征字段登记（侧车 → body_metrics）。⛔ 禁止并入 FLOAT_FIELDS / daily_reviews COLUMNS。
 BODY_FLOAT_FIELDS = {"weight_kg", "body_fat_pct", "waist_cm"}
 BODY_TEXT_FIELDS = {"src", "note"}

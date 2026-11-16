@@ -1,6 +1,7 @@
 """收工摘要与「今日能否收工」红绿灯（纯规则，零 I/O）。
 
-对外健康叙事口径（v1.58.0）：体重 + 饮食 + 睡眠 + 训练；
+对外健康叙事口径（v1.88.0 调整）：**饮食 + 睡眠 + 运动** 逐日关注；
+**体重按周记录**（缺测不提示、不拉黄，测了照常入 ``body_metrics``）；
 ``体脂率`` 可选，缺测不拉红灯、禁止伪造。
 """
 from __future__ import annotations
@@ -8,9 +9,10 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
-# 收工关注的核心字段（体脂不在此列）
+# 收工关注的核心字段（体重 / 体脂不在此列）
+# 体重口径（用户 2026-11-16 定调）：一周一次即可，缺测永久不提示；
+# 用户发来体重时照常写数据块 → ingest 入 body_metrics（不参与四维评分）。
 CLOSE_FOCUS_FIELDS: tuple[str, ...] = (
-    "体重_kg",
     "饮食热量_kcal",
     "睡眠时长_h",
     "运动时长_min",

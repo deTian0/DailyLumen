@@ -51,11 +51,13 @@ class TestClassifyDayReady(unittest.TestCase):
         self.assertEqual(st["light"], dc.LIGHT_GREEN)
         self.assertIn("体脂", " ".join(st["reasons"]))
 
-    def test_body_fat_not_in_focus(self):
+    def test_body_fat_and_weight_not_in_focus(self):
         self.assertNotIn("体脂率", dc.CLOSE_FOCUS_FIELDS)
+        # 体重按周记录（用户 2026-11-16 定调）：不作每日收工关注字段
+        self.assertNotIn("体重_kg", dc.CLOSE_FOCUS_FIELDS)
         miss = dc.missing_focus_fields(["饮食热量_kcal", "睡眠时长_h"])
-        self.assertIn("体重_kg", miss)
         self.assertIn("运动时长_min", miss)
+        self.assertNotIn("体重_kg", miss)
 
 
 class TestReadyLine(unittest.TestCase):

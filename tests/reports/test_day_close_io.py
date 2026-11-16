@@ -41,7 +41,10 @@ class TestAssessDayReady(unittest.TestCase):
             self.assertTrue(st["pending_draft"])
             self.assertFalse(st["ingested"])
             self.assertEqual(st["light"], "red")
-            self.assertIn("体重_kg", st["missing_focus"])
+            self.assertIn("睡眠时长_h", st["missing_focus"])
+            self.assertIn("运动时长_min", st["missing_focus"])
+            # 体重按周记录（用户 2026-11-16 定调），不作每日收工关注字段
+            self.assertNotIn("体重_kg", st["missing_focus"])
 
     def test_green_path(self):
         with tempfile.TemporaryDirectory() as td:

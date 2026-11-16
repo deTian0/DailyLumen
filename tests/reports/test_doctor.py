@@ -437,31 +437,31 @@ class TestHistoryGaps(_Fixture):
     """历史断更：相邻入库日间隔 > 1 天（v1.7.1）。"""
 
     def test_detects_gaps_matching_sql(self):
-        # 四处空洞：缺 1 + 1 + 6 + 11 = 19（对齐路线图证据形状）
+        # 四处空洞：缺 1 + 1 + 6 + 11 = 19（形状沿用路线图证据；
+        # 日期挪到 2026-09，避开 config.HISTORY_GAP_IGNORED_RANGES 的 7~8 月豁免区间）
         dates = [
-            "2026-07-16",
-            "2026-07-18",  # 缺 07-17 → 1
-            "2026-07-19", "2026-07-20", "2026-07-21",
-            "2026-07-22", "2026-07-23",
-            "2026-07-25",  # 缺 07-24 → 1
-            "2026-07-26", "2026-07-27", "2026-07-28",
-            "2026-08-04",  # 缺 07-29..08-03 → 6
-            "2026-08-05",
-            "2026-08-17",  # 缺 08-06..08-16 → 11
+            "2026-09-01",
+            "2026-09-03",  # 缺 09-02 → 1
+            "2026-09-04", "2026-09-05",
+            "2026-09-07",  # 缺 09-06 → 1
+            "2026-09-08", "2026-09-09",
+            "2026-09-16",  # 缺 09-10..09-15 → 6
+            "2026-09-17",
+            "2026-09-29",  # 缺 09-18..09-28 → 11
         ]
         for d in dates:
             upsert(self.conn, {"date": d})
             ym = d[:7]
             self._md(f"复盘/{ym}/{d}.md")
         self.conn.commit()
-        r = self._run(today="2026-09-22")
+        r = self._run(today="2026-09-29")
         gaps = r["history_gaps"]
         self.assertEqual(len(gaps), 4)
         self.assertEqual([g["missing"] for g in gaps], [1, 1, 6, 11])
         self.assertEqual(sum(g["missing"] for g in gaps), 19)
         self.assertEqual(
             gaps[0],
-            {"prev": "2026-07-16", "next": "2026-07-18", "missing": 1},
+            {"prev": "2026-09-01", "next": "2026-09-03", "missing": 1},
         )
         self.assertTrue(doctor.is_healthy(r))
         text = doctor.render(r, encoding="utf-8")
@@ -478,14 +478,26 @@ class TestHistoryGaps(_Fixture):
         self.assertIn("无历史空洞", doctor.render(r, encoding="utf-8"))
 
     def test_history_gaps_pure_helper(self):
-        gaps = doctor.history_gaps(["2026-08-05", "2026-08-17", "2026-08-04"])
-        # 排序后 08-04→08-05 连续，只剩 08-05→08-17
+        gaps = doctor.history_gaps(["2026-09-05", "2026-09-17", "2026-09-04"])
+        # 排序后 09-04→09-05 连续，只剩 09-05→09-17
         self.assertEqual(gaps, [
-            {"prev": "2026-08-05", "next": "2026-08-17", "missing": 11},
+            {"prev": "2026-09-05", "next": "2026-09-17", "missing": 11},
         ])
-        gaps2 = doctor.history_gaps(["2026-08-04", "2026-08-05", "2026-08-17"])
+        gaps2 = doctor.history_gaps(["2026-09-04", "2026-09-05", "2026-09-17"])
         self.assertEqual(len(gaps2), 1)
         self.assertEqual(gaps2[0]["missing"], 11)
+
+    def test_ignored_range_suppressed(self):
+        """7~8 月已明确放弃补录（config.HISTORY_GAP_IGNORED_RANGES），不再报断更。"""
+        self.assertEqual(
+            doctor.history_gaps(["2026-08-05", "2026-08-17"]), [],
+        )
+        self.assertEqual(
+            doctor.history_gaps(["2026-07-16", "2026-07-18"]), [],
+        )
+        # 区间外照常报，不能被误伤
+        self.assertEqual(len(doctor.history_gaps(["2026-09-05", "2026-09-07"])), 1)
+        self.assertEqual(len(doctor.history_gaps(["2026-10-05", "2026-10-07"])), 1)
 
 
 class TestTrackAdherenceCliff(_Fixture):
