@@ -229,6 +229,26 @@ agent_created: true
    该配置**只影响告警可见性**，分数、统计、报表数值一律不变；将来要恢复补录，
    把区间改小或清空即可。
 
+### 4.3 精力 / 睡眠结构正式记录项（2026-11-17 用户拍板，schema v12）
+
+用户要长期追踪脑健康，把精力与睡眠结构**正式列为每日记录项**。口径钉死：
+
+1. **新增 4 列**（`daily_reviews`）：`wake_time`（起床时间，距 00:00 分钟数，同 bedtime 口径）、
+   `nap_min`（午睡分钟）、`deep_sleep_pct`（深睡占比 0–100）、`awake_count`（夜间清醒次数）；
+   `energy` / `mood` 两列 v1.9.0 已有，本次只是**激活**（加入契约 + 报告渲染）。
+2. **全部不参与四维评分**——健康六子项不变（睡眠时长/质量/入睡/运动/饮食/屏幕）。
+   ⛔ 不要把它们加进 `SCORE_THRESHOLDS` / `score.compute_health_score`，否则历史分数全变。
+3. **不催填、不算「数据缺口」**——全部进 `llm_contract.OPTIONAL_CONTRACT_FIELDS`；
+   `doctor` 的「数据缺口」行与「今日收工」黄灯一律不因缺这几项亮起。
+   报告渲染只列**有值**的项（AI 上下文、周/月报睡眠结构均值）。
+4. **起床时间用时钟→分钟数**：`parse._coerce` 对 `bedtime` 与 `wake_time` 都走 `clock_to_minutes`；
+   契约中文键是 `起床时间`，写 md 时可填 `07:15`（解析后入库 435）。
+5. **模板 / skill 字段顺序**：`每日复盘模板.md` 数据块、`daily-review-intake` §0.5/§3、
+   `llm-host-contract` 字段表均已列出新项；⚠️ 模板原「correlate 有睡眠→精力分析」是过期文案
+   （`correlate.py` 的 `PAIRS` 无此配对），v12 已删除，别再照抄。
+6. **迁移**：schema 11→12，`_ADD_COLUMNS` 只增列不回填；老 md 无这些字段属正常，
+   `ingest` 的 COALESCE 不会擦已有值，`reviews.example.db` 必须同步到 v12。
+
 ---
 
 ## 5. 数据库规约

@@ -17,6 +17,14 @@ CREATE TABLE IF NOT EXISTS daily_reviews (
     sleep_quality   INTEGER
         CHECK (sleep_quality IS NULL OR (sleep_quality BETWEEN 0 AND 100)),
     bedtime         INTEGER,                    -- 入睡时间: 距 00:00 的分钟数 (00:39 -> 39)
+    -- 睡眠结构扩展（v12）：只记录 + 趋势，不参与四维评分、不催填
+    wake_time       INTEGER,                    -- 起床时间: 距 00:00 的分钟数 (07:15 -> 435)
+    nap_min         INTEGER
+        CHECK (nap_min IS NULL OR nap_min >= 0),             -- 午睡时长 (min)
+    deep_sleep_pct  INTEGER
+        CHECK (deep_sleep_pct IS NULL OR (deep_sleep_pct BETWEEN 0 AND 100)),  -- 深睡占比 (%)
+    awake_count     INTEGER
+        CHECK (awake_count IS NULL OR awake_count >= 0),     -- 夜间清醒次数
     exercise_min    INTEGER
         CHECK (exercise_min IS NULL OR exercise_min >= 0),
     exercise_src    TEXT                        -- 运动时长来源: 'record'=字段填报

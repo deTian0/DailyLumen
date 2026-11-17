@@ -32,20 +32,37 @@ SLEEP_FIELDS = (
     "睡眠质量",
     "入睡时间",
 )
+# v12 睡眠结构 + 主观状态扩展：只记录 + 趋势，不参与四维评分、不催填
+SLEEP_DETAIL_FIELDS = (
+    "起床时间",
+    "午睡_min",
+    "深睡比例",
+    "清醒次数",
+)
+WELLBEING_FIELDS = (
+    "精力",
+    "心情",
+)
 ACTIVITY_FIELDS = (
     "手机屏幕_h",
     "运动时长_min",
     "训练日",
 )
 # 全量契约字段（可部分缺失；缺失留空合法）
-CONTRACT_DATA_FIELDS = DIET_FIELDS + BODY_FIELDS + SLEEP_FIELDS + ACTIVITY_FIELDS
+CONTRACT_DATA_FIELDS = (
+    DIET_FIELDS + BODY_FIELDS + SLEEP_FIELDS + SLEEP_DETAIL_FIELDS
+    + WELLBEING_FIELDS + ACTIVITY_FIELDS
+)
 
 # 明确可选：无设备 / 未投递时允许空；classify 归入 optional_missing（非硬缺口）
 # 体脂：用户无体脂秤时永久不可得 → 禁止伪造
+# 睡眠结构/精力心情：缺测正常，只做趋势记录，不催填（用户 2026-11-17 定调）
 OPTIONAL_CONTRACT_FIELDS = frozenset({
     "体脂率",
     "体重_kg",
     "腰围_cm",
+    "起床时间", "午睡_min", "深睡比例", "清醒次数",
+    "精力", "心情",
 })
 
 # 英文 / 别名 → 契约中文键（模型 JSON 常混用）
@@ -70,6 +87,12 @@ _ALIAS_TO_CONTRACT: dict[str, str] = {
     "sleep_h": "睡眠时长_h",
     "sleep_quality": "睡眠质量",
     "bedtime": "入睡时间",
+    "wake_time": "起床时间",
+    "nap_min": "午睡_min",
+    "deep_sleep_pct": "深睡比例",
+    "awake_count": "清醒次数",
+    "energy": "精力",
+    "mood": "心情",
     "phone_h": "手机屏幕_h",
     "exercise_min": "运动时长_min",
     "training_day": "训练日",
@@ -252,7 +275,9 @@ __all__ = [
     "CONTRACT_DATA_FIELDS",
     "DIET_FIELDS",
     "OPTIONAL_CONTRACT_FIELDS",
+    "SLEEP_DETAIL_FIELDS",
     "SLEEP_FIELDS",
+    "WELLBEING_FIELDS",
     "classify_contract_fields",
     "extract_json_object",
     "merge_contract_field_dicts",

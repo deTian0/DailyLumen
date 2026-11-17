@@ -106,6 +106,8 @@ INT_FIELDS = {
     "sleep_quality", "exercise_min", "diet_kcal", "meals_count",
     "carbs_g", "fat_g", "protein_g",
     "health_score", "work_score", "learn_score", "life_score",
+    # v12 睡眠结构扩展（只记录 + 趋势，不参与四维评分）
+    "nap_min", "deep_sleep_pct", "awake_count",
 }
 FLOAT_FIELDS = {"sleep_h", "phone_h", "deepwork_h", "learn_h", "life_h"}
 BOOL_FIELDS = {"training_day", "commute_done", "breakfast_on_time"}

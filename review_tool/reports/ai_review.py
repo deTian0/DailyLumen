@@ -32,6 +32,9 @@ from ..storage.db import init_db
 # 展示标签
 _LABELS = {
     "sleep_h": "睡眠(h)", "sleep_quality": "睡眠质量", "bedtime": "入睡",
+    "wake_time": "起床", "nap_min": "午睡(min)",
+    "deep_sleep_pct": "深睡(%)", "awake_count": "清醒次数",
+    "energy": "精力", "mood": "心情",
     "exercise_min": "运动(min)", "diet_kcal": "饮食(kcal)",
     "carbs_g": "碳水(g)", "fat_g": "脂肪(g)", "protein_g": "蛋白质(g)",
     "phone_h": "屏幕(h)", "deepwork_h": "深度工作(h)",
@@ -244,6 +247,22 @@ def render_markdown(ctx: dict) -> str:
     lines.append(f"- 睡眠 {_fmt(day.get('sleep_h'))}h｜质量 {_fmt(day.get('sleep_quality'))}"
                  f"｜入睡 {clock(day.get('bedtime'))}"
                  f"｜运动 {ex_text}")
+    # 睡眠结构 + 主观状态：只列有值的项，缺测不提示（v12，不评分不催填）
+    _detail = []
+    if day.get("wake_time") is not None:
+        _detail.append(f"起床 {clock(day['wake_time'])}")
+    if day.get("nap_min") is not None:
+        _detail.append(f"午睡 {day['nap_min']}min")
+    if day.get("deep_sleep_pct") is not None:
+        _detail.append(f"深睡 {day['deep_sleep_pct']}%")
+    if day.get("awake_count") is not None:
+        _detail.append(f"清醒 {day['awake_count']} 次")
+    if day.get("energy") not in (None, ""):
+        _detail.append(f"精力 {day['energy']}")
+    if day.get("mood") not in (None, ""):
+        _detail.append(f"心情 {day['mood']}")
+    if _detail:
+        lines.append(f"- 睡眠结构/状态：{'｜'.join(_detail)}")
     lines.append(f"- 饮食 {_fmt(day.get('diet_kcal'))}kcal"
                  f"（碳水 {_fmt(day.get('carbs_g'))}g / 脂肪 {_fmt(day.get('fat_g'))}g"
                  f" / 蛋白 {_fmt(day.get('protein_g'))}g）")

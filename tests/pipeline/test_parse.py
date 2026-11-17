@@ -164,6 +164,34 @@ class TestBedtimeEdge(unittest.TestCase):
         self.assertEqual(row["bedtime"], 1390)
 
 
+class TestSleepDetailV12(unittest.TestCase):
+    """v12 睡眠结构正式记录项：起床时钟分钟化、午睡/深睡/清醒数值解析。"""
+
+    def test_parses_all_four(self):
+        text = (
+            "```data\n日期: 2026-11-17\n起床时间: 07:15\n午睡_min: 20\n"
+            "深睡比例: 24\n清醒次数: 1\n```"
+        )
+        row = parse_text(text)
+        self.assertEqual(row["wake_time"], 435)
+        self.assertEqual(row["nap_min"], 20)
+        self.assertEqual(row["deep_sleep_pct"], 24)
+        self.assertEqual(row["awake_count"], 1)
+
+    def test_missing_stays_absent_not_zero(self):
+        row = parse_text("```data\n日期: 2026-11-17\n睡眠时长_h: 7\n```")
+        for c in ("wake_time", "nap_min", "deep_sleep_pct", "awake_count"):
+            self.assertNotIn(c, row)
+
+    def test_template_has_new_fields(self):
+        from pathlib import Path
+
+        from review_tool.config import TEMPLATE_PATH
+        body = Path(TEMPLATE_PATH).read_text(encoding="utf-8")
+        for k in ("起床时间:", "午睡_min:", "深睡比例:", "清醒次数:"):
+            self.assertIn(k, body)
+
+
 class TestEnergyMoodCommute(unittest.TestCase):
     """v1.9.0 保留字段并用起来；v1.37.0 起 `通勤完成` 废弃但解析保留。"""
 

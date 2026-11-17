@@ -58,6 +58,11 @@ FIELD_MAP = {
     "sleep_h": "sleep_h", "睡眠时长_h": "sleep_h", "睡眠时长": "sleep_h",
     "sleep_quality": "sleep_quality", "睡眠质量": "sleep_quality",
     "bedtime": "bedtime", "入睡时间": "bedtime",
+    # v12 睡眠结构扩展（只记录 + 趋势，不评分）
+    "wake_time": "wake_time", "起床时间": "wake_time",
+    "nap_min": "nap_min", "午睡_min": "nap_min", "午睡时长_min": "nap_min",
+    "deep_sleep_pct": "deep_sleep_pct", "深睡比例": "deep_sleep_pct", "深睡占比": "deep_sleep_pct",
+    "awake_count": "awake_count", "清醒次数": "awake_count",
     "exercise_min": "exercise_min", "运动时长_min": "exercise_min", "运动时长": "exercise_min",
     "commute_done": "commute_done", "通勤完成": "commute_done",
     "diet_kcal": "diet_kcal", "饮食热量_kcal": "diet_kcal", "饮食热量": "diet_kcal",
@@ -104,7 +109,7 @@ def _coerce(col: str, raw) -> object | None:
         if n is not None and 0 <= n <= 6 and re.fullmatch(r"-?\d+", raw):
             return n
         return None
-    if col == "bedtime":
+    if col in ("bedtime", "wake_time"):
         return clock_to_minutes(raw)
     if col in INT_FIELDS:
         return to_int(raw)

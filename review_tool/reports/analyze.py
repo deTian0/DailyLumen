@@ -62,11 +62,16 @@ _CORE_FIELDS = [
 _WEEK_FIELDS = [
     ("sleep_h", "睡眠"), ("phone_h", "屏幕"),
     ("deepwork_h", "深度工作"), ("diet_kcal", "饮食"),
+    # v12 睡眠结构扩展（只记录 + 趋势，不评分；均值为有记录日的平均）
+    ("nap_min", "午睡"), ("deep_sleep_pct", "深睡"),
+    ("awake_count", "清醒次数"),
 ]
 _MONTH_FIELDS = [
     ("sleep_h", "睡眠"), ("sleep_quality", "睡眠质量"),
     ("phone_h", "屏幕"), ("deepwork_h", "深度工作"),
     ("diet_kcal", "饮食"),
+    ("nap_min", "午睡"), ("deep_sleep_pct", "深睡"),
+    ("awake_count", "清醒次数"),
 ]
 
 # 标签对齐宽度（按显示列数，中日韩字符算 2 列）
@@ -1043,6 +1048,14 @@ def render_week_md(conn, iso_week: int) -> str | None:
         L.append(f"| {label} | **{_fmt_num(v)}** | {_md_bar(v)} |")
 
     fa = s["field_avgs"]
+    # v12 睡眠结构均值：只列本周有记录的项目，缺测不提示（不评分、不催填）
+    _sd = []
+    if fa.get("午睡") is not None:
+        _sd.append(f"午睡 **{_fmt_num(fa['午睡'], 1)}min**")
+    if fa.get("深睡") is not None:
+        _sd.append(f"深睡 **{_fmt_num(fa['深睡'], 1)}%**")
+    if fa.get("清醒次数") is not None:
+        _sd.append(f"清醒 **{_fmt_num(fa['清醒次数'], 1)} 次**")
     L += [
         "",
         "> 客观指标均值："
@@ -1054,6 +1067,8 @@ def render_week_md(conn, iso_week: int) -> str | None:
         f"训练日运动达标 **{train_txt}** ｜ "
         f"打卡完成率 **{track_txt}**",
     ]
+    if _sd:
+        L.append("> 睡眠结构均值（有记录日）：" + " ｜ ".join(_sd))
     macros = s.get("macros")
     if macros:
         sp = macros["split_pct"]
@@ -1229,7 +1244,8 @@ def render_month_md(conn, month: int) -> str | None:
         L.append(f"| {label}分 | {_fmt_num(v)} |")
     fa = s["field_avgs"]
     for key, unit in (("睡眠", "h"), ("睡眠质量", ""), ("屏幕", "h"),
-                      ("深度工作", "h"), ("饮食", "kcal")):
+                      ("深度工作", "h"), ("饮食", "kcal"),
+                      ("午睡", "min"), ("深睡", "%"), ("清醒次数", "次")):
         if key in fa:
             cell = f"{_fmt_num(fa[key])} {unit}".strip()
             L.append(f"| {key}均值 | {cell} |")

@@ -72,6 +72,20 @@ class TestExtractAndNormalize(unittest.TestCase):
             self.assertIn(k, lc.CONTRACT_DATA_FIELDS)
         self.assertIn("体脂率", lc.OPTIONAL_CONTRACT_FIELDS)
 
+    def test_v12_sleep_detail_and_wellbeing_are_optional(self):
+        """v12 睡眠结构 + 精力/心情：正式记录项，但缺测不算硬缺口、不催填。"""
+        for k in ("起床时间", "午睡_min", "深睡比例", "清醒次数", "精力", "心情"):
+            self.assertIn(k, lc.CONTRACT_DATA_FIELDS)
+            self.assertIn(k, lc.OPTIONAL_CONTRACT_FIELDS)
+
+    def test_v12_alias_maps_to_contract_keys(self):
+        out = lc.normalize_contract_fields({
+            "wake_time": "07:15", "nap_min": 20, "deep_sleep_pct": 24,
+            "awake_count": 1, "energy": "中", "mood": "好",
+        })
+        for k in ("起床时间", "午睡_min", "深睡比例", "清醒次数", "精力", "心情"):
+            self.assertIn(k, out)
+
     def test_merge_data_block_fields(self):
         md = "```data\n日期: 2099-01-01\n饮食热量_kcal: 1\n```\n"
         out = lc.merge_data_block_fields(md, {"饮食热量_kcal": 1800, "体重_kg": 70})

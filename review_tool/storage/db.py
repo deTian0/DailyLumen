@@ -18,12 +18,14 @@ from ..config import DB_PATH, SCHEMA_PATH
 from ..core.tracks import normalize_legacy_item
 
 # 当前 schema 版本（改动 schema.sql 结构时必须 +1 并新增对应迁移函数）
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 # 数据表所有列（顺序即 upsert 列顺序）
 COLUMNS = [
     "date", "weekday", "iso_week", "month", "training_day",
-    "sleep_h", "sleep_quality", "bedtime", "exercise_min", "exercise_src",
+    "sleep_h", "sleep_quality", "bedtime",
+    "wake_time", "nap_min", "deep_sleep_pct", "awake_count",
+    "exercise_min", "exercise_src",
     "commute_done",
     "diet_kcal", "carbs_g", "fat_g", "protein_g",
     "meals_count", "breakfast_on_time", "phone_h",
@@ -58,6 +60,12 @@ _ADD_COLUMNS = [
     ("fat_g", "ALTER TABLE daily_reviews ADD COLUMN fat_g INTEGER CHECK (fat_g IS NULL OR fat_g >= 0)"),
     ("protein_g", "ALTER TABLE daily_reviews ADD COLUMN protein_g INTEGER CHECK (protein_g IS NULL OR protein_g >= 0)"),
     ("exercise_src", "ALTER TABLE daily_reviews ADD COLUMN exercise_src TEXT"),
+    # v11 -> v12：睡眠结构扩展。只记录 + 趋势，不参与四维评分。
+    # ALTER 加不了 CHECK（SQLite 限制），新库走 schema.sql 带约束、老库升级无约束。
+    ("wake_time", "ALTER TABLE daily_reviews ADD COLUMN wake_time INTEGER"),
+    ("nap_min", "ALTER TABLE daily_reviews ADD COLUMN nap_min INTEGER"),
+    ("deep_sleep_pct", "ALTER TABLE daily_reviews ADD COLUMN deep_sleep_pct INTEGER"),
+    ("awake_count", "ALTER TABLE daily_reviews ADD COLUMN awake_count INTEGER"),
 ]
 
 _TRACKS_DDL = """
