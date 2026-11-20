@@ -34,6 +34,7 @@
     python -m review_tool sync-docs  [--check]
     python -m review_tool recompute-scores [--apply] [--db PATH]
     python -m review_tool export     [--format csv|json] [--out DIR] [--stdout]
+    python -m review_tool mirror     [--apply] [--src DIR] [--target DIR] [--no-prune] [--force]
     python -m review_tool chart      [--type body|training|nutrition|all] [--out DIR] [--stdout]
     python -m review_tool correlate  [--json] [--min-samples N]
     python -m review_tool serve      [--host H] [--port P] [--dist DIR] [--enable-write]
@@ -73,6 +74,7 @@ from .pipeline.import_history import main as import_history_main
 from .pipeline.inbox_archive import main as inbox_archive_main
 from .pipeline.ingest import main as ingest_main
 from .pipeline.keepstrong import main as keepstrong_main
+from .pipeline.mirror import main as mirror_main
 from .pipeline.new_day import is_enabled as _new_day_enabled
 from .pipeline.new_day import main as new_day_main
 from .pipeline.promise_draft import main as promise_draft_main
@@ -145,7 +147,7 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "new-day": (new_day_main, "new-day [YYYY-MM-DD] [--force]"),
     "ingest": (
         ingest_main,
-        "ingest [路径.md] [--overwrite] [--prune-tracks] [--allow-ai-draft]"),
+        "ingest [路径.md] [--overwrite] [--prune-tracks] [--allow-ai-draft] [--mirror]"),
     "week": (
         _week,
         "week [ISO周] [--json] [--write] [--force] [--check] [--polish]"),
@@ -231,6 +233,10 @@ ROUTES: dict[str, tuple[Callable[[list[str]], int], str]] = {
     "recompute-scores": (
         recompute_main, "recompute-scores [--apply] [--db PATH]"),
     "export": (export_main, "export [--format csv|json] [--out DIR] [--stdout]"),
+    "mirror": (
+        mirror_main,
+        "mirror [--apply] [--src DIR] [--target DIR] [--no-prune] [--force]"),
+
     "stats": (stats_main, "stats [--json]"),
     "chart": (
         chart_main,

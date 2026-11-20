@@ -71,6 +71,7 @@ reports   ->  pipeline  ->  storage  ->  core
 | `keepstrong_render.py` | 练练记录 → 素材 md（纯函数、零 I/O） |
 | `keepstrong_sync.py` | 练练 → 复盘 md（幂等标记块 + `训练日:`/`体重_kg`）+ 可选 ingest |
 | `export.py` | 导出 CSV / JSON（含依从率表） |
+| `mirror.py` | **local/ 未追踪文件 → 目标目录镜像**（默认 dry-run；manifest+hash 守护同步删除；`.env` 永不镜像） |
 | `streak.py`（reports） | 正向连续：复盘 / 训练 / 打卡 |
 
 ### reports/ —— 产出层
@@ -131,6 +132,7 @@ python -m review_tool fuse                             # 熔断检测（有绝�
 python -m review_tool sync-docs [--check]              # 库中分数回写到 md（--check 仅报告）
 python -m review_tool recompute-scores [--apply]       # 按规则重算四维/系统分（默认试算）
 python -m review_tool export [--format csv|json] [--out 目录] [--stdout]
+python -m review_tool mirror [--apply] [--src 目录] [--target 目录] [--no-prune] [--force]  # local → vault 镜像（默认 dry-run）
 python -m review_tool stats [--json]                   # 一键统计（文档取数）
 python -m review_tool chart [--type body|training|nutrition|all] [--out 目录] [--stdout]
 python -m review_tool correlate [--json] [--min-samples N]   # 跨维关联（样本不足 10 仅观察）

@@ -7,7 +7,7 @@
     from review_tool import parse_text, compute_scores, init_db, upsert
     from review_tool import ingest_all, report_month
 
-命令行入口（42 子命令，详见 ``python -m review_tool -h``）:
+命令行入口（43 子命令，详见 ``python -m review_tool -h``）:
     new-day / ingest / week / week-done / month / ai-context /
     llm-review / llm-vision / llm-day / llm-finalize / inbox-archive /
     import-history / clickup / clickup-push / clickup-habit / clickup-task / clickup-pull / clickup-done /
@@ -93,7 +93,7 @@ from .storage.db import (
     upsert_personal_track,
 )
 
-__version__ = "1.104.0"
+__version__ = "1.105.0"
 
 __all__ = [
     # config

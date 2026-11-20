@@ -19,6 +19,7 @@
 - ``CLICKUP_LISTS`` 外部素材源（可选）：list id 来自 Settings，中文名 / 用途仍在此定义
 - ``CLICKUP_REVIEW_TASK`` 回写通道（可选）：「每日复盘总结」元任务的定位信息
 - 凭据 / 路径覆盖 / 两源 API 端点与超时 → 见 ``settings.py`` + ``local/.env``
+- ``MIRROR_DIR``  本地镜像目标目录（v1.105.0；``DAILYLUMEN_LOCAL_MIRROR_DIR`` 可覆盖）
 
 改 ``local/.env`` 与上述目录即可，无需改动模板与其余代码。
 """
@@ -71,6 +72,14 @@ HISTORY_SRC_DIR = SETTINGS.history_src_dir
 
 # 导出目录（个人数据；默认 local/exports/）
 EXPORT_DIR = os.path.join(LOCAL_DIR, "exports")
+
+# 本地镜像目标目录（v1.105.0）——「local/ 下 git 未追踪文件」的镜像落点。
+# 默认 D:\Obsidian_data\每日复盘记录，可用 DAILYLUMEN_LOCAL_MIRROR_DIR 覆盖。
+# 写方向：mirror 子命令 local/ → 此目录；读方向：ingest --mirror 从此目录读复盘。
+MIRROR_DIR = SETTINGS.local_mirror_dir
+
+# 镜像侧的复盘扫描根（与 INPUT_DIR 同构：mirror/每日复盘/复盘/YYYY-MM/*.md）
+MIRROR_INPUT_DIR = os.path.join(MIRROR_DIR, os.path.basename(INPUT_DIR))
 
 # 练练健身（KeepStrong）环境默认 —— 密钥只从 SETTINGS / .env 读，绝不写在这里
 KS_DEFAULTS = {

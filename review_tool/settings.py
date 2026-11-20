@@ -42,6 +42,10 @@ DEFAULT_KEEPSTRONG_CACHE_DIR = os.path.join(_BASE_DIR, ".workbuddy", "cache")
 DEFAULT_CLICKUP_BASE_URL = "https://api.clickup.com/api/v2"
 DEFAULT_CLICKUP_TIMEOUT_S = 60.0
 
+# 本地镜像目标目录（v1.105.0）：local/ 下 git 未追踪文件 → 外部笔记库（Obsidian）
+# 默认指向用户本机 vault；可用 DAILYLUMEN_LOCAL_MIRROR_DIR 覆盖。
+DEFAULT_LOCAL_MIRROR_DIR = r"D:\Obsidian_data\每日复盘记录"
+
 # DeepSeek（L-1）—— 仅 mode=deepseek 使用；默认与官方 OpenAI 兼容端点对齐
 DEFAULT_LLM_MODE = "workbuddy"
 DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
@@ -56,6 +60,7 @@ _ENV_TO_FIELD: dict[str, str] = {
     "CLICKUP_TEAM_ID": "clickup_team_id",
     "DAILYLUMEN_DB_PATH": "db_path",
     "DAILYLUMEN_HISTORY_SRC": "history_src_dir",
+    "DAILYLUMEN_LOCAL_MIRROR_DIR": "local_mirror_dir",
     "KEEPSTRONG_BASE_URL": "keepstrong_base_url",
     "KEEPSTRONG_SKILL_VERSION": "keepstrong_skill_version",
     "KEEPSTRONG_AGENT_NAME": "keepstrong_agent_name",
@@ -131,6 +136,7 @@ class Settings(BaseSettings):
     # —— 环境差异（有默认，.env / 环境变量可覆盖）——
     db_path: str = _DEFAULT_DB_PATH
     history_src_dir: str | None = None
+    local_mirror_dir: str = DEFAULT_LOCAL_MIRROR_DIR
     keepstrong_base_url: str = DEFAULT_KEEPSTRONG_BASE_URL
     keepstrong_skill_version: str = DEFAULT_KEEPSTRONG_SKILL_VERSION
     keepstrong_agent_name: str = DEFAULT_KEEPSTRONG_AGENT_NAME
@@ -259,7 +265,8 @@ class Settings(BaseSettings):
         parts = [p.strip() for p in str(v).split(",") if p.strip()]
         return [int(p) for p in parts]
 
-    @field_validator("db_path", "keepstrong_cache_dir", mode="after")
+    @field_validator(
+        "db_path", "keepstrong_cache_dir", "local_mirror_dir", mode="after")
     @classmethod
     def _resolve_relative_path(cls, v: str) -> str:
         if not v:
@@ -351,6 +358,7 @@ def _settings_from_env_map(merged: Mapping[str, str]) -> Settings:
             "deepseek_timeout_s",
             "db_path",
             "keepstrong_cache_dir",
+            "local_mirror_dir",
         }:
             if isinstance(raw, str) and raw.strip() == "":
                 continue  # 空 → 用默认
@@ -428,6 +436,7 @@ __all__ = [
     "DEFAULT_KEEPSTRONG_SKILL_VERSION",
     "DEFAULT_KEEPSTRONG_TIMEOUT_S",
     "DEFAULT_LLM_MODE",
+    "DEFAULT_LOCAL_MIRROR_DIR",
     "SETTINGS",
     "Settings",
     "SettingsError",

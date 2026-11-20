@@ -5,6 +5,7 @@
     python -m review_tool ingest 路径.md        # 只入库指定文件
     python -m review_tool ingest --overwrite    # 整行覆盖（默认只补空、不擦已有值）
     python -m review_tool ingest --prune-tracks # 顺带清理源 md 已无的陈旧打卡行
+    python -m review_tool ingest --mirror       # 从镜像目录读（MIRROR_DIR/每日复盘）
 
 扫描范围：``每日复盘/`` 递归，但**跳过** 收件箱（原始素材）、草稿箱
 （AI / 候选未定稿）与历史源复盘（语雀旧格式归档，需先经 import-history
@@ -31,7 +32,14 @@ import os
 import sys
 from datetime import datetime
 
-from ..config import ARCHIVE_SRC_DIR, DRAFTS_DIR, INBOX_DIR, INPUT_DIR, PROFILE
+from ..config import (
+    ARCHIVE_SRC_DIR,
+    DRAFTS_DIR,
+    INBOX_DIR,
+    INPUT_DIR,
+    MIRROR_INPUT_DIR,
+    PROFILE,
+)
 from ..core.ai_draft import is_ai_draft_pending
 from ..core.promises import classify as classify_promise
 from ..core.score import compute_scores, system_score_from
@@ -276,11 +284,19 @@ def ingest_all(
     return ok
 
 
+def resolve_input_dir(argv: list[str]) -> str:
+    """按 argv 决定复盘扫描根：``--mirror`` → 镜像目录，否则 local（默认）。"""
+    return MIRROR_INPUT_DIR if "--mirror" in argv else INPUT_DIR
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     overwrite = "--overwrite" in argv or "--force" in argv
     prune_tracks = "--prune-tracks" in argv
     allow_ai_draft = "--allow-ai-draft" in argv
+    input_dir = resolve_input_dir(argv)
+    if "--mirror" in argv and not os.path.isdir(input_dir):
+        print(f"  [提示] 镜像目录不存在: {input_dir}（先跑 `mirror --apply`）")
     args = [a for a in argv if not a.startswith("--")]
 
     conn = init_db()
@@ -306,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         ok = ingest_all(
             conn,
-            INPUT_DIR,
+            input_dir,
             overwrite=overwrite,
             prune_tracks=prune_tracks,
             allow_ai_draft=allow_ai_draft,
