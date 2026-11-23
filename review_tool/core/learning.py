@@ -251,11 +251,90 @@ def parse_section(
     return items
 
 
+def hours_fallback(learn_h_by_day: list) -> dict:
+    """日汇总 ``learn_h`` → ``{total, days, daily_avg}``（纯规则，零 I/O）。
+
+    ``learn_h_by_day`` 可为数值 / ``None``，或 ``{"learn_h": ...}`` 行。
+    忽略 ``None``；无有值日 → ``total`` / ``daily_avg`` 为 ``None``，``days=0``。
+    """
+    vals: list[float] = []
+    for item in learn_h_by_day or []:
+        if isinstance(item, dict):
+            raw = item.get("learn_h")
+        else:
+            raw = item
+        if raw is None:
+            continue
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            continue
+        vals.append(v)
+    if not vals:
+        return {"total": None, "days": 0, "daily_avg": None}
+    total = round(sum(vals), 2)
+    days = len(vals)
+    return {
+        "total": total,
+        "days": days,
+        "daily_avg": round(total / days, 2),
+    }
+
+
+def classify_hours_source(
+    *,
+    logs_minutes: float | None,
+    log_dates_with_minutes: set[str] | list[str] | None,
+    learn_h_rows: list[dict] | None,
+) -> dict:
+    """合并 learning_logs 分钟与日汇总 ``learn_h``；同日不双计（logs 优先）。
+
+    返回字段：
+    - ``logs_minutes``
+    - ``learn_h_total`` / ``learn_h_days`` / ``learn_h_daily_avg``（窗内全部有值日）
+    - ``learn_h_used_total`` / ``learn_h_used_days``（仅 logs 无分钟的空日）
+    - ``hours_source`` ∈ ``logs`` / ``learn_h`` / ``mixed`` / ``none``
+    """
+    log_dates = {d for d in (log_dates_with_minutes or []) if d}
+    rows = list(learn_h_rows or [])
+    raw = hours_fallback(rows)
+    used_vals: list[float] = []
+    for r in rows:
+        d = r.get("date") if isinstance(r, dict) else None
+        raw_h = r.get("learn_h") if isinstance(r, dict) else None
+        if raw_h is None or not d or d in log_dates:
+            continue
+        try:
+            used_vals.append(float(raw_h))
+        except (TypeError, ValueError):
+            continue
+    used_days = len(used_vals)
+    used_total = round(sum(used_vals), 2) if used_vals else None
+    has_logs = logs_minutes is not None
+    if has_logs and used_days == 0:
+        source = "logs"
+    elif (not has_logs) and used_days > 0:
+        source = "learn_h"
+    elif has_logs and used_days > 0:
+        source = "mixed"
+    else:
+        source = "none"
+    return {
+        "logs_minutes": logs_minutes,
+        "learn_h_total": raw["total"],
+        "learn_h_days": raw["days"],
+        "learn_h_daily_avg": raw["daily_avg"],
+        "learn_h_used_total": used_total,
+        "learn_h_used_days": used_days,
+        "hours_source": source,
+    }
+
+
 def week_rollup(logs: list[dict]) -> dict:
     """本周学习汇总：主题 / 投入分钟 / 产出物。
 
     返回 ``{"topics": [...], "total_minutes": float|None, "artifacts": [...],
-    "days": n, "entries": n}``。
+    "days": n, "entries": n}``。只吃 ``learning_logs``，不含 ``learn_h`` 兜底。
     """
     by_topic: dict[str, dict] = {}
     artifacts: list[str] = []

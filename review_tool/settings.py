@@ -53,6 +53,11 @@ DEFAULT_DEEPSEEK_MODEL = "deepseek-chat"
 DEFAULT_DEEPSEEK_TIMEOUT_S = 60.0
 ALLOWED_LLM_MODES = frozenset({"workbuddy", "deepseek"})
 
+# 微信读书 Agent Gateway（F2 书单旁证只读）
+DEFAULT_WEREAD_BASE_URL = "https://i.weread.qq.com/api/agent/gateway"
+DEFAULT_WEREAD_SKILL_VERSION = "1.0.6"
+DEFAULT_WEREAD_TIMEOUT_S = 30.0
+
 # 环境变量名 ↔ 字段（错误消息与手工映射用）
 _ENV_TO_FIELD: dict[str, str] = {
     "KEEPSTRONG_API_KEY": "keepstrong_api_key",
@@ -93,6 +98,12 @@ _ENV_TO_FIELD: dict[str, str] = {
     "INTEGRATION_CLICKUP_ENABLED": "integration_clickup_enabled",
     "INTEGRATION_KEEPSTRONG_ENABLED": "integration_keepstrong_enabled",
     "INTEGRATION_DEEPSEEK_ENABLED": "integration_deepseek_enabled",
+    "INTEGRATION_WEREAD_ENABLED": "integration_weread_enabled",
+    # —— 微信读书（F2 书单旁证）——
+    "WEREAD_API_KEY": "weread_api_key",
+    "WEREAD_BASE_URL": "weread_base_url",
+    "WEREAD_SKILL_VERSION": "weread_skill_version",
+    "WEREAD_TIMEOUT_S": "weread_timeout_s",
     # —— W14 Web 看板最小鉴权（凭据，只放 local/.env）——
     "DAILYLUMEN_WEB_KEY": "web_key",
 }
@@ -132,6 +143,7 @@ class Settings(BaseSettings):
     keepstrong_api_key: str = ""
     clickup_api_key: str = ""
     clickup_team_id: str = ""
+    weread_api_key: str = ""
 
     # —— 环境差异（有默认，.env / 环境变量可覆盖）——
     db_path: str = _DEFAULT_DB_PATH
@@ -144,6 +156,9 @@ class Settings(BaseSettings):
     keepstrong_cache_dir: str = DEFAULT_KEEPSTRONG_CACHE_DIR
     clickup_base_url: str = DEFAULT_CLICKUP_BASE_URL
     clickup_timeout_s: float = DEFAULT_CLICKUP_TIMEOUT_S
+    weread_base_url: str = DEFAULT_WEREAD_BASE_URL
+    weread_skill_version: str = DEFAULT_WEREAD_SKILL_VERSION
+    weread_timeout_s: float = DEFAULT_WEREAD_TIMEOUT_S
 
     # —— 个人参数（M47；无 env 时为空/None，行为可预期）——
     profile_name: str = ""
@@ -181,6 +196,7 @@ class Settings(BaseSettings):
     integration_clickup_enabled: bool = True
     integration_keepstrong_enabled: bool = True
     integration_deepseek_enabled: bool = True
+    integration_weread_enabled: bool = True
 
     # —— W14 Web 看板最小鉴权：serve 必需；凭据，永不进日志 / 响应 / 前端 bundle ——
     web_key: str = Field(
@@ -196,6 +212,8 @@ class Settings(BaseSettings):
         "clickup_base_url",
         "deepseek_base_url",
         "deepseek_model",
+        "weread_base_url",
+        "weread_skill_version",
         mode="before",
     )
     @classmethod
@@ -211,6 +229,8 @@ class Settings(BaseSettings):
                 "clickup_base_url": DEFAULT_CLICKUP_BASE_URL,
                 "deepseek_base_url": DEFAULT_DEEPSEEK_BASE_URL,
                 "deepseek_model": DEFAULT_DEEPSEEK_MODEL,
+                "weread_base_url": DEFAULT_WEREAD_BASE_URL,
+                "weread_skill_version": DEFAULT_WEREAD_SKILL_VERSION,
             }
             return defaults.get(str(info.field_name), v)
         return v
@@ -356,6 +376,7 @@ def _settings_from_env_map(merged: Mapping[str, str]) -> Settings:
             "keepstrong_timeout_s",
             "clickup_timeout_s",
             "deepseek_timeout_s",
+            "weread_timeout_s",
             "db_path",
             "keepstrong_cache_dir",
             "local_mirror_dir",

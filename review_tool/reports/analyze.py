@@ -415,7 +415,12 @@ def _habit_adherence_lines(adh: dict | None) -> list[str]:
 
 
 def learning_week(conn, where: str, params: tuple) -> dict:
-    """周期内学习记录汇总（独立指标区，不计入四维）。"""
+    """周期内学习记录汇总（独立指标区，不计入四维）。
+
+    F2：附带 ``learn_h`` 投入兜底字段；本函数不拉书单旁证（不触网）。
+    """
+    from .tutor import enrich_week_hours_from_logs
+
     dates = [
         r[0] for r in conn.execute(
             f"SELECT date FROM daily_reviews WHERE {where} ORDER BY date",
@@ -423,14 +428,25 @@ def learning_week(conn, where: str, params: tuple) -> dict:
         )
     ]
     if not dates:
-        return week_rollup([])
+        week = week_rollup([])
+        return enrich_week_hours_from_logs(week, [], [])
     logs = [
         dict(r) for r in load_learning_logs(
             conn, start=dates[0], end=dates[-1]
         )
         if r["date"] in set(dates)
     ]
-    return week_rollup(logs)
+    week = week_rollup(logs)
+    learn_h_rows = [
+        {"date": r[0], "learn_h": r[1]}
+        for r in conn.execute(
+            "SELECT date, learn_h FROM daily_reviews "
+            "WHERE date BETWEEN ? AND ? ORDER BY date",
+            (dates[0], dates[-1]),
+        ).fetchall()
+        if r[0] in set(dates)
+    ]
+    return enrich_week_hours_from_logs(week, logs, learn_h_rows)
 
 
 def _learning_week_lines(week: dict | None) -> list[str]:
@@ -1156,15 +1172,32 @@ def render_week_md(conn, iso_week: int) -> str | None:
     lw = s.get("learning_week") or {}
     L += ["", "## 七、学习记录（不计入四维评分）", ""]
     topics = lw.get("topics") or []
+    source = lw.get("hours_source") or "none"
+    logs_m = lw.get("logs_minutes")
+    used_h = lw.get("learn_h_used_total")
+    used_days = lw.get("learn_h_used_days") or 0
     if not topics:
         L.append("> 本周无 `learning_logs` 记录。")
-    else:
-        total = lw.get("total_minutes")
-        total_s = f"{total:.0f} min" if total is not None else "—"
+    if source == "logs":
+        total_s = f"{logs_m:.0f} min" if logs_m is not None else "—"
         L.append(
-            f"> 本周投入 **{total_s}** · {lw.get('entries', 0)} 条 · "
-            f"{len(lw.get('days') or [])} 天。"
+            f"> 本周投入 **{total_s}**（learning_logs） · "
+            f"{lw.get('entries', 0)} 条 · {len(lw.get('days') or [])} 天。"
         )
+    elif source == "learn_h":
+        hs = f"{used_h:g}h" if used_h is not None else "—"
+        L.append(
+            f"> 本周投入 **{hs}**（来自日汇总 learn_h；附录学习记录为空）"
+            f" · {used_days} 天。"
+        )
+    elif source == "mixed":
+        total_s = f"{logs_m:.0f} min" if logs_m is not None else "—"
+        hs = f"{used_h:g}h" if used_h is not None else "—"
+        L.append(
+            f"> 本周投入 **{total_s}**（logs）+ **{hs}** 空日兜底（learn_h）；"
+            f"同日不双计。"
+        )
+    if topics:
         L += ["", "| topic_key | 投入 | 次数 | 展示名 |",
               "|-----------|------|------|--------|"]
         for t in topics:

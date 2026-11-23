@@ -21,7 +21,7 @@ def _integrations() -> dict[str, Any]:
 
 
 def is_enabled(name: str) -> bool:
-    """``name`` ∈ ``clickup`` / ``keepstrong`` / ``deepseek``；缺省视为开。"""
+    """``name`` ∈ ``clickup`` / ``keepstrong`` / ``deepseek`` / ``weread``；缺省视为开。"""
     return bool(_integrations().get(name, True))
 
 
@@ -31,6 +31,7 @@ def disabled_hint(name: str) -> str:
         "clickup": "INTEGRATION_CLICKUP_ENABLED",
         "keepstrong": "INTEGRATION_KEEPSTRONG_ENABLED",
         "deepseek": "INTEGRATION_DEEPSEEK_ENABLED",
+        "weread": "INTEGRATION_WEREAD_ENABLED",
     }.get(name, f"INTEGRATION_{name.upper()}_ENABLED")
     return (
         f"集成「{name}」已关闭（config.INTEGRATIONS['{name}'] = False / "

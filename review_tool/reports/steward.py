@@ -273,7 +273,9 @@ def collect_week(
     coach_data = coach.collect(conn, as_of=week_end)
     nutri = nutrition.collect(conn, as_of=week_end)
     habits_data = habits.collect(conn, as_of=week_end)
-    tutor_data = tutor.collect(conn, as_of=week_end, rebuild=False)
+    tutor_data = tutor.collect(
+        conn, as_of=week_end, rebuild=False, include_booklist=False,
+    )
 
     return {
         "slot": "week",

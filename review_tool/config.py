@@ -189,6 +189,7 @@ INTEGRATIONS = {
     "clickup": bool(SETTINGS.integration_clickup_enabled),
     "keepstrong": bool(SETTINGS.integration_keepstrong_enabled),
     "deepseek": bool(SETTINGS.integration_deepseek_enabled),
+    "weread": bool(SETTINGS.integration_weread_enabled),
 }
 
 # ---------------------------------------------------------------------------
@@ -597,6 +598,15 @@ SPACED_REPEAT = {
 # v1.24.0：「成长课 · 14周计划」与「阅读与学习」两个 list 已整体并入「日常事务」
 # （原 <CLICKUP_LIST_ID> / <CLICKUP_LIST_ID> 已删除），课程与读书完成记录随日常事务日采。
 LEARNING_LIST_IDS = (LIST_DAILY,)
+
+# F2 / FR-F5：tutor 书单旁证 + learn_h 兜底相关旋钮（业务规则，不进 Settings）
+LEARNING_WEEK_RULES = {
+    "booklist_enabled": True,           # CLI tutor 默认拉双源旁证
+    "booklist_max": 10,                 # 每源标题上限
+    "booklist_recent_closed_days": 14,  # ClickUp 近完成窗
+    "weread_enabled": True,
+    "clickup_enabled": True,
+}
 
 
 # ---------------------------------------------------------------------------

@@ -8,8 +8,10 @@ import unittest
 
 from review_tool.core.learning import (
     build_queue,
+    classify_hours_source,
     due_from_last,
     due_status,
+    hours_fallback,
     parse_section,
     queue_entry_from_dates,
     resolve_topic,
@@ -18,12 +20,19 @@ from review_tool.core.learning import (
 )
 from review_tool.pipeline.ingest import ingest_path
 from review_tool.pipeline.parse import parse_text
-from review_tool.reports.tutor import collect, render
+from review_tool.reports.analyze import learning_week
+from review_tool.reports.tutor import (
+    booklist_evidence,
+    collect,
+    render,
+    week_section_lines,
+)
 from review_tool.storage.db import (
     init_db,
     load_learning_logs,
     load_review_queue,
     rebuild_review_queue,
+    upsert,
     upsert_learning_log,
 )
 
@@ -250,6 +259,139 @@ class TestTutorReport(unittest.TestCase):
         self.assertEqual(w["total_minutes"], 60.0)
         self.assertEqual(w["entries"], 2)
         self.assertEqual(w["topics"][0]["minutes"], 60.0)
+
+    def test_collect_learn_h_fallback_without_logs(self):
+        """logs 空 + 有 learn_h → hours_source=learn_h，文案标明来源。"""
+        # ISO 周 2026-W43：10-19(一) ~ 10-25(日)
+        for d, h in (("2026-10-20", 0.75), ("2026-10-21", 1.0)):
+            upsert(self.conn, {"date": d, "learn_h": h}, overwrite=True)
+        self.conn.commit()
+        data = collect(
+            self.conn, as_of="2026-10-22", rebuild=False, include_booklist=False,
+        )
+        week = data["week"]
+        self.assertEqual(week["hours_source"], "learn_h")
+        self.assertEqual(week["learn_h_used_days"], 2)
+        self.assertAlmostEqual(week["learn_h_used_total"], 1.75)
+        text = "\n".join(week_section_lines(week))
+        self.assertIn("learn_h", text)
+        self.assertIn("本周无 learning_logs", text)
+
+    def test_collect_mixed_no_double_count(self):
+        """同日 logs + learn_h 不双计；另一空日 learn_h 计入 → mixed。"""
+        upsert(self.conn, {"date": "2026-10-20", "learn_h": 1.0}, overwrite=True)
+        upsert(self.conn, {"date": "2026-10-21", "learn_h": 0.5}, overwrite=True)
+        upsert_learning_log(self.conn, {
+            "date": "2026-10-20", "topic_key": "python", "topic": "Python",
+            "minutes": 45, "src": "self", "artifact": None,
+        })
+        self.conn.commit()
+        data = collect(
+            self.conn, as_of="2026-10-22", rebuild=False, include_booklist=False,
+        )
+        week = data["week"]
+        self.assertEqual(week["hours_source"], "mixed")
+        self.assertEqual(week["logs_minutes"], 45.0)
+        # 10-20 被 logs 吞掉，只剩 10-21 的 0.5h
+        self.assertAlmostEqual(week["learn_h_used_total"], 0.5)
+        self.assertEqual(week["learn_h_used_days"], 1)
+
+
+class TestHoursFallback(unittest.TestCase):
+    def test_empty(self):
+        self.assertEqual(
+            hours_fallback([]),
+            {"total": None, "days": 0, "daily_avg": None},
+        )
+        self.assertEqual(
+            hours_fallback([None, {"learn_h": None}]),
+            {"total": None, "days": 0, "daily_avg": None},
+        )
+
+    def test_values(self):
+        r = hours_fallback([0.5, None, 1.5])
+        self.assertEqual(r["days"], 2)
+        self.assertAlmostEqual(r["total"], 2.0)
+        self.assertAlmostEqual(r["daily_avg"], 1.0)
+
+    def test_same_day_logs_win(self):
+        r = classify_hours_source(
+            logs_minutes=45.0,
+            log_dates_with_minutes={"2026-10-20"},
+            learn_h_rows=[
+                {"date": "2026-10-20", "learn_h": 0.75},
+                {"date": "2026-10-21", "learn_h": 1.0},
+            ],
+        )
+        self.assertEqual(r["hours_source"], "mixed")
+        self.assertAlmostEqual(r["learn_h_used_total"], 1.0)
+        self.assertEqual(r["learn_h_used_days"], 1)
+
+
+class TestBooklistSoftFail(unittest.TestCase):
+    def test_no_creds_still_ok(self):
+        from unittest.mock import patch
+
+        from review_tool.integrations import weread as wr
+        from review_tool.integrations.clickup import CredError as CuCred
+
+        def _raise_wr(*, env=None, settings=None, opener=None):
+            raise wr.CredError("no key")
+
+        with patch(
+            "review_tool.integrations.weread.client_from_settings",
+            side_effect=_raise_wr,
+        ), patch(
+            "review_tool.integrations.clickup.load_creds",
+            side_effect=CuCred("no key"),
+        ):
+            bl = booklist_evidence(
+                as_of="2026-10-22", include=True, env={},
+            )
+        self.assertEqual(bl["weread"]["error_kind"], "CredError")
+        self.assertEqual(bl["clickup"]["error_kind"], "CredError")
+        self.assertFalse(bl["weread"]["checked"])
+
+    def test_weread_mock_titles(self):
+        class _Fake:
+            def readdata_detail(self, **_kw):
+                return {
+                    "readLongest": [
+                        {"book": {"title": "三体"}, "readTime": 3600},
+                    ],
+                }
+
+            def shelf_sync(self):
+                return {"books": []}
+
+        bl = booklist_evidence(
+            as_of="2026-10-22",
+            include=True,
+            weread_client=_Fake(),
+            env={},
+        )
+        self.assertTrue(bl["weread"]["checked"])
+        self.assertEqual(bl["weread"]["titles"], ["三体"])
+
+
+class TestAnalyzeLearningWeek(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.db = os.path.join(self.root, "t.db")
+        self.conn = init_db(db_path=self.db)
+
+    def tearDown(self):
+        self.conn.close()
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_enrich_hours(self):
+        upsert(self.conn, {"date": "2026-10-20", "learn_h": 1.25}, overwrite=True)
+        self.conn.commit()
+        week = learning_week(
+            self.conn, "date BETWEEN ? AND ?", ("2026-10-19", "2026-10-25"),
+        )
+        self.assertEqual(week["hours_source"], "learn_h")
+        self.assertAlmostEqual(week["learn_h_used_total"], 1.25)
 
 
 if __name__ == "__main__":
