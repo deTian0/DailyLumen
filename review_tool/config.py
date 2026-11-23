@@ -366,11 +366,22 @@ FOOD_LIB = [
 ]
 
 # 营养报告规则（阈值是配置，不进表 —— G4）
+# F1 / FR-E4：三餐结构分是**独立指标**，不进四维（G5）
 NUTRITION_RULES = {
     "extreme_kcal": 1000,       # 连续低于此热量 → 强提示
     "extreme_streak_days": 3,   # 连续天数门槛
     "max_suggest_foods": 3,     # 贪心组合上限
     "expected_meals": 3,        # 三餐结构预期餐次
+    "snack_soft_max": 2,        # 加餐次数软上限（条数，含夜宵已归一 snack）
+    "evening_kcal_share_soft": 0.40,  # 晚间热量占明细总 kcal 的软上限
+    # 默认晚餐-only；True 才把 snack 并进晚间占比（见 meal_structure notes）
+    "evening_includes_snack": False,
+    # 早餐按时 / 加餐 / 晚间占比 —— 有值子项按权重重归一
+    "structure_weights": {
+        "breakfast": 0.35,
+        "snack": 0.30,
+        "evening": 0.35,
+    },
 }
 
 # 体征目标带（配置不是数据，不进表 —— G4）。未配置时报告显示「未配置」。

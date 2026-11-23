@@ -258,6 +258,15 @@ class TestFoodLibCatalog(unittest.TestCase):
         self.assertGreaterEqual(NUTRITION_RULES["extreme_streak_days"], 2)
         self.assertGreaterEqual(NUTRITION_RULES["max_suggest_foods"], 1)
         self.assertLessEqual(NUTRITION_RULES["max_suggest_foods"], 5)
+        self.assertGreaterEqual(NUTRITION_RULES["snack_soft_max"], 0)
+        self.assertGreater(NUTRITION_RULES["evening_kcal_share_soft"], 0)
+        self.assertLessEqual(NUTRITION_RULES["evening_kcal_share_soft"], 1)
+        self.assertIn("evening_includes_snack", NUTRITION_RULES)
+        w = NUTRITION_RULES["structure_weights"]
+        self.assertAlmostEqual(sum(w.values()), 1.0, places=6)
+        for k in ("breakfast", "snack", "evening"):
+            self.assertIn(k, w)
+            self.assertGreater(w[k], 0)
 
 
 class TestTrainingMovesCatalog(unittest.TestCase):

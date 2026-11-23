@@ -61,7 +61,9 @@ def collect(conn, *, as_of: str | None = None, recent_days: int = 7) -> dict:
     }
     window_gap = gap_analysis(avg_day, targets)
 
-    structure = meal_structure(day or {})
+    # 当日食物明细（v9 / M25）：结构分可读；宏量缺口仍只看数据块（G5）
+    items = [dict(r) for r in load_nutrition_items(conn, date=as_of)]
+    structure = meal_structure(day or {}, items=items or None)
     # 组合建议：优先用当日缺口；当日无宏量记录则退到近窗均值缺口
     source = "day"
     deficits = day_gap["deficits"]
@@ -77,9 +79,6 @@ def collect(conn, *, as_of: str | None = None, recent_days: int = 7) -> dict:
         max_foods=int(NUTRITION_RULES.get("max_suggest_foods", 3)),
     )
     ext = extreme_kcal_streak(recent)
-
-    # 当日食物明细（v9 / M25）：只做回看下钻，不参与任何评分或缺口判定
-    items = [dict(r) for r in load_nutrition_items(conn, date=as_of)]
 
     return {
         "as_of": as_of,
@@ -172,16 +171,30 @@ def render(data: dict) -> str:
     L.append("")
 
     ms = data["meal_structure"]
-    L.append("---- 三餐结构 ----")
+    L.append("---- 三餐结构（独立指标，不计入四维）----")
     L.append(
         f"  餐次: {ms['meals_count'] if ms['meals_count'] is not None else '—'}"
         f" / 预期 {ms['expected_meals']}"
         f"｜早餐按时: "
         f"{'是' if ms['breakfast_on_time'] == 1 else ('否' if ms['breakfast_on_time'] == 0 else '—')}"
     )
-    if ms["notes"]:
-        for n in ms["notes"]:
-            L.append(f"  · {n}")
+    sc = ms.get("snack_count")
+    es = ms.get("evening_share")
+    score = ms.get("structure_score")
+    band = ms.get("structure_band")
+    evening_txt = f"{es:.0%}" if es is not None else "—"
+    L.append(
+        f"  加餐次数: {sc if sc is not None else '—'}｜晚间热量占比: {evening_txt}"
+    )
+    if score is not None:
+        band_txt = f"（{band}）" if band else ""
+        L.append(f"  结构分: {score:g}/100{band_txt}")
+    else:
+        L.append("  结构分: —（子项不足，无法计分）")
+    for n in ms.get("notes") or []:
+        L.append(f"  · {n}")
+    for n in ms.get("structure_notes") or []:
+        L.append(f"  · {n}")
     L.append(f"  建议补入: {ms['suggest_slot']}")
     L.append("")
 

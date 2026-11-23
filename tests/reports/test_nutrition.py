@@ -80,6 +80,12 @@ class TestGapAndMeal(unittest.TestCase):
         ms = meal_structure(DAY)
         self.assertEqual(ms["suggest_slot"], "早餐")
         self.assertTrue(any("早餐" in n for n in ms["notes"]))
+        # 无明细：加餐 / 晚间键为 None；仅有早餐字段仍可出结构分（权重重归一）
+        self.assertIsNone(ms["snack_count"])
+        self.assertIsNone(ms["evening_share"])
+        self.assertEqual(ms["structure_score"], 0.0)  # breakfast_on_time=0
+        self.assertEqual(ms["structure_band"], "弱")
+        self.assertIsNone(ms["subscores"]["snack"])
 
     def test_meal_structure_ok(self):
         ms = meal_structure({
@@ -87,6 +93,66 @@ class TestGapAndMeal(unittest.TestCase):
         })
         self.assertEqual(ms["suggest_slot"], "晚餐")
         self.assertEqual(ms["notes"], [])
+        self.assertEqual(ms["structure_score"], 100.0)
+        self.assertEqual(ms["structure_band"], "优")
+        self.assertIsNone(ms["snack_count"])
+
+    def test_meal_structure_with_items_recomputable(self):
+        """有明细时 snack/evening/structure 可手工复算。"""
+        items = [
+            {"meal": "breakfast", "kcal": 300},
+            {"meal": "lunch", "kcal": 500},
+            {"meal": "dinner", "kcal": 400},
+            {"meal": "snack", "kcal": 100},
+            {"meal": "snack", "kcal": 50},
+        ]
+        # day_kcal=1350；dinner-only evening=400 → share=400/1350≈0.2963 ≤0.40
+        # snack_count=2 ≤ soft_max 2 → snack 子分 100；早餐按时 → 100
+        ms = meal_structure(
+            {"meals_count": 4, "breakfast_on_time": 1},
+            items=items,
+        )
+        self.assertEqual(ms["snack_count"], 2)
+        self.assertEqual(ms["day_kcal_from_items"], 1350.0)
+        self.assertEqual(ms["evening_kcal"], 400.0)
+        self.assertAlmostEqual(ms["evening_share"], 400 / 1350, places=4)
+        self.assertEqual(ms["structure_score"], 100.0)
+        self.assertEqual(ms["structure_band"], "优")
+
+    def test_meal_structure_evening_over_and_snack_over(self):
+        items = [
+            {"meal": "breakfast", "kcal": 200},
+            {"meal": "lunch", "kcal": 200},
+            {"meal": "dinner", "kcal": 600},  # 600/1200=0.5 > 0.40
+            {"meal": "snack", "kcal": 100},
+            {"meal": "snack", "kcal": 50},
+            {"meal": "snack", "kcal": 50},  # 3 > soft_max 2 → snack 子分 50
+        ]
+        ms = meal_structure(
+            {"meals_count": 5, "breakfast_on_time": 1},
+            items=items,
+        )
+        self.assertEqual(ms["snack_count"], 3)
+        self.assertEqual(ms["subscores"]["snack"], 50.0)
+        # evening: soft=0.4, share=0.5 → 100*(1-0.5)/(1-0.4)=83.333…→83.33
+        self.assertAlmostEqual(ms["evening_share"], 0.5, places=4)
+        self.assertAlmostEqual(ms["subscores"]["evening"], 83.33, places=2)
+        # 权重 0.35/0.30/0.35 → (100*0.35 + 50*0.30 + 83.33*0.35)/1
+        expected = round((100 * 0.35 + 50 * 0.30 + 83.33 * 0.35) / 1.0, 2)
+        self.assertAlmostEqual(ms["structure_score"], expected, places=2)
+        self.assertTrue(any("加餐" in n for n in ms["structure_notes"]))
+        self.assertTrue(any("晚间" in n for n in ms["structure_notes"]))
+
+    def test_meal_structure_weight_renorm_breakfast_only(self):
+        ms = meal_structure({"breakfast_on_time": 1}, items=None)
+        self.assertEqual(ms["structure_score"], 100.0)
+        self.assertIsNone(ms["snack_count"])
+        self.assertIsNone(ms["evening_share"])
+
+    def test_meal_structure_all_missing_score_none(self):
+        ms = meal_structure({}, items=None)
+        self.assertIsNone(ms["structure_score"])
+        self.assertIsNone(ms["structure_band"])
 
 
 class TestExtremeKcal(unittest.TestCase):
@@ -274,6 +340,11 @@ class TestNutritionItemsDrilldown(unittest.TestCase):
         data = collect(self.conn, as_of="2026-10-21")
         self.assertEqual(len(data["items"]), 3)
         self.assertEqual(data["items_total_kcal"], 1500.0)
+        ms = data["meal_structure"]
+        self.assertEqual(ms["snack_count"], 0)
+        self.assertEqual(ms["evening_kcal"], 420.0)
+        self.assertAlmostEqual(ms["evening_share"], 420 / 1500, places=4)
+        self.assertEqual(ms["structure_score"], 100.0)
 
     def test_render_lists_items_by_meal(self):
         text = render_nutrition(collect(self.conn, as_of="2026-10-21"))
@@ -283,6 +354,9 @@ class TestNutritionItemsDrilldown(unittest.TestCase):
         self.assertIn("明细合计: 1500 kcal", text)
         # 与数据块对照（本例恰好相等）
         self.assertIn("数据块 1500 kcal", text)
+        self.assertIn("结构分:", text)
+        self.assertIn("加餐次数:", text)
+        self.assertIn("晚间热量占比:", text)
 
     def test_render_marks_missing(self):
         text = render_nutrition(collect(self.conn, as_of="2026-10-13"))
