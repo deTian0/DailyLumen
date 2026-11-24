@@ -466,3 +466,11 @@ python -m review_tool ai-context 2026-09-15
 
 ---
 
+## 贡献与安全
+
+- 贡献约定：[`CONTRIBUTING.md`](CONTRIBUTING.md)（**勿提交 `local/`**；口径见 `dailylumen-conventions`）
+- 漏洞披露：[`SECURITY.md`](SECURITY.md)（GitHub private advisory；不公布个人邮箱）
+- **LICENSE 暂缓**：尚未选定 SPDX；转 public 前由维护者补齐
+
+---
+

@@ -5,16 +5,26 @@
 
 上游：<https://github.com/eternity4719/HowToLiveBetter>（`skills/life-decision-guide/`）
 
+## 许可与归属
+
+上游对 `skills/`（以及 `tools/`、`index.html`、`.github/`）使用 **MIT**（`LICENSE-CODE`）；
+书正文 `book/` / `docs/` 另为 **CC BY 4.0**，**本目录不收录书正文**。
+
+本目录 vendoring 的 `SKILL.md` 属上游 `skills/`，因此随副本附上完整
+[`LICENSE-CODE`](LICENSE-CODE)（Copyright (c) 2026 eternity4719）。本仓库侧
+`README.md` 与三处「本机补丁」不改变上游版权归属；DailyLumen 仓级 SPDX 另议（当前暂缓）。
+
 ## 为什么放在这个仓库
 
 复盘回答的是「今天做了什么」，这个 skill 回答的是「这件事到底该不该做」——两者共用同一套
 成本 / 收益 / 证据等级的账。把规则随代码入库，换机 clone 下来就能用，不依赖某台机器的用户目录。
 
-目录内共两个文件：
+目录内文件：
 
 | 文件 | 作用 | 能不能改 |
 | --- | --- | --- |
 | `SKILL.md` | 唯一真源，决策规则全在这里 | 只改「本机补丁」那三处，其余保持与上游一致 |
+| `LICENSE-CODE` | 上游 MIT 全文（再分发必留） | ⛔ 勿改；升级 skill 时与上游对照 |
 | `README.md` | 本文件，仓库侧运维说明 | 随便改 |
 
 ## 怎么加载
