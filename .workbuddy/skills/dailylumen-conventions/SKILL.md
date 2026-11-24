@@ -409,7 +409,7 @@ agent_created: true
 | 评分公式 / 字段含义 / 每次变更的来龙去脉 | `docs/设计说明.md` |
 | 日常怎么用 / CLI 全集 / 数据块格式 | `README.md` |
 | 换机怎么落地 | `docs/迁移指南.md` |
-| **下一步开发做什么** | **日用闭环 D1–D7 ✅**（v1.93–v1.99）。下阶段另开；勿在已关闭路线图追加。Web W0–W18 + B2–B19 ✅（B12 跳过）。隐私归一 M45–M50 ✅。**若开源**：先做 `docs/开源前隐私擦除计划.md`（O1–O6）。未跟踪内容在 **`local/`**；运行时依赖 pydantic*；**不打 tag**。 |
+| **下一步开发做什么** | **无现行工程阶段清单**。日用闭环 D1–D7 ✅ → 日用深化 E0–E4 ✅ → 数据增值 F0–F4 ✅（至 v1.107；F4：CONTRIBUTING/SECURITY，LICENSE 暂缓）。Web W0–W18 + B2–B19 ✅（B12 跳过）。勿在已关闭路线图追加里程碑。**若开源**：`docs/开源前隐私擦除计划.md`（O1–O6 ✅）；转 public 前选定 LICENSE 并手动改可见性。未跟踪内容在 **`local/`**；运行时依赖 pydantic*；**不打 tag**。 |
 | **把素材变成当日复盘（发截图 / 发文档 / 总结对话）** | skill **`daily-review-intake`** |
 | **晨间 brief / 夜间复盘编排 / 周度六段** | skill **`life-steward-daily`** + CLI `steward` |
 | 批量改历史文档 | skill `doc-corpus-normalize` |
